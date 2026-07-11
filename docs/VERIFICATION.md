@@ -14,6 +14,10 @@ Verified on 2026-07-12 in the provided Linux build environment.
 - `npm ls --all`: dependency tree resolved; only optional native accelerators were absent
 - `cargo check --locked`: Tauri Rust code and locked dependency graph passed
 
+## Source ZIP reproducibility
+
+The repository was exported with `git archive` under an `iroha-pdf-v0.1.0/` top-level directory. The ZIP was extracted into a separate clean directory with no existing `node_modules`; `npm ci`, type checking, all 6 tests, desktop production build, Expo Doctor 20/20, and the Android production bundle all passed from that extracted copy.
+
 ## Build observations
 
 - Desktop includes PDFium WASM around 4.6 MB before gzip and large JavaScript worker chunks. Lazy loading and code splitting are tracked in performance issues.
