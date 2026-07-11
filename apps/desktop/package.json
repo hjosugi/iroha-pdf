@@ -1,0 +1,50 @@
+{
+  "name": "@iroha-pdf/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@embedpdf/core": "^2.14.4",
+    "@embedpdf/engines": "^2.14.4",
+    "@embedpdf/models": "^2.14.4",
+    "@embedpdf/pdfium": "^2.14.4",
+    "@embedpdf/plugin-annotation": "^2.14.4",
+    "@embedpdf/plugin-document-manager": "^2.14.4",
+    "@embedpdf/plugin-export": "^2.14.4",
+    "@embedpdf/plugin-history": "^2.14.4",
+    "@embedpdf/plugin-interaction-manager": "^2.14.4",
+    "@embedpdf/plugin-pan": "^2.14.4",
+    "@embedpdf/plugin-print": "^2.14.4",
+    "@embedpdf/plugin-render": "^2.14.4",
+    "@embedpdf/plugin-rotate": "^2.14.4",
+    "@embedpdf/plugin-scroll": "^2.14.4",
+    "@embedpdf/plugin-selection": "^2.14.4",
+    "@embedpdf/plugin-tiling": "^2.14.4",
+    "@embedpdf/plugin-viewport": "^2.14.4",
+    "@embedpdf/plugin-zoom": "^2.14.4",
+    "@iroha-pdf/core": "*",
+    "@iroha-pdf/google-drive": "*",
+    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/plugin-opener": "2.5.3",
+    "pdf-lib": "1.17.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.2",
+    "@vitejs/plugin-react": "6.0.3",
+    "esbuild": "0.28.1",
+    "typescript": "~6.0.3",
+    "vite": "8.1.4"
+  }
+}
