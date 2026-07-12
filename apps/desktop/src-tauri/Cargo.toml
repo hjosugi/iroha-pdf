@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Local-first PDF workspace"
 authors = ["Iroha PDF contributors"]
 edition = "2021"
+license = "Apache-2.0"
 
 [lib]
 name = "iroha_pdf_lib"

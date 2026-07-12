@@ -22,7 +22,7 @@ cargo install --locked cargo-audit --version 0.22.2
 cargo install --locked cargo-cyclonedx --version 0.5.9
 cargo install --locked cargo-deny --version 0.20.2
 cargo audit --file apps/desktop/src-tauri/Cargo.lock
-cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml --config release/supply-chain/deny.toml check licenses
+cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml check --config release/supply-chain/deny.toml licenses
 cargo cyclonedx --manifest-path apps/desktop/src-tauri/Cargo.toml --format json --spec-version 1.5
 ```
 
