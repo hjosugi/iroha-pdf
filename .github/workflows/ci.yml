@@ -125,7 +125,7 @@ jobs:
       - name: Enforce Cargo license allowlist
         run: >-
           cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml
-          check --config release/supply-chain/deny.toml licenses
+          --config release/supply-chain/deny.toml check licenses
       - name: Generate Cargo CycloneDX SBOM
         run: |
           cargo cyclonedx --manifest-path apps/desktop/src-tauri/Cargo.toml --format json --spec-version 1.5
