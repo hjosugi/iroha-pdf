@@ -45,21 +45,34 @@ export default function PdfToolsScreen() {
     if (result.canceled) return;
 
     const images: ImageInput[] = [];
-    for (const asset of result.assets) {
-      const context = ImageManipulator.ImageManipulator.manipulate(asset.uri);
-      if (asset.width > 2400) context.resize({ width: 2400, height: null });
-      const rendered = await context.renderAsync();
-      const compressed = await rendered.saveAsync({
-        compress: 0.82,
-        format: ImageManipulator.SaveFormat.JPEG,
-      });
-      const file = new File(compressed.uri);
-      images.push({
-        bytes: await file.bytes(),
-        mimeType: 'image/jpeg',
-        width: compressed.width,
-        height: compressed.height,
-      });
+    for (const [index, asset] of result.assets.entries()) {
+      try {
+        const context = ImageManipulator.ImageManipulator.manipulate(asset.uri);
+        if (Math.max(asset.width, asset.height) > 2400) {
+          context.resize(asset.width >= asset.height
+            ? { width: 2400, height: null }
+            : { width: null, height: 2400 });
+        }
+        const rendered = await context.renderAsync();
+        const preserveTransparency = asset.mimeType === 'image/png';
+        const compressed = await rendered.saveAsync({
+          compress: preserveTransparency ? 1 : 0.82,
+          format: preserveTransparency
+            ? ImageManipulator.SaveFormat.PNG
+            : ImageManipulator.SaveFormat.JPEG,
+        });
+        const file = new File(compressed.uri);
+        images.push({
+          bytes: await file.bytes(),
+          mimeType: preserveTransparency ? 'image/png' : 'image/jpeg',
+          width: compressed.width,
+          height: compressed.height,
+        });
+      } catch (error) {
+        const label = asset.fileName ?? asset.uri.split('/').pop() ?? `image ${index + 1}`;
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Could not process image ${index + 1} (${label}): ${reason}`);
+      }
     }
 
     const bytes = await imagesToPdf(images, { pageSize: 'a4', margin: 24 });
@@ -127,7 +140,7 @@ export default function PdfToolsScreen() {
     const before = input.file.size;
     const bytes = await optimizePdfStructure(await input.file.bytes());
     const output = createOutputPdf(`${input.name.replace(/\.pdf$/i, '')}-optimized.pdf`, bytes);
-    Alert.alert('Optimization complete', `${formatBytes(before)} → ${formatBytes(output.size)}\nThis mode preserves text and images. It does not downsample images.`);
+    Alert.alert('Optimization complete', `${formatBytes(before)} → ${formatBytes(output.size)}\nThis structural rewrite may produce the same size or a larger file. It preserves text and images and does not downsample images.`);
     await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
   });
 

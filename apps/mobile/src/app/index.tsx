@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
+  Alert,
   FlatList,
   Pressable,
   SafeAreaView,
@@ -11,40 +12,60 @@ import {
 } from 'react-native';
 
 import type { Note, WorkspaceDocument } from '@iroha-pdf/core';
-import { createNote, listDocuments, listNotes } from '@/lib/database';
+import { createNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
 import { importPdfFromSystem } from '@/lib/files';
 
 export default function LibraryScreen() {
   const router = useRouter();
   const [documents, setDocuments] = useState<WorkspaceDocument[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [recoveryCount, setRecoveryCount] = useState(0);
   const [query, setQuery] = useState('');
 
   const refresh = useCallback(async () => {
-    const [nextDocuments, nextNotes] = await Promise.all([listDocuments(), listNotes()]);
-    setDocuments(nextDocuments);
-    setNotes(nextNotes);
+    try {
+      const [nextDocuments, nextNotes, recoveryCopies] = await Promise.all([
+        listDocuments(),
+        listNotes(),
+        listRecoveryCopies(),
+      ]);
+      setDocuments(nextDocuments);
+      setNotes(nextNotes);
+      setRecoveryCount(recoveryCopies.length);
+    } catch (error) {
+      showStorageError(error);
+    }
   }, []);
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
-  useEffect(() => { void refresh(); }, [refresh]);
 
   const importPdf = async () => {
-    const imported = await importPdfFromSystem();
-    if (!imported) return;
-    await refresh();
-    router.push({ pathname: '/viewer/[id]', params: { id: imported.id } });
+    try {
+      const imported = await importPdfFromSystem();
+      if (!imported) return;
+      await refresh();
+      router.push({ pathname: '/viewer/[id]', params: { id: imported.id } });
+    } catch (error) {
+      showStorageError(error);
+    }
   };
 
   const newNote = async () => {
-    const note = await createNote('Untitled note');
-    await refresh();
-    router.push({ pathname: '/note/[id]', params: { id: note.id } });
+    try {
+      const note = await createNote('Untitled note');
+      await refresh();
+      router.push({ pathname: '/note/[id]', params: { id: note.id } });
+    } catch (error) {
+      showStorageError(error);
+    }
   };
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredDocuments = documents.filter((document) =>
-    document.title.toLocaleLowerCase().includes(normalizedQuery),
+    `${document.title} ${document.source}`.toLocaleLowerCase().includes(normalizedQuery),
+  );
+  const filteredNotes = notes.filter((note) =>
+    `${note.title} ${note.body}`.toLocaleLowerCase().includes(normalizedQuery),
   );
 
   return (
@@ -72,6 +93,18 @@ export default function LibraryScreen() {
         <ActionButton label="New note" onPress={newNote} />
         <ActionButton label="PDF tools" onPress={() => router.push('/tools')} />
       </View>
+
+      {recoveryCount > 0 ? (
+        <Pressable style={styles.recoveryBanner} onPress={() => router.push('/recovery')}>
+          <View style={styles.cardText}>
+            <Text style={styles.recoveryTitle}>Interrupted edits available</Text>
+            <Text style={styles.recoveryBody}>
+              Review {recoveryCount} recovery {recoveryCount === 1 ? 'copy' : 'copies'}.
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+      ) : null}
 
       <FlatList
         data={filteredDocuments}
@@ -103,8 +136,8 @@ export default function LibraryScreen() {
         )}
         ListFooterComponent={
           <View style={styles.notesSection}>
-            <SectionHeader title="Notes" count={notes.length} />
-            {notes.map((note) => (
+            <SectionHeader title="Notes" count={filteredNotes.length} />
+            {filteredNotes.map((note) => (
               <Pressable
                 key={note.id}
                 style={styles.noteCard}
@@ -118,6 +151,13 @@ export default function LibraryScreen() {
         }
       />
     </SafeAreaView>
+  );
+}
+
+function showStorageError(error: unknown): void {
+  Alert.alert(
+    'Local storage unavailable',
+    error instanceof Error ? error.message : String(error),
   );
 }
 
@@ -157,6 +197,9 @@ const styles = StyleSheet.create({
   actionButtonPrimary: { backgroundColor: '#2B5CFF' },
   actionText: { color: '#4E5663', fontSize: 12, fontWeight: '700' },
   actionTextPrimary: { color: '#FFFFFF' },
+  recoveryBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 18, marginBottom: 4, borderRadius: 14, padding: 13, backgroundColor: '#FFF7DA', borderWidth: 1, borderColor: '#E9D888' },
+  recoveryTitle: { color: '#3D3416', fontSize: 13, fontWeight: '800' },
+  recoveryBody: { marginTop: 3, color: '#786C3F', fontSize: 11 },
   list: { paddingHorizontal: 18, paddingBottom: 44 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 9 },
   sectionTitle: { color: '#232832', fontSize: 15, fontWeight: '800' },

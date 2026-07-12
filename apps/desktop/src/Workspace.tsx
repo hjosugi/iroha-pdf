@@ -14,10 +14,11 @@ import {
 import { usePrint } from '@embedpdf/plugin-print/react';
 import { RenderLayer } from '@embedpdf/plugin-render/react';
 import { Rotate } from '@embedpdf/plugin-rotate/react';
-import { Scroller } from '@embedpdf/plugin-scroll/react';
+import { Scroller, useScroll } from '@embedpdf/plugin-scroll/react';
 import { SelectionLayer } from '@embedpdf/plugin-selection/react';
 import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
+import type { Note } from '@iroha-pdf/core';
 
 type WorkspaceProps = {
   activeDocumentId: string | null;
@@ -83,7 +84,12 @@ function PdfToolbar({ documentId }: { documentId: string }) {
     () => historyCapability?.forDocument(documentId),
     [historyCapability, documentId],
   );
+  const { state: scrollState } = useScroll(documentId);
   const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printMode, setPrintMode] = useState<'all' | 'current' | 'custom'>('all');
+  const [pageRange, setPageRange] = useState('');
+  const [includeAnnotations, setIncludeAnnotations] = useState(true);
 
   useEffect(() => {
     if (!annotation) return;
@@ -112,25 +118,70 @@ function PdfToolbar({ documentId }: { documentId: string }) {
       <button className="tool" onClick={() => history?.redo()}>Redo</button>
       <span className="toolbar-spacer" />
       <button className="tool" onClick={() => exportProvider?.download()}>Export</button>
-      <button className="primary-button" onClick={() => printProvider?.print({ includeAnnotations: true })}>
+      <button className="primary-button" onClick={() => setPrintOpen(true)}>
         Print
       </button>
+      {printOpen ? (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={() => setPrintOpen(false)}>
+          <section
+            className="print-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="print-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h2 id="print-dialog-title">Print PDF</h2>
+            <fieldset>
+              <legend>Pages</legend>
+              <label><input type="radio" checked={printMode === 'all'} onChange={() => setPrintMode('all')} /> All pages</label>
+              <label><input type="radio" checked={printMode === 'current'} onChange={() => setPrintMode('current')} /> Current page ({scrollState.currentPage || 1})</label>
+              <label><input type="radio" checked={printMode === 'custom'} onChange={() => setPrintMode('custom')} /> Range</label>
+              <input aria-label="Page range" disabled={printMode !== 'custom'} value={pageRange} onChange={(event) => setPageRange(event.target.value)} placeholder="1,3,5-7" />
+            </fieldset>
+            <label className="print-checkbox">
+              <input type="checkbox" checked={includeAnnotations} onChange={(event) => setIncludeAnnotations(event.target.checked)} />
+              Include annotations
+            </label>
+            <div className="dialog-actions">
+              <button className="tool" onClick={() => setPrintOpen(false)}>Cancel</button>
+              <button
+                className="primary-button"
+                disabled={printMode === 'custom' && !pageRange.trim()}
+                onClick={() => {
+                  const selectedRange = printMode === 'current'
+                    ? String(scrollState.currentPage || 1)
+                    : printMode === 'custom' ? pageRange.trim() : undefined;
+                  printProvider?.print({ includeAnnotations, pageRange: selectedRange });
+                  setPrintOpen(false);
+                }}
+              >
+                Open print preview
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function NotesPanel({ documentId }: { documentId: string }) {
   const storageKey = `iroha-pdf:note:${documentId}`;
-  const [body, setBody] = useState(() => localStorage.getItem(storageKey) ?? '');
+  const [note, setNote] = useState<Note>(() => loadLinkedNote(storageKey, documentId));
 
   useEffect(() => {
-    setBody(localStorage.getItem(storageKey) ?? '');
-  }, [storageKey]);
+    setNote(loadLinkedNote(storageKey, documentId));
+  }, [documentId, storageKey]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => localStorage.setItem(storageKey, body), 250);
-    return () => window.clearTimeout(timer);
-  }, [body, storageKey]);
+    if (note.linkedDocumentId !== documentId) return;
+    const save = () => localStorage.setItem(storageKey, JSON.stringify(note));
+    const timer = window.setTimeout(save, 250);
+    return () => {
+      window.clearTimeout(timer);
+      save();
+    };
+  }, [documentId, note, storageKey]);
 
   return (
     <aside className="notes-panel">
@@ -139,13 +190,56 @@ function NotesPanel({ documentId }: { documentId: string }) {
         <span className="saved-indicator">Autosaved</span>
       </div>
       <textarea
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
+        value={note.body}
+        onChange={(event) => setNote((current) => ({
+          ...current,
+          body: event.target.value,
+          updatedAt: new Date().toISOString(),
+        }))}
         placeholder="Write a memo for this PDF…"
         aria-label="Linked note"
       />
     </aside>
   );
+}
+
+function loadLinkedNote(storageKey: string, documentId: string): Note {
+  const stored = localStorage.getItem(storageKey);
+  const now = new Date().toISOString();
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as Partial<Note>;
+      if (typeof parsed.body === 'string') {
+        return {
+          id: parsed.id ?? `desktop-note:${documentId}`,
+          title: parsed.title ?? 'Linked note',
+          body: parsed.body,
+          linkedDocumentId: documentId,
+          createdAt: parsed.createdAt ?? now,
+          updatedAt: parsed.updatedAt ?? now,
+        };
+      }
+    } catch {
+      // Older versions stored only the body, so keep that local data intact.
+      return {
+        id: `desktop-note:${documentId}`,
+        title: 'Linked note',
+        body: stored,
+        linkedDocumentId: documentId,
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+  }
+
+  return {
+    id: `desktop-note:${documentId}`,
+    title: 'Linked note',
+    body: '',
+    linkedDocumentId: documentId,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 function EmptyWorkspace() {

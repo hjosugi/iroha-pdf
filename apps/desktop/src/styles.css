@@ -53,6 +53,15 @@ button { cursor: pointer; }
 .empty-workspace p { max-width: 480px; margin: 0 0 22px; line-height: 1.6; }
 .empty-mark { width: 58px; height: 58px; font-size: 28px; box-shadow: 0 12px 34px rgba(43,92,255,.25); }
 
+.dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(12,16,24,.48); }
+.print-dialog { width: min(420px, 100%); border: 1px solid #dfe3ea; border-radius: 18px; padding: 20px; color: #20252e; background: #fff; box-shadow: 0 24px 80px rgba(12,16,24,.24); }
+.print-dialog h2 { margin: 0 0 16px; font-size: 20px; }
+.print-dialog fieldset { display: grid; gap: 10px; margin: 0; border: 1px solid #e4e7ec; border-radius: 12px; padding: 14px; }
+.print-dialog label { display: flex; align-items: center; gap: 8px; }
+.print-dialog fieldset > input { border: 1px solid #d8dce4; border-radius: 8px; padding: 9px 10px; }
+.print-checkbox { margin-top: 14px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
 @media (max-width: 860px) {
   .workspace-body { grid-template-columns: 1fr; }
   .notes-panel { display: none; }
