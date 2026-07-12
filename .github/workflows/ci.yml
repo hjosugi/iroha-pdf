@@ -81,8 +81,12 @@ jobs:
           libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - name: Install locked dependencies
         run: npm ci
-      - name: Build Tauri application without packaging
-        run: npm run tauri:build --workspace @iroha-pdf/desktop -- --no-bundle
+      - name: Build desktop web assets
+        run: npm run build --workspace @iroha-pdf/desktop
+      - name: Build Tauri native executable without packaging
+        run: >-
+          cargo build --release --locked
+          --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Retain native executable
         uses: actions/upload-artifact@v4
         with:
