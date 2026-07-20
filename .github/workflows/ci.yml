@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,3 +26,91 @@ jobs:
       - run: npx expo config --type public
         working-directory: apps/mobile
       - run: npm audit --audit-level=high
+
+  e2e:
+    name: e2e (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+
+      # poppler and Ghostscript let the rendering suite confirm annotations are
+      # visible outside pdfium. Where they are absent those tests skip themselves.
+      - name: Install PDF rasterisers (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils ghostscript imagemagick
+      - name: Install PDF rasterisers (macOS)
+        if: runner.os == 'macOS'
+        run: brew install poppler ghostscript imagemagick
+
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/desktop
+      - run: npm run build:desktop
+      - run: npm run e2e
+        env:
+          # Shared runners are slower than a developer machine; only time budgets scale.
+          PERF_BUDGET_SCALE: '4'
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: |
+            apps/desktop/playwright-report/
+            apps/desktop/test-results/
+          retention-days: 14
+
+  # Not on pull_request: a cold build measured 42m 51s locally, most of it fetching the
+  # 2 GB NDK and compiling native code. Gating every PR on that is not worth it, so this
+  # runs on main and on demand. Caches should bring warm runs down substantially.
+  android:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Matches the JDK 21 the local build was verified against.
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci
+      - name: Generate the native project
+        run: npx expo prebuild --no-install --platform android
+        working-directory: apps/mobile
+
+      # Gradle pulls the NDK and cmake itself; caching them is what makes this bearable.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/Android/Sdk/ndk
+            ~/Android/Sdk/cmake
+          key: android-${{ runner.os }}-${{ hashFiles('apps/mobile/package.json') }}
+          restore-keys: android-${{ runner.os }}-
+
+      - name: Build the debug APK
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: apps/mobile/android
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14

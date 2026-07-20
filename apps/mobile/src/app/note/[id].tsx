@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { SafeAreaView, StyleSheet, TextInput } from 'react-native';
+import {
+  StyleSheet,
+  TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { Note } from '@iroha-pdf/core';
 import { getNote, saveNote } from '@/lib/database';

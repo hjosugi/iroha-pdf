@@ -3,5 +3,14 @@
   "identifier": "default",
   "description": "Default Iroha PDF desktop permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-copy-file",
+    "fs:allow-exists"
+  ]
 }
