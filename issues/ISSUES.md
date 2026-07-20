@@ -2,6 +2,48 @@
 
 このファイルの各`##`セクションを1件のGitHub Issueとして登録してください。`[x]`はstarterで実装済み、`[~]`は部分実装、`[ ]`は未実装です。実装済みでも実機証跡がない項目はcloseしないでください。
 
+## モバイル棚卸し（2026-07-20、emulator実機確認）
+
+Android emulator（API 36）でアプリを起動し、実際に触って確認した結果。**それまでmobileは一度もbuildも起動もされていなかった**ため、`[x]`の多くは実装があるという意味でしかなかった。
+
+**動作を確認できたもの:**
+
+| 項目 | 結果 |
+|---|---|
+| アプリ起動・UI描画 | OK |
+| document picker経由でPDFを開く | OK |
+| PDF描画（表・CJK・透過画像） | **OK** — 表の罫線、`四半期報告書`、透過PNGすべて正しく表示 |
+| Highlightツール | OK（タップ位置に固定サイズの矩形が乗る） |
+| tool UI（Hand / Highlight / Ink / Text）、Export、Print | 表示される |
+
+**確認した欠落・バグ:**
+
+1. **複数ページのPDFで2ページ目に到達できない**（#075）。実測で根本原因まで特定
+2. **intent filterが無い**。他アプリからの「共有」「アプリで開く」が不可能。document picker以外の入口が存在しない（#029 / #038と関連）
+3. **原本へ保存できない。** Exportが`<title>-edited.pdf`という別ファイルを作るだけで、開いたファイルは一切変更されない。**desktopがこのセッション開始時点で抱えていたのと同じ穴**（#066でdesktopのみ解消）
+4. **注釈の属性がすべてハードコード。** ink `#2B5CFF`/幅2.4、highlight `#FFE45E`/固定サイズ0.25×0.035、text `#1B1F28`/14pt。色も太さも選べない（desktopは#072/#073で解消済み）
+5. **undo / deleteが無い。** viewerに該当コードが0件。一度置いた注釈を消す手段がない
+6. **Highlightはテキスト選択でもドラッグでもない。** タップ位置に固定サイズの矩形を置くだけ（#007の記述どおり）
+7. **unit testが無い**
+
+つまりmobileは、desktopがこのセッションで解消した課題（保存、色、削除、履歴、autosave）を**ほぼそのまま抱えている**。
+
+## 075 [ ] Multi-page PDFs report only one page on mobile
+
+Labels: `platform:mobile`, `type:bug`, `priority:P0`
+
+2ページのPDFを開くとページ表示が`1 / 1`になり、`disabled={page >= pageCount}`で次ページボタンも押せない。**2ページ目に到達する手段が無い。**
+
+**根本原因（emulatorで実測）:** viewerは`react-native-pdf`の`onLoadComplete`からページ数を取っているが、`singlePage`を指定していると`numberOfPages`が常に1で返る。`singlePage`を外して同じPDFを開くと`1 / 2`になり、2ページ目のAppendixも表示された。
+
+修正の選択肢と、それぞれの引っかかり:
+
+- **importでpdf-libを使いページ数を保存する。** `WorkspaceDocument.pageCount`とDBの`page_count`列は既に存在するが**一度も書き込まれていない**。ただしimportは現在`source.copy()`でnative copyしており、ここでpdf-lib parseを挟むとファイル全体をJSへ読む。#047で問題にしている300 MB scanでは危険
+- **`singlePage`をやめる。** ページ数は正しくなるが、single-page viewerという#006の前提が変わる
+- **native側からページ数だけ取る。** 追加実装が要る
+
+どれもトレードオフがあるため、方針を決めてから着手する。
+
 ## 001 [~] Bootstrap Expo 57 / Tauri 2 monorepo
 
 Labels: `type:foundation`, `priority:P0`
@@ -218,8 +260,10 @@ Acceptance: portrait/landscape、iPad、Android tabletで表示。password PDF U
 
 Labels: `platform:mobile`, `type:feature`, `priority:P0`
 
-- text, fixed highlight, inkを実装済み
+- text, fixed highlight, inkを実装済み。**2026-07-20にemulatorでHighlightの動作を確認**（タップ位置に固定矩形が乗る）
 - drag highlight、selection highlight、eraser、move/resize、color、stroke、undo/redoを追加
+
+emulator確認で判明: 色・太さ・サイズがすべてハードコードで選択不可、undo / deleteのコードが0件。desktopは#072 / #073 / #071で解消済みなので、同じ方針を移植できる。
 
 Acceptance: zoom/rotation後もannotation位置がずれず、Apple PencilとAndroid stylusで滑らかに描ける。
 
