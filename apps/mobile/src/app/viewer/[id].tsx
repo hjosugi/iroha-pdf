@@ -190,13 +190,23 @@ export default function PdfViewerScreen() {
       </View>
 
       <View style={styles.viewer}>
+        {/*
+          `singlePage` looks like the right prop for a one-page-at-a-time viewer, but it
+          makes the library report a page count of 1 for every document, which left the
+          next-page button permanently disabled and page 2 unreachable. `enablePaging`
+          gives the same one-page-per-screen behaviour while still reporting the truth.
+        */}
         <Pdf
           source={{ uri: document.localUri, cache: true }}
           page={page}
-          singlePage
+          enablePaging
+          horizontal
           trustAllCerts={false}
           onLoadComplete={(pages) => setPageCount(pages)}
-          onPageChanged={(currentPage) => setPage(currentPage)}
+          onPageChanged={(currentPage, pages) => {
+            setPage(currentPage);
+            setPageCount(pages);
+          }}
           onError={(error) => Alert.alert('PDF error', String(error))}
           style={styles.pdf}
         />
