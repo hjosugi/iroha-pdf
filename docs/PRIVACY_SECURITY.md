@@ -10,6 +10,25 @@ Iroha PDF is designed as a local-first application. PDF content, annotations, an
 - Basic PDF tools run on-device and do not upload documents to an Iroha PDF service.
 - Google Drive support uses user-owned storage. The client requests `drive.file` and `drive.appdata`, not unrestricted access to all Drive files.
 
+Iroha PDF has no developer-operated content service. When Drive is enabled,
+document bytes and synchronization metadata travel directly between the app and
+Google over HTTPS. Local-only use does not transmit document content off-device.
+
+## Data inventory and retention
+
+| Data | Location | Retention | User control |
+|---|---|---|---|
+| Imported PDF copies | App-private files | Until the user deletes the local copy or app | Import, export, delete app data |
+| Notes and annotations | Mobile SQLite / desktop local storage | Until the linked content or app data is deleted | Edit or delete locally |
+| Recovery journal | Mobile SQLite | Applied records may be pruned; unresolved copies remain until reviewed | Review/delete recovery copies |
+| OAuth tokens | Keychain/Keystore or OS credential vault | Until sign-out, revocation, or app removal | Sign out and revoke access |
+| Drive PDFs | User's Google Drive | Controlled by the user's Drive retention | Delete from Drive explicitly |
+| Drive sync metadata | Drive `appDataFolder` | Until access/data is removed | Disconnect and remove app data |
+| Export/print copies | User-selected output or temporary directory | Platform/user controlled; temporary copies should be cleaned after use | Delete from Files/OS storage |
+
+No advertising ID, precise location, contacts, browsing history, analytics, or
+developer-operated account identifier is used by the current build.
+
 ## Credentials and secrets
 
 - OAuth tokens must be stored only in platform secure storage or an OS credential vault.
@@ -25,6 +44,40 @@ Iroha PDF is designed as a local-first application. PDF content, annotations, an
 ## Untrusted PDFs
 
 PDFs are untrusted input. Production releases must keep PDFium, `pdf-lib`, and native processors patched; disable PDF JavaScript; confirm external links; apply memory and time limits; and isolate native sidecars. Passwords and document content must not be written to logs or crash reports.
+
+## Threat model
+
+### Assets and trust boundaries
+
+- Assets: PDF content, notes, annotations, OAuth tokens, Drive revision IDs,
+  signing material, and recovery copies.
+- Boundaries: OS document provider → app-private storage; untrusted PDF →
+  PDFium/`pdf-lib`; app → Google OAuth/Drive; desktop UI → optional native
+  sidecar; app → print/share destination.
+
+### Threats and required controls
+
+| Threat | Impact | Controls / release requirement |
+|---|---|---|
+| Malformed or decompression-bomb PDF | crash, OOM, native-code exploit | byte-budgeted LRU, page-at-a-time rendering, patched engines, malicious fixtures, processing timeout |
+| PDF JavaScript or external link | unexpected execution or exfiltration | JavaScript disabled; external navigation requires an explicit user action |
+| Path traversal / unsafe output name | overwrite or disclose local files | app-private directories, generated output names, never trust embedded file names |
+| OAuth token disclosure | Drive account access | secure storage, PKCE/system browser, token/log redaction, revoke on disconnect |
+| Silent Drive conflict overwrite | user data loss | revision precondition, durable queue, conflict copy, explicit resolution |
+| Process kill, disk-full, or DB lock during autosave | note/annotation loss | WAL, write-ahead recovery journal, transactional row write, surfaced recovery copy |
+| Native sidecar compromise | host file access | no shell interpolation, allowlisted arguments, resource limits, OS sandbox, signed binary |
+| Sensitive diagnostics | private content disclosure | diagnostics off by default and content/path/token fields prohibited |
+| Stolen unlocked device | local content disclosure | OS app sandbox and device protection; document-level encryption is not yet provided |
+
+Residual risks that block a hardened release are tracked in the security,
+sandbox, performance, and full-device release-gate issues.
+
+## Logging rules
+
+Production logs may contain operation names, coarse timing, byte counts, HTTP
+status classes, and synthetic error codes. They must never contain document
+bytes/text, note or annotation bodies, local paths or file titles, OAuth
+headers/tokens, Drive response bodies, or stable cross-service identifiers.
 
 ## Diagnostics
 

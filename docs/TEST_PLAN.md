@@ -8,6 +8,11 @@ npm run typecheck
 npm run build:desktop
 ```
 
+The core suite builds deterministic mixed-size text fixtures and automatically
+checks page count, dimensions, decoded text operators, corrupt-input rejection,
+and reopen after reorder/extract/optimization. Renderer golden screenshots
+remain part of the device/desktop E2E gate because `pdf-lib` does not render.
+
 ## Required fixture set
 
 - 1-page A4 text PDF

@@ -19,7 +19,9 @@ export async function importPdfFromSystem(): Promise<WorkspaceDocument | null> {
 
   const asset = result.assets[0];
   if (!asset) return null;
-  return importPdfFile(new File(asset.uri), asset.name, 'local');
+  // DocumentPicker represents Files/iCloud/Android SAF providers. The app owns
+  // only the copied destination, while the provider's original remains external.
+  return importPdfFile(new File(asset.uri), asset.name, 'external-provider');
 }
 
 export async function importPdfFile(

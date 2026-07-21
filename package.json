@@ -13,9 +13,14 @@
     "dev:desktop:web": "npm run dev --workspace @iroha-pdf/desktop",
     "build:desktop": "npm run build --workspace @iroha-pdf/desktop",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "validate:eas": "node release/mobile/validate-eas-config.mjs",
+    "sbom:npm": "node release/supply-chain/prepare-output.mjs && cyclonedx-npm --omit dev --output-reproducible --validate --output-file artifacts/npm.cdx.json",
+    "audit:licenses:npm": "node release/supply-chain/audit-npm-licenses.mjs artifacts/npm.cdx.json"
   },
   "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "6.0.0",
+    "spdx-expression-parse": "4.0.0",
     "typescript": "~6.0.3",
     "vitest": "^4.0.18"
   },

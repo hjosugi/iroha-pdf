@@ -11,7 +11,11 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "app.irohapdf.mobile",
       "supportsTablet": true,
-      "usesIcloudStorage": true
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": []
+      }
     },
     "android": {
       "adaptiveIcon": {
