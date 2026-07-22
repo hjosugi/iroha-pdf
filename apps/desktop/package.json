@@ -12,6 +12,7 @@
     "tauri:build": "tauri build",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "e2e": "playwright test",
+    "store:screenshots": "playwright test e2e/store-screenshots.spec.ts",
     "e2e:ui": "playwright test --ui",
     "e2e:tauri": "node e2e-tauri/run.mjs",
     "e2e:tauri:ceiling": "node e2e-tauri/size-ceiling.mjs"
