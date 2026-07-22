@@ -76,6 +76,12 @@ async function printedDocument(page: Page): Promise<Buffer | null> {
   return base64 === null ? null : Buffer.from(base64, 'base64');
 }
 
+async function openPrintPreview(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Print', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Print PDF' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open print preview' }).click();
+}
+
 test.describe('printing', () => {
   test('printing prepares a real PDF of the document', async ({ page }) => {
     await capturePrintDocuments(page);
@@ -83,7 +89,7 @@ test.describe('printing', () => {
     await page.goto('/');
     await openPdf(page);
 
-    await page.getByRole('button', { name: 'Print', exact: true }).click();
+    await openPrintPreview(page);
     await expect
       .poll(async () => (await printedDocument(page))?.length ?? 0, { timeout: 30_000 })
       .toBeGreaterThan(1000);
@@ -105,7 +111,7 @@ test.describe('printing', () => {
 
     await drawShape(page);
 
-    await page.getByRole('button', { name: 'Print', exact: true }).click();
+    await openPrintPreview(page);
     await expect
       .poll(async () => (await printedDocument(page))?.length ?? 0, { timeout: 30_000 })
       .toBeGreaterThan(1000);
@@ -126,7 +132,7 @@ test.describe('printing', () => {
     await page.goto('/');
     await openPdf(page);
 
-    await page.getByRole('button', { name: 'Print', exact: true }).click();
+    await openPrintPreview(page);
     await expect
       .poll(async () => (await printedDocument(page))?.length ?? 0, { timeout: 30_000 })
       .toBeGreaterThan(1000);
