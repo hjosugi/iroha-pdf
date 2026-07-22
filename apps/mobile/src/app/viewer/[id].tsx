@@ -9,13 +9,13 @@ import {
   Modal,
   PanResponder,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Pdf from 'react-native-pdf';
 import Svg, { Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
@@ -297,11 +297,18 @@ export default function PdfViewerScreen() {
       </View>
 
       <View style={styles.viewer}>
+        {/*
+          `singlePage` looks like the right prop for a one-page-at-a-time viewer, but it
+          makes the library report a page count of 1 for every document, which left the
+          next-page button permanently disabled and page 2 unreachable. `enablePaging`
+          gives the same one-page-per-screen behaviour while still reporting the truth.
+        */}
         <Pdf
           key={reloadKey}
           source={{ uri: document.localUri, cache: true }}
           page={page}
-          singlePage
+          enablePaging
+          horizontal
           password={password || undefined}
           minScale={1}
           maxScale={5}
@@ -315,7 +322,10 @@ export default function PdfViewerScreen() {
             setLoadingProgress(1);
             setLoadError(null);
           }}
-          onPageChanged={(currentPage) => setPage(currentPage)}
+          onPageChanged={(currentPage, pages) => {
+            setPage(currentPage);
+            setPageCount(pages);
+          }}
           onError={(error) => {
             const message = String(error);
             if (/password|encrypted/i.test(message)) {

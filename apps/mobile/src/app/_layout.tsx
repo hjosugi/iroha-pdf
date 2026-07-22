@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initializeDatabase } from '@/lib/database';
 
@@ -12,7 +13,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -29,6 +30,6 @@ export default function RootLayout() {
         <Stack.Screen name="drive" options={{ title: 'Google Drive' }} />
         <Stack.Screen name="recovery" options={{ title: 'Recovery copies' }} />
       </Stack>
-    </>
+    </SafeAreaProvider>
   );
 }
