@@ -17,6 +17,7 @@
     "validate:eas": "node release/mobile/validate-eas-config.mjs",
     "brand:generate": "bash scripts/generate-brand-assets.sh",
     "validate:brand": "node release/branding/validate-assets.mjs",
+    "verify:dependency-patches": "node release/supply-chain/verify-dependency-patches.mjs",
     "store:screenshots:desktop": "UPDATE_STORE_SCREENSHOTS=1 npm run store:screenshots --workspace @iroha-pdf/desktop",
     "sbom:npm": "node release/supply-chain/prepare-output.mjs && cyclonedx-npm --omit dev --output-reproducible --validate --output-file artifacts/npm.cdx.json",
     "audit:licenses:npm": "node release/supply-chain/audit-npm-licenses.mjs artifacts/npm.cdx.json",
@@ -29,7 +30,11 @@
     "@cyclonedx/cyclonedx-npm": "6.0.0",
     "spdx-expression-parse": "4.0.0",
     "typescript": "~6.0.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "xcode": "3.0.1"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   },
   "engines": {
     "node": ">=22.13.0"

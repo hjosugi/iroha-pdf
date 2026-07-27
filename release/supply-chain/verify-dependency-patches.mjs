@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+
+const xcode = require("xcode");
+const xcodeProject = xcode.project("/dev/null");
+xcodeProject.hash = { project: { objects: {} } };
+assert.match(
+  xcodeProject.generateUuid(),
+  /^[0-9A-F]{24}$/,
+  "xcode must remain compatible with the patched uuid CommonJS API",
+);
+
+const uuidEntry = require.resolve("uuid", {
+  paths: [path.dirname(require.resolve("xcode"))],
+});
+let uuidDirectory = path.dirname(uuidEntry);
+let uuidPackage;
+while (uuidDirectory !== path.dirname(uuidDirectory)) {
+  try {
+    uuidPackage = JSON.parse(
+      await readFile(path.join(uuidDirectory, "package.json"), "utf8"),
+    );
+    if (uuidPackage.name === "uuid") break;
+  } catch {
+    // Keep walking from the resolved entry to the owning package directory.
+  }
+  uuidDirectory = path.dirname(uuidDirectory);
+}
+assert.equal(
+  uuidPackage?.version,
+  "11.1.1",
+  "xcode must resolve the audited uuid 11.1.1 override",
+);
+
+const patchedVariantIterator = await readFile(
+  path.join(
+    repositoryRoot,
+    "apps/desktop/src-tauri/vendor/glib-0.18.5-patched/src/variant_iter.rs",
+  ),
+  "utf8",
+);
+assert.equal(
+  createHash("sha256").update(patchedVariantIterator).digest("hex"),
+  "a0f5ee8acb8faa089bcdfbc9a57372609fce7654026ccef7d9a224d05a654ccc",
+  "the vendored glib security patch must match the reviewed source",
+);
+assert.match(
+  patchedVariantIterator,
+  /let mut p: \*mut libc::c_char = std::ptr::null_mut\(\);/,
+  "the vendored glib output pointer must be mutable",
+);
+assert.match(
+  patchedVariantIterator,
+  /g_variant_get_child\([\s\S]*?&mut p,/,
+  "the vendored glib output pointer must be passed mutably",
+);
+
+console.log("Dependency patch verification passed.");

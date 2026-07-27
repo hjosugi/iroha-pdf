@@ -122,11 +122,13 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
       - name: Install locked dependencies
         run: npm ci
+      - name: Verify temporary dependency patches
+        run: npm run verify:dependency-patches
       - name: Audit npm advisories
         # libxmljs2 is an optional XML validator of the dev-only CycloneDX
         # library. The project emits JSON SBOMs; audit the installed product
         # graph without treating that unused optional peer as shipped code.
-        run: npm audit --omit=optional --audit-level=high
+        run: npm audit --omit=optional --audit-level=moderate
       - name: Generate reproducible npm CycloneDX SBOM
         run: npm run sbom:npm
       - name: Enforce npm license allowlist and detect copyleft

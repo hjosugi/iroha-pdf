@@ -20,3 +20,8 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
+
+[patch.crates-io]
+# Tauri's GTK3 stack requires glib 0.18.5. This local copy contains only the
+# upstream VariantStrIter soundness fix; see vendor/glib-0.18.5-patched/PROVENANCE.md.
+glib = { path = "vendor/glib-0.18.5-patched" }
