@@ -53,13 +53,15 @@ issues/
 
 ## セットアップ
 
-前提はNode.js 22.13以降です。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
+前提はNode.js 22.13以降です。標準の開発・CI入口にはgo-task、増分テスト・型検査・デスクトップWebビルドにはFrostBuildを使用します。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
 
 ```bash
-npm install
-npm test
-npm run typecheck
+task install
+task check
+task build:desktop
 ```
+
+ツールの固定バージョン、インストール方法、npmとの責務分担は[docs/BUILD.md](docs/BUILD.md)を参照してください。
 
 ### モバイル
 

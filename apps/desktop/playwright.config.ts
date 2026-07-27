@@ -8,7 +8,10 @@ export default defineConfig({
   // whole browser down and strands every test after it. It also writes hundreds of
   // megabytes of fixtures. Run it on purpose:
   //   npx playwright test memory-probe --project=chromium
-  testIgnore: '**/memory-probe.spec.ts',
+  testIgnore: [
+    '**/memory-probe.spec.ts',
+    ...(process.env.UPDATE_STORE_SCREENSHOTS === '1' ? [] : ['**/store-screenshots.spec.ts']),
+  ],
   globalSetup: './e2e/global-setup.ts',
   // The PDF engine is WASM; give it room on a cold cache without hiding real hangs.
   timeout: 120_000,

@@ -1,0 +1,99 @@
+# Generated from npm workspace metadata with FrostBuild v0.5.0, then extended
+# with an explicit Vite output-tree boundary for the desktop web build.
+
+[workspace]
+name = "iroha-pdf"
+default_targets = ["desktop-web"]
+
+[toolchain.tools]
+npm = "npm"
+node = "node"
+
+[target.iroha-pdf-core-test]
+kind = "test"
+tool = "npm"
+args = ["run", "test", "--workspace", "@iroha-pdf/core"]
+inputs = ["package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "tsconfig.base.json"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-core-typecheck]
+kind = "test"
+tool = "npm"
+args = ["run", "typecheck", "--workspace", "@iroha-pdf/core"]
+inputs = ["package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "tsconfig.base.json"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-desktop-test]
+kind = "test"
+tool = "npm"
+args = ["run", "test", "--workspace", "@iroha-pdf/desktop"]
+inputs = ["apps/desktop/*", "apps/desktop/e2e-tauri/**/*", "apps/desktop/e2e/**/*", "apps/desktop/src-tauri/**/*", "apps/desktop/src/**/*", "package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "packages/google-drive/*", "packages/google-drive/src/**/*", "tsconfig.base.json"]
+deps = ["iroha-pdf-core-test", "iroha-pdf-google-drive-test"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-desktop-typecheck]
+kind = "test"
+tool = "npm"
+args = ["run", "typecheck", "--workspace", "@iroha-pdf/desktop"]
+inputs = ["apps/desktop/*", "apps/desktop/e2e-tauri/**/*", "apps/desktop/e2e/**/*", "apps/desktop/src-tauri/**/*", "apps/desktop/src/**/*", "package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "packages/google-drive/*", "packages/google-drive/src/**/*", "tsconfig.base.json"]
+deps = ["iroha-pdf-core-typecheck", "iroha-pdf-google-drive-typecheck"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-google-drive-test]
+kind = "test"
+tool = "npm"
+args = ["run", "test", "--workspace", "@iroha-pdf/google-drive"]
+inputs = ["package-lock.json", "package.json", "packages/google-drive/*", "packages/google-drive/src/**/*", "tsconfig.base.json"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-google-drive-typecheck]
+kind = "test"
+tool = "npm"
+args = ["run", "typecheck", "--workspace", "@iroha-pdf/google-drive"]
+inputs = ["package-lock.json", "package.json", "packages/google-drive/*", "packages/google-drive/src/**/*", "tsconfig.base.json"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-mobile-typecheck]
+kind = "test"
+tool = "npm"
+args = ["run", "typecheck", "--workspace", "@iroha-pdf/mobile"]
+inputs = ["apps/mobile/*", "apps/mobile/_vscode/**/*", "apps/mobile/assets/**/*", "apps/mobile/scripts/**/*", "apps/mobile/src/**/*", "package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "packages/google-drive/*", "packages/google-drive/src/**/*", "tsconfig.base.json"]
+deps = ["iroha-pdf-core-typecheck", "iroha-pdf-google-drive-typecheck"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.desktop-web]
+kind = "command"
+tool = "npm"
+args = ["--prefix", "apps/desktop", "run", "build", "--", "--outDir", "dist/${config}"]
+inputs = [
+  "package-lock.json",
+  "package.json",
+  "tsconfig.base.json",
+  "apps/desktop/index.html",
+  "apps/desktop/package.json",
+  "apps/desktop/src/**/*",
+  "apps/desktop/tsconfig.json",
+  "apps/desktop/vite.config.ts",
+  "packages/core/package.json",
+  "packages/core/src/**/*",
+  "packages/google-drive/package.json",
+  "packages/google-drive/src/**/*",
+]
+output_dirs = ["apps/desktop/dist/${config}"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false

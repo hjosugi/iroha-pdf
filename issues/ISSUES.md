@@ -851,7 +851,24 @@ Acceptance: `docs/TEST_PLAN.md`全matrix、memory、battery、startup、large PD
 
 Labels: `type:design`, `type:release`, `priority:P1`
 
-`Iroha PDF`、bundle identifier、package nameは設定済み。Expo/Tauriの正式な製品アイコンとstore screenshotsを追加する。
+`Iroha PDF`、bundle identifier、package nameは設定済み。
+
+2026-07-22にExpo templateの青い`A`ロゴを廃止し、アプリ内でも使っていたひらがな`い`を共通markとして正式なsource-of-truth SVGへ置き換えた。`scripts/generate-brand-assets.sh`が同じsourceから次を生成する:
+
+- Expo master / iOS icon / favicon / splash
+- Android adaptive foreground / monochrome icon（brand blueのbackground）
+- TauriのPNG / ICNS / ICO / Windows Store / Android / iOS一式
+
+desktop / mobileのアプリ内headerも同じvector pathを描画するため、package iconとUIで別ロゴにならない。`npm run validate:brand`でサイズ、config参照、Tauri manifestをCI検証する。未参照だったExpo/Reactのtemplate assetsは削除した。
+
+desktop store screenshotはsynthetic fixtureだけを使い、1440×900で3枚（local-first empty state、PDF editing、annotation ready to save）をPlaywrightから生成した。`npm run store:screenshots:desktop`で再現できる。
+
+名称についてはApple public Search API、Google Play検索、quoted web検索、J-PlatPat/WIPO/USPTOのindexed page、`irohapdf.com` / `.app`のRDAPを予備調査し、exact-nameのPDF app / markは見つからなかった。これは法的clearanceではなく、domainも取得していない。手順と検索先は`docs/BRAND.md`に記録。
+
+未完了:
+
+- mobileのphone / tablet store screenshots（release candidate実機から取得する）
+- release ownerによる対象国の最終trademark確認とdomain取得判断
 
 Acceptance: trademark/domain/store検索後に名称を確定し、adaptive icon、monochrome icon、iOS icon、splash、Tauri icons、store screenshotsを作成する。
 

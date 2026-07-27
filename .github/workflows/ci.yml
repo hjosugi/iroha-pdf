@@ -28,16 +28,25 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - uses: go-task/setup-task@v2.1.0
+        with:
+          version: 3.52.0
+      - name: Install checksummed FrostBuild
+        shell: bash
+        run: |
+          install -d "$RUNNER_TEMP/frost"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/frost.tar.gz" \
+            https://github.com/hjosugi/frost-build/releases/download/v0.5.0/frostbuild-v0.5.0-x86_64-unknown-linux-musl.tar.gz
+          echo "2f2258482594a0408984531cfc2409c8127556562317af21309e77770ae3ada6  $RUNNER_TEMP/frost.tar.gz" \
+            | sha256sum --check
+          tar --extract --gzip --file "$RUNNER_TEMP/frost.tar.gz" \
+            --directory "$RUNNER_TEMP/frost" --strip-components=1
+          echo "$RUNNER_TEMP/frost" >> "$GITHUB_PATH"
       - name: Install locked dependencies
         run: npm ci
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Test
-        run: npm test
-      - name: Build desktop web assets
-        run: npm run build:desktop
-      - name: Validate EAS profiles
-        run: npm run validate:eas
+      - name: Run Task/Frost quality workflow
+        run: task ci
       - name: Resolve public Expo config
         run: npx expo config --type public --json > expo-config.json
         working-directory: apps/mobile
@@ -114,7 +123,10 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Audit npm advisories
-        run: npm audit --audit-level=high
+        # libxmljs2 is an optional XML validator of the dev-only CycloneDX
+        # library. The project emits JSON SBOMs; audit the installed product
+        # graph without treating that unused optional peer as shipped code.
+        run: npm audit --omit=optional --audit-level=high
       - name: Generate reproducible npm CycloneDX SBOM
         run: npm run sbom:npm
       - name: Enforce npm license allowlist and detect copyleft
