@@ -19,6 +19,7 @@ import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
 import type { Note } from '@iroha-pdf/core';
 
+import { BrandMark } from './BrandMark';
 import { basename, confirmDiscard, isDesktopRuntime } from './file-bridge';
 import {
   colorOf,
@@ -553,7 +554,7 @@ function EmptyWorkspace() {
 
   return (
     <section className="empty-workspace">
-      <div className="empty-mark">い</div>
+      <BrandMark className="empty-mark" />
       <h1>Your documents, without the clutter.</h1>
       <p>Open a PDF to read, annotate, and save your changes straight back to the file.</p>
       <button className="primary-button large" onClick={() => void openPdf()}>Open PDF</button>
@@ -631,7 +632,7 @@ export function Workspace({ activeDocumentId, documentStates }: WorkspaceProps) 
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div className="brand"><span className="brand-mark">い</span> Iroha PDF</div>
+        <div className="brand"><BrandMark className="brand-mark" /> Iroha PDF</div>
         <div className="header-status"><span className="status-dot" /> Local-first</div>
       </header>
       <TabStrip activeDocumentId={activeDocumentId} documents={documentStates} documentStates={documentStates} />

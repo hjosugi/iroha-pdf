@@ -16,6 +16,7 @@ button { cursor: pointer; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 720; letter-spacing: -.02em; }
 .brand-mark, .empty-mark { display: grid; place-items: center; color: white; background: #2b5cff; border-radius: 10px; font-weight: 800; }
 .brand-mark { width: 30px; height: 30px; }
+.brand-mark svg { width: 20px; height: 20px; }
 .header-status { display: flex; align-items: center; gap: 7px; color: #707784; font-size: 12px; }
 .status-dot { width: 7px; height: 7px; border-radius: 999px; background: #2ea66b; }
 
@@ -79,6 +80,7 @@ button { cursor: pointer; }
 .empty-workspace h1 { margin: 18px 0 8px; color: #161a22; font-size: 30px; letter-spacing: -.04em; }
 .empty-workspace p { max-width: 480px; margin: 0 0 22px; line-height: 1.6; }
 .empty-mark { width: 58px; height: 58px; font-size: 28px; box-shadow: 0 12px 34px rgba(43,92,255,.25); }
+.empty-mark svg { width: 38px; height: 38px; }
 
 .dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(12,16,24,.48); }
 .print-dialog { width: min(420px, 100%); border: 1px solid #dfe3ea; border-radius: 18px; padding: 20px; color: #20252e; background: #fff; box-shadow: 0 24px 80px rgba(12,16,24,.24); }

@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { Note, WorkspaceDocument } from '@iroha-pdf/core';
+import { BrandMark } from '@/components/BrandMark';
 import { createNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
 import { importPdfFromSystem } from '@/lib/files';
 
@@ -71,9 +72,12 @@ export default function LibraryScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>LOCAL-FIRST WORKSPACE</Text>
-          <Text style={styles.title}>Iroha PDF</Text>
+        <View style={styles.identity}>
+          <BrandMark />
+          <View>
+            <Text style={styles.eyebrow}>LOCAL-FIRST WORKSPACE</Text>
+            <Text style={styles.title}>Iroha PDF</Text>
+          </View>
         </View>
         <Pressable style={styles.avatar} onPress={() => router.push('/drive')}>
           <Text style={styles.avatarText}>G</Text>
@@ -187,8 +191,9 @@ function formatBytes(bytes?: number): string {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F7F9' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 18 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   eyebrow: { color: '#7B8290', fontSize: 10, fontWeight: '800', letterSpacing: 1.4 },
-  title: { color: '#151922', fontSize: 34, fontWeight: '800', letterSpacing: -1.2 },
+  title: { color: '#151922', fontSize: 30, fontWeight: '800', letterSpacing: -1.1 },
   avatar: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#E9EEFF', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#2B5CFF', fontWeight: '800' },
   search: { margin: 18, marginBottom: 12, borderRadius: 14, backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 13, color: '#171B24', borderWidth: 1, borderColor: '#E8EAF0' },

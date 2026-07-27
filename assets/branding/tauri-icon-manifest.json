@@ -1,0 +1,8 @@
+{
+  "default": "iroha-icon.svg",
+  "bg_color": "#2B5CFF",
+  "android_bg": "iroha-background.svg",
+  "android_fg": "iroha-foreground.svg",
+  "android_fg_scale": 62,
+  "android_monochrome": "iroha-monochrome.svg"
+}

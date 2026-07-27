@@ -38,6 +38,8 @@ jobs:
         run: npm run build:desktop
       - name: Validate EAS profiles
         run: npm run validate:eas
+      - name: Validate product identity assets
+        run: npm run validate:brand
       - name: Resolve public Expo config
         run: npx expo config --type public --json > expo-config.json
         working-directory: apps/mobile
