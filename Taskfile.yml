@@ -86,3 +86,8 @@ tasks:
         msg: Install FrostBuild v0.5.0; see docs/BUILD.md
     cmds:
       - '{{.FROST_BIN}} doctor'
+
+  github:protect-main:
+    desc: Preview or apply the required GitHub main-branch protection
+    cmds:
+      - APPLY="{{default "0" .APPLY}}" scripts/github/protect-main.sh
