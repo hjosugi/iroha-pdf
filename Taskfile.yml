@@ -2,6 +2,11 @@ version: '3'
 
 vars:
   FROST_BIN: '{{default "frost" .FROST_BIN}}'
+  # The pinned toolchain. CI installs this exact checksummed release, and the
+  # preconditions below refuse a different one: before 1.0 a Frost minor may
+  # change manifest or CLI semantics, so "some frost is on PATH" is not enough
+  # to make a local run mean the same thing as the CI run.
+  FROST_VERSION: '0.8.0'
 
 tasks:
   default:
@@ -15,10 +20,12 @@ tasks:
       - npm ci
 
   check:
-    desc: Run every cached Frost test and typecheck gate
+    desc: Run every cached Frost test, typecheck, and release-validation gate
     preconditions:
       - sh: command -v "{{.FROST_BIN}}"
-        msg: Install FrostBuild v0.5.0; see docs/BUILD.md
+        msg: Install FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
+      - sh: test "$("{{.FROST_BIN}}" info version)" = "{{.FROST_VERSION}}"
+        msg: This workspace is pinned to FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
       - sh: test -d node_modules
         msg: Run `task install` first
     cmds:
@@ -28,7 +35,9 @@ tasks:
     desc: Run the cached unit-test gates
     preconditions:
       - sh: command -v "{{.FROST_BIN}}"
-        msg: Install FrostBuild v0.5.0; see docs/BUILD.md
+        msg: Install FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
+      - sh: test "$("{{.FROST_BIN}}" info version)" = "{{.FROST_VERSION}}"
+        msg: This workspace is pinned to FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
       - sh: test -d node_modules
         msg: Run `task install` first
     cmds:
@@ -42,7 +51,9 @@ tasks:
     desc: Run the cached TypeScript gates
     preconditions:
       - sh: command -v "{{.FROST_BIN}}"
-        msg: Install FrostBuild v0.5.0; see docs/BUILD.md
+        msg: Install FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
+      - sh: test "$("{{.FROST_BIN}}" info version)" = "{{.FROST_VERSION}}"
+        msg: This workspace is pinned to FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
       - sh: test -d node_modules
         msg: Run `task install` first
     cmds:
@@ -57,20 +68,29 @@ tasks:
     desc: Build and cache the desktop web output tree with Frost
     preconditions:
       - sh: command -v "{{.FROST_BIN}}"
-        msg: Install FrostBuild v0.5.0; see docs/BUILD.md
+        msg: Install FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
+      - sh: test "$("{{.FROST_BIN}}" info version)" = "{{.FROST_VERSION}}"
+        msg: This workspace is pinned to FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
       - sh: test -d node_modules
         msg: Run `task install` first
     cmds:
       - '{{.FROST_BIN}} build desktop-web --no-tui'
 
   validate:
-    desc: Validate release-facing EAS and brand assets
+    desc: Validate release-facing EAS, brand, and dependency-patch policy
     preconditions:
+      - sh: command -v "{{.FROST_BIN}}"
+        msg: Install FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
+      - sh: test "$("{{.FROST_BIN}}" info version)" = "{{.FROST_VERSION}}"
+        msg: This workspace is pinned to FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
       - sh: test -d node_modules
         msg: Run `task install` first
     cmds:
-      - npm run validate:eas
-      - npm run validate:brand
+      - >-
+        {{.FROST_BIN}} test --no-tui
+        iroha-pdf-eas-validate
+        iroha-pdf-brand-validate
+        iroha-pdf-dependency-patches
 
   ci:
     desc: Run the deterministic CI quality workflow
@@ -79,13 +99,19 @@ tasks:
       - task: build:desktop
       - task: validate
 
+  # Deliberately without the pinned-version precondition: this is the task you
+  # run when a gate has just refused your binary, so it has to be able to run
+  # against the wrong one. `info` comes last because a pre-0.8 Frost does not
+  # have that subcommand, and its diagnostics are still worth printing first.
   frost:doctor:
     desc: Diagnose the local Frost toolchain and workspace
     preconditions:
       - sh: command -v "{{.FROST_BIN}}"
-        msg: Install FrostBuild v0.5.0; see docs/BUILD.md
+        msg: Install FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
     cmds:
+      - '{{.FROST_BIN}} --version'
       - '{{.FROST_BIN}} doctor'
+      - '{{.FROST_BIN}} info'
 
   github:protect-main:
     desc: Preview or apply the required GitHub main-branch protection

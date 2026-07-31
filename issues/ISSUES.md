@@ -795,13 +795,28 @@ Labels: `type:ci`, `priority:P0`
 - 失敗時にplaywright-reportをartifactへ（retention 14日）
 - 遅いrunner向けに`PERF_BUDGET_SCALE=4`。時間予算のみscaleし、memory/sizeはscaleしない
 
+**訂正（2026-07-31）**: このissueは長く「e2e matrixはCI上で未実行」「Tauri matrix未実装」「Expo prebuild validation未実装」「SBOM/license scan未実装」と書いていたが、**いずれも既に実行され、成功している**。main（`9608874`）の[run 30451212271](https://github.com/hjosugi/iroha-pdf/actions/runs/30451212271)で9 job全てがsuccess:
+
+| job | 結果 | 所要 |
+|---|---|---|
+| Quality and Expo validation | success | 48 s |
+| Tauri (ubuntu / macOS / windows) | success ×3 | 3m44s / 2m49s / 3m15s |
+| Supply-chain policy（SBOM・license・advisories） | success | 57 s |
+| e2e (ubuntu / macOS / windows) | success ×3 | 3m56s / 4m44s / 7m40s |
+| android（debug APK） | success | 20m45s |
+
+Expo prebuild validationはQuality jobのstepとして通っている。androidはcache有りで18m20sまで落ちており、#001が実測した初回42m51sとは別物になっている。
+
+**ビルドグラフはFrostBuild v0.8.0にpin**（`frost.toml` / `Taskfile.yml` / `ci.yml`）。CIは checksummed release を展開し、Task側は`frost info version`がpin値と一致しない binary を precondition で拒否する。Frostは1.0前でminorがmanifest/CLI意味論を変えうると明言しているため、「PATHにfrostがある」だけではローカル実行とCI実行が同じ意味を持たない。
+
+リリース検証（`validate:eas` / `validate:brand` / `verify:dependency-patches`）も生のnpm実行をやめてFrostの`test` targetにした。checked-inのconfigとassetを`inputs`として宣言しているので、`apps/mobile/app.json`を触るとbrand gateだけが再実行される。変異テストで確認済み: `adaptiveIcon.backgroundColor`を書き換えると当該gateだけがrerunして失敗し、戻すとcache hitに戻る。
+
 未実装:
 
-- **e2e matrixはCI上で未実行。** ローカルでYAMLの構文と各stepの内容は確認したが、GitHub Actions上で通ることは未検証
-- Tauri matrix（`tauri build`のOS別ビルド）
 - 実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証
-- Expo prebuild validation
-- SBOM/license scan（#053）
+- Tauri jobは`cargo build --release`まで。`tauri build`のbundle生成（AppImage/deb/msi/dmg）と署名は#059の範囲で未実施
+- iOSビルドはmacOS runnerでも未実施（#058のEASが前提）
+- e2eはPlaywright + Chromiumのみ。WebKitGTK実バイナリはローカル`e2e:tauri`だけ
 
 Acceptance: PR必須checkとして動き、artifact retentionを設定する。
 
