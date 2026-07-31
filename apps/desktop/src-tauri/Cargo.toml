@@ -1,6 +1,6 @@
 [package]
 name = "iroha-pdf"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first PDF workspace"
 authors = ["Iroha PDF contributors"]
 edition = "2021"
