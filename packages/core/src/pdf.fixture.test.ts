@@ -4,10 +4,11 @@ import {
   PDFRawStream,
   StandardFonts,
   decodePDFRawStream,
+  degrees,
 } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 
-import { extractPdfPages, optimizePdfStructure, reorderPdf } from './pdf';
+import { extractPdfPages, flattenAnnotations, optimizePdfStructure, reorderPdf } from './pdf';
 
 const FIXED_DATE = new Date('2025-01-01T00:00:00.000Z');
 
@@ -65,5 +66,59 @@ describe('fixture-based PDF compatibility', () => {
 
   it('rejects corrupt input without producing a partial result', async () => {
     await expect(optimizePdfStructure(new TextEncoder().encode('not a PDF'))).rejects.toThrow();
+  });
+});
+
+describe('annotations on rotated pages', () => {
+  /**
+   * A 400x200 page carrying /Rotate is displayed 200x400 for the quarter turns,
+   * so the same normalized box lands at a different place in unrotated user
+   * space each time. These are the four rectangles the reader should see in the
+   * same displayed position; they were derived by hand and confirmed by
+   * rasterising the output with poppler, which put the mark in the displayed
+   * top-left corner at the same coordinates for all four angles.
+   */
+  const EXPECTED = new Map([
+    [0, '1 0 0 1 20 130 cm'],
+    [90, '1 0 0 1 20 10 cm'],
+    [180, '1 0 0 1 260 10 cm'],
+    [270, '1 0 0 1 260 130 cm'],
+  ]);
+
+  it.each([...EXPECTED])('places a highlight for /Rotate %i', async (angle, origin) => {
+    const input = await PDFDocument.create();
+    input.addPage([400, 200]).setRotation(degrees(angle));
+
+    const outputBytes = await flattenAnnotations(await input.save(), [
+      {
+        id: 'highlight', documentId: 'doc', pageIndex: 0, kind: 'highlight', color: '#ffee00',
+        position: { x: 0.05, y: 0.05 }, width: 0.3, height: 0.3, opacity: 1,
+        createdAt: '2026-07-31T00:00:00.000Z', updatedAt: '2026-07-31T00:00:00.000Z',
+      },
+    ]);
+
+    const content = decodedPageContent(await PDFDocument.load(outputBytes), 0);
+    // pdf-lib emits the box as a translation followed by a closed path, so the
+    // origin and the extent are asserted separately.
+    expect(content).toContain(origin);
+    expect(content).toContain('0 0 m\n0 60 l\n120 60 l\n120 0 l');
+  });
+
+  it('cancels the page rotation so text is not drawn sideways', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([400, 200]).setRotation(degrees(90));
+
+    const outputBytes = await flattenAnnotations(await input.save(), [
+      {
+        id: 'text', documentId: 'doc', pageIndex: 0, kind: 'text', color: '#000000',
+        position: { x: 0.05, y: 0.05 }, text: 'note', fontSize: 24,
+        createdAt: '2026-07-31T00:00:00.000Z', updatedAt: '2026-07-31T00:00:00.000Z',
+      },
+    ]);
+
+    // A quarter turn in the text matrix, not the identity a page with no
+    // /Rotate produces. cos(90°) comes out as a float epsilon rather than 0.
+    expect(decodedPageContent(await PDFDocument.load(outputBytes), 0))
+      .toMatch(/^[\d.e-]+ 1 -1 [\d.e-]+ [\d.]+ [\d.]+ Tm$/m);
   });
 });
