@@ -46,6 +46,7 @@ tasks:
         iroha-pdf-core-test
         iroha-pdf-google-drive-test
         iroha-pdf-desktop-test
+        iroha-pdf-mobile-test
 
   typecheck:
     desc: Run the cached TypeScript gates

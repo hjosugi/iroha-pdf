@@ -114,6 +114,16 @@ env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false
 
+[target.iroha-pdf-mobile-test]
+kind = "test"
+tool = "npm"
+args = ["run", "test", "--workspace", "@iroha-pdf/mobile"]
+inputs = ["apps/mobile/*", "apps/mobile/assets/fonts/*.otf", "apps/mobile/src/**/*", "package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "tsconfig.base.json"]
+deps = ["iroha-pdf-core-test"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
 [target.iroha-pdf-mobile-typecheck]
 kind = "test"
 tool = "npm"

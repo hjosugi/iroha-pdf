@@ -160,30 +160,86 @@ export async function rotatePdfPages(
   return document.save({ useObjectStreams: true });
 }
 
+/**
+ * Annotation coordinates are normalized against the page as the reader sees it,
+ * but pdf-lib draws in unrotated user space. On a page carrying /Rotate the two
+ * disagree, and a mark placed at the top left of the screen lands at whichever
+ * corner the rotation carries it to.
+ *
+ * `point` maps a normalized position on the displayed page into user space.
+ * `width`/`height` are the displayed dimensions, swapped for the quarter turns.
+ */
+type PageFrame = {
+  width: number;
+  height: number;
+  rotation: number;
+  point(nx: number, ny: number): { x: number; y: number };
+};
+
+function pageFrame(page: PDFPage): PageFrame {
+  const w = page.getWidth();
+  const h = page.getHeight();
+  // Normalized to 0/90/180/270; a /Rotate outside that is not meaningful and
+  // viewers round it, so treat anything unrecognised as upright.
+  const rotation = ((Math.round(page.getRotation().angle / 90) * 90) % 360 + 360) % 360;
+  const quarterTurn = rotation === 90 || rotation === 270;
+
+  const point = (nx: number, ny: number): { x: number; y: number } => {
+    switch (rotation) {
+      case 90:
+        return { x: ny * w, y: nx * h };
+      case 180:
+        return { x: w - nx * w, y: ny * h };
+      case 270:
+        return { x: w - ny * w, y: h - nx * h };
+      default:
+        return { x: nx * w, y: h - ny * h };
+    }
+  };
+
+  return { width: quarterTurn ? h : w, height: quarterTurn ? w : h, rotation, point };
+}
+
 function drawAnnotation(page: PDFPage, annotation: PdfAnnotation, font: PDFFont): void {
-  const width = page.getWidth();
-  const height = page.getHeight();
+  const frame = pageFrame(page);
   const color = hexToRgb(annotation.color);
   const pdfColor = rgb(color.red, color.green, color.blue);
 
   if (annotation.kind === 'text') {
+    // The stored point is the top left of the text; the baseline sits one font
+    // size below it. Applying that offset in displayed space rather than user
+    // space keeps it pointing at the reader's "down" on a rotated page.
+    const baseline = frame.point(
+      annotation.position.x,
+      annotation.position.y + annotation.fontSize / frame.height,
+    );
     page.drawText(annotation.text, {
-      x: annotation.position.x * width,
-      y: height - annotation.position.y * height - annotation.fontSize,
+      x: baseline.x,
+      y: baseline.y,
       size: annotation.fontSize,
       font,
       color: pdfColor,
-      maxWidth: width * 0.8,
+      maxWidth: frame.width * 0.8,
+      // Cancels the page rotation, so the text reads upright on screen.
+      rotate: degrees(frame.rotation),
     });
     return;
   }
 
   if (annotation.kind === 'highlight') {
+    // Both corners are mapped and the box rebuilt from them: which corner ends
+    // up lowest-leftmost in user space depends on the rotation, and this avoids
+    // a width and height formula per quarter turn.
+    const a = frame.point(annotation.position.x, annotation.position.y);
+    const b = frame.point(
+      annotation.position.x + annotation.width,
+      annotation.position.y + annotation.height,
+    );
     page.drawRectangle({
-      x: annotation.position.x * width,
-      y: height - (annotation.position.y + annotation.height) * height,
-      width: annotation.width * width,
-      height: annotation.height * height,
+      x: Math.min(a.x, b.x),
+      y: Math.min(a.y, b.y),
+      width: Math.abs(b.x - a.x),
+      height: Math.abs(b.y - a.y),
       color: pdfColor,
       opacity: annotation.opacity,
       borderOpacity: 0,
@@ -196,8 +252,8 @@ function drawAnnotation(page: PDFPage, annotation: PdfAnnotation, font: PDFFont)
     const current = annotation.points[index];
     if (!previous || !current) continue;
     page.drawLine({
-      start: { x: previous.x * width, y: height - previous.y * height },
-      end: { x: current.x * width, y: height - current.y * height },
+      start: frame.point(previous.x, previous.y),
+      end: frame.point(current.x, current.y),
       thickness: annotation.strokeWidth,
       color: pdfColor,
       opacity: 0.95,
