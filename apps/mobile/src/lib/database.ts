@@ -14,6 +14,10 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   databasePromise ??= SQLite.openDatabaseAsync('iroha-pdf.db');
   return databasePromise;
@@ -323,9 +327,17 @@ async function journaledWrite(
         new Date().toISOString(),
         journalId,
       );
-    } catch {
-      // A locked/full database may also reject the status update. The pending
-      // record is intentionally reconciled on the next successful startup.
+    } catch (journalError) {
+      // Whatever refused the write — a lock, a full disk — refuses this update too,
+      // so the entry stays pending and only the next launch reconciles it. Until then
+      // the Recovery screen has nothing to offer, and the caller is the one telling
+      // the user their edit is gone: that message has to be true, so the reason the
+      // safety net is empty travels with it rather than dying here.
+      throw new Error(
+        `${describeError(error)} — and the interrupted edit could not be kept as a recovery copy` +
+          ` (${describeError(journalError)}); it is offered again after the next launch.`,
+        { cause: error },
+      );
     }
     throw error;
   }

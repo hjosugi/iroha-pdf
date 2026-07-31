@@ -86,9 +86,18 @@ typecheck nor the build says a word about that.
 **iOS has never been built and cannot be built here**: it needs macOS and Xcode. That
 needs EAS (issue 058) or a macOS runner.
 
-The mobile app still has **no unit tests**. Its `src/lib` modules are thin wrappers over
-expo-sqlite and expo-file-system, so tests there would mostly exercise mocks; the logic
-worth testing (coordinates, merge) lives in `packages/core`, which is covered.
+The mobile `src/lib` modules are covered by `iroha-pdf-mobile-test`. A double that only
+recorded the SQL they issue would prove nothing, so `apps/mobile/test-sqlite.ts` puts
+`node:sqlite` — the same engine the device runs, unflagged since the Node 22.13.0 this
+repository requires — behind the handful of methods `database.ts` calls, against a real
+file. Foreign keys are therefore proved by a cascade that really happens, the
+`last_opened_at` upgrade by setting up the shipped 0.1 schema first, recovery by
+relaunching over the file the previous launch left behind, and the write journal's
+`SQLITE_BUSY` path by a second connection actually taking the write lock. The font
+`annotation-font.ts` caches is the one the repository really ships.
+
+What still needs a device is everything above `src/lib`: the screens, the PDF view, the
+share and print sheets, and Expo's own asset and document-picker resolution.
 
 The "really is page 1" check screenshots what the app painted and compares it against
 poppler's own render. It uses no fixed similarity threshold: font substitution and
