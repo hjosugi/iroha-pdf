@@ -90,6 +90,74 @@ jobs:
 
           exit "$fail"
 
+      # A release says the code in it was tested, so a red commit must not be
+      # publishable. The required set is the one branch protection already
+      # enforces on main, read out of scripts/github/protect-main.sh rather than
+      # copied here: two lists would drift, and a release gate that drifts weaker
+      # fails silently. `android` and this workflow's own job are not required
+      # checks there, so they are not demanded here either.
+      - name: Require CI to have passed on this commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          policy=scripts/github/protect-main.sh
+          block="$(
+            sed -n '/^required_checks=(/,/^)/p' "$policy" |
+              sed '/^[[:space:]]*\(#.*\)\?$/d'
+          )"
+          mapfile -t required < <(
+            sed -n 's/^[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' <<<"$block"
+          )
+          app_id="$(
+            sed -n 's/^readonly github_actions_app_id=\([0-9][0-9]*\)$/\1/p' "$policy"
+          )"
+
+          # Every line of that array has to have been understood. A reformat that
+          # left some of it unparsed would quietly shrink what a release requires.
+          if (( ${#required[@]} == 0 )) || (( ${#required[@]} != $(wc -l <<<"$block") - 2 )) ||
+             [[ -z "$app_id" ]]; then
+            echo "::error file=$policy::cannot read the required checks from this file;" \
+              "the branch-protection policy changed shape and this gate must be updated"
+            exit 1
+          fi
+
+          runs="$(
+            gh api --paginate --jq '.check_runs[]' \
+              "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" |
+              jq --slurp .
+          )"
+
+          # Latest run wins, as branch protection does it: re-running a failed job
+          # green is what a fix looks like. Only `success` counts — a required check
+          # that was skipped did not do the work a release is claiming was done.
+          fail=0
+          for context in "${required[@]}"; do
+            verdict="$(
+              jq --raw-output --arg name "$context" --argjson app "$app_id" '
+                [.[] | select(.name == $name and .app.id == $app)]
+                | sort_by(.id) | last
+                | if . == null then "missing"
+                  elif .status != "completed" then "still " + .status
+                  else .conclusion end
+              ' <<<"$runs"
+            )"
+            if [[ "$verdict" == "success" ]]; then
+              printf 'ok      %s\n' "$context"
+            else
+              printf 'not ok  %s: %s\n' "$context" "$verdict"
+              echo "::error::required check '$context' is $verdict on $GITHUB_SHA"
+              fail=1
+            fi
+          done
+
+          if (( fail )); then
+            echo "::error::CI has not passed on $GITHUB_SHA; releasing it would publish an untested commit"
+            exit 1
+          fi
+
       - name: Refuse to overwrite an existing release
         shell: bash
         env:
