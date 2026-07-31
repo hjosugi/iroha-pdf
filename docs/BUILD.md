@@ -60,6 +60,24 @@ task ci               # the complete fast CI quality workflow
 `FROST_BIN=/absolute/path/to/frost task check` selects a binary that is not on
 the normal `PATH`.
 
+## Cutting a release
+
+Bump every version marker — `package.json`, both app manifests,
+`apps/mobile/app.json`, `apps/desktop/src-tauri/tauri.conf.json` and
+`Cargo.toml`, plus both lockfiles — add the `## X.Y.Z - YYYY-MM-DD` heading to
+`CHANGELOG.md`, and merge that to `main`. Then run the **Release** workflow
+from the Actions tab with the same version.
+
+The workflow checks the version against every one of those files and against
+the changelog heading before it creates anything, then creates the tag and the
+GitHub release in one step, so a failed check cannot leave a dangling tag. Its
+notes are the changelog section for that version.
+
+It attaches no binaries, and defaults to marking the release as a pre-release.
+Desktop signing and notarization are unimplemented and `docs/RELEASE_GATE.md`
+is still blocked, so an attached artifact would be an unsigned build wearing a
+release badge. Turn the pre-release flag off once that gate is met.
+
 Frost keeps its journal, graph and content-addressed cache below `.frost/`.
 Delete that directory only when intentionally discarding the local build cache;
 correctness does not depend on the cache being present.
