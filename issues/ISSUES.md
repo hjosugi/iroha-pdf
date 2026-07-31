@@ -28,6 +28,51 @@ Android emulator（API 36）でアプリを起動し、実際に触って確認�
 
 つまりmobileは、desktopがこのセッションで解消した課題（色、削除、履歴、in-place save）を**ほぼそのまま抱えている**。ただし出力経路（Export → 共有シート、Print）はdesktopより自然に統合されている。
 
+## 077 [x] The desktop PDF engine was downloaded from a CDN at runtime
+
+Labels: `platform:desktop`, `type:bug`, `type:security`, `priority:P0`
+
+**local-firstを名乗る製品が、ローカルのPDFを開くのに外部ネットワークを必要としていた。**
+
+`App.tsx`は`usePdfiumEngine({ logger })`を`wasmUrl`なしで呼んでいた。`@embedpdf/engines`の既定値は:
+
+```
+https://cdn.jsdelivr.net/npm/@embedpdf/pdfium@2.14.4/dist/pdfium.wasm
+```
+
+ネットワークを持たない環境で実測したところ、**正常なPDF（complex.pdf）ですら開かなかった**。画面は`Opening PDF…`のまま37秒以上変化せず、エラーもタイムアウトも出ない。#068で「開けなかったことを見えるようにする」経路を作ったが、そこにすら到達しない。
+
+これが今まで表面化しなかったのは、CIも開発機もインターネットに繋がっていたため。e2eは全件通っていたが、**engineが実際にどこから来ているかを見るテストが1件も無かった**。
+
+問題は3つある:
+
+1. **オフラインで使えない。** 製品の中核の主張が成立しない
+2. **未信頼PDFをparseするコードがサプライチェーン管理の外にある。** SBOM、license allowlist、`npm audit`、`cargo audit`、vendored patch検証はすべて「同梱されるコード」を対象にしている。実際にPDFを読むwasmはそのどれにも含まれない第三者CDN由来だった（#052 / #053に直接関係）
+3. **自分のCSPが許していない宛先を叩いていた。** `tauri.conf.json`は`connect-src 'self' ipc: http://ipc.localhost`。jsdelivrは入っていない。WebKitGTKが現状これを通していたとしても、CSPを強制する実装・将来のTauri/WebView2更新でパッケージ版が丸ごと動かなくなる
+
+またローカルファイルを開くだけで第三者へ通信が出るため、privacy documentation（#056）とstore data safety（#067）の記述とも食い違う。
+
+**修正:** `@embedpdf/pdfium`は`./pdfium.wasm`をexportしており、wasm本体は既に`node_modules`に入っている。これをViteの`?url`で同梱し、`wasmUrl`として渡す。
+
+その過程で2つ目のバグを踏んだ。Viteが出すのは`/assets/pdfium-<hash>.wasm`というroot-absoluteパスだが、engineは**blob: URLから生成したworker**の中で走る。blob:をbaseにこのパスは解決できず、fetchが飛ばないまま open taskが永久に待つ（症状は修正前とまったく同じ`Opening PDF…`）。`new URL(url, window.location.href).href`で絶対URLにしてから渡す。
+
+**検証（ネットワークを持たないコンテナで実測）:**
+
+| 状態 | 結果 |
+|---|---|
+| 修正前 | complex.pdfが37秒以上`Opening PDF…`のまま。jsdelivrへのrequestが`ERR_TUNNEL_CONNECTION_FAILED` |
+| wasm同梱のみ（相対URL） | engineとplugin 14個は初期化されるが、open taskが完了しない |
+| wasm同梱 + 絶対URL | 1.5秒で4ページ描画。外部requestは0件 |
+
+desktop e2e全55件を同じ環境で実行し、**51 passed / 4 skipped（poppler・Ghostscript未導入のrendering検証のみ）/ 0 failed**。修正前はengineが起動しないため全滅していた。
+
+回帰テストは`e2e/offline.spec.ts`。off-originへのrequestを**遮断しつつ記録する**（interceptが取りこぼしてもrecordingが捕まえ、その逆も同様）。fixtureは4 MB閾値を確実に下回る`rotated-mixed.pdf`を使い、harness自身がHTTPを使わないようにしてある。`wasmUrl`を外す変異で落ちることを確認済み。
+
+未対応:
+
+- **fallback fontも同じ経路。** `worker-engine`のchunkに`@embedpdf/fonts-{arabic,hebrew,jp,kr,latin,sc,tc}`のjsdelivr URLが残っている。埋め込みフォントを持つPDFでは要求されないため今回のテストには現れないが、フォント未埋め込みのCJK PDFをオフラインで開いた場合の挙動は未確認
+- CSPは`connect-src 'self'`のまま据え置いた。同梱後は外部宛先が不要なので広げていない
+
 ## 076 [ ] Save back into the file the user opened, on mobile
 
 Labels: `platform:mobile`, `type:feature`, `priority:P1`

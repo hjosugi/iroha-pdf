@@ -17,13 +17,27 @@ import { SelectionPluginPackage } from '@embedpdf/plugin-selection/react';
 import { TilingPluginPackage } from '@embedpdf/plugin-tiling/react';
 import { ViewportPluginPackage } from '@embedpdf/plugin-viewport/react';
 import { ZoomMode, ZoomPluginPackage } from '@embedpdf/plugin-zoom/react';
+// Bundled with the app rather than fetched. usePdfiumEngine otherwise defaults to
+// https://cdn.jsdelivr.net/npm/@embedpdf/pdfium@<version>/dist/pdfium.wasm, which
+// makes a local-first PDF workspace unable to open a local file offline, puts a
+// third-party CDN in the path of the code that parses untrusted PDFs — outside
+// every check the SBOM, licence allowlist and advisory audits perform — and asks
+// for a host that tauri.conf.json's `connect-src 'self' ipc: http://ipc.localhost`
+// does not permit.
+import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url';
 
 import { Workspace } from './Workspace';
 
 const logger = new ConsoleLogger();
 
+// Vite emits a root-absolute path. The engine runs in a worker created from a
+// blob: URL, and a blob: base cannot resolve one, so the fetch never lands and
+// the open task waits forever with no error. Resolve it against the document
+// before handing it over.
+const wasmUrl = new URL(pdfiumWasmUrl, window.location.href).href;
+
 export function App() {
-  const { engine, isLoading, error } = usePdfiumEngine({ logger });
+  const { engine, isLoading, error } = usePdfiumEngine({ logger, wasmUrl });
   const plugins: PluginBatchRegistrations = useMemo(
     () => [
       createPluginRegistration(DocumentManagerPluginPackage),
