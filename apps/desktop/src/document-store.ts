@@ -34,6 +34,8 @@ export type DocumentFile = {
   revisions: SaveRevision[];
   /** A draft that outlived the app, waiting for the user to accept or throw away. */
   recovery: Draft | null;
+  /** When autosave first failed to store a draft; null while it is working. */
+  draftFailedAt: number | null;
 };
 
 const EMPTY: DocumentFile = Object.freeze({
@@ -42,6 +44,7 @@ const EMPTY: DocumentFile = Object.freeze({
   edits: [],
   revisions: [],
   recovery: null,
+  draftFailedAt: null,
 });
 
 const MAX_EDITS = 500;
@@ -119,12 +122,28 @@ export function registerOpenedFile(documentId: string, path: string | null): voi
     path,
     pendingEdits: 0,
     recovery: draft && draft.items.length > 0 ? draft : null,
+    draftFailedAt: null,
     ...history,
   });
 }
 
 export function dismissRecovery(documentId: string): void {
   patch(documentId, { recovery: null });
+}
+
+/**
+ * Records whether the last autosave reached storage.
+ *
+ * A draft that was never written leaves the edits in memory only, so this is state
+ * the workspace has to show: someone who believes autosave is running will not think
+ * to press Save, and a crash then takes the lot. The time kept is the first failure's
+ * — that is when the drafts stopped being worth anything.
+ */
+export function recordDraftWrite(documentId: string, stored: boolean): void {
+  const current = files.get(documentId) ?? EMPTY;
+  // Autosave runs after every edit; only a change of state is worth a re-render.
+  if (stored === (current.draftFailedAt === null)) return;
+  patch(documentId, { draftFailedAt: stored ? null : Date.now() });
 }
 
 export function recordEdit(documentId: string, entry: EditEntry): void {
@@ -143,6 +162,9 @@ export function recordSave(documentId: string, revision: SaveRevision): void {
     revisions: [...current.revisions, revision].slice(-MAX_REVISIONS),
     pendingEdits: 0,
     recovery: null,
+    // Nothing is at risk once the work is in the file; the next failed draft says so
+    // again, and until then a warning would only be noise.
+    draftFailedAt: null,
   });
   persistHistory(next);
   // The annotations are in the file now, so the draft has nothing left to protect.

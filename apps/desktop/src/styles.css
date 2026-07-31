@@ -72,6 +72,8 @@ button { cursor: pointer; }
 .recovery-banner { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #f2d98c; background: #fff8e1; color: #5c4708; font-size: 12px; }
 .recovery-banner strong { color: #3d2f00; }
 .recovery-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.autosave-banner { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #f3b8a0; background: #fdece5; color: #7a2d0b; font-size: 12px; }
+.autosave-banner strong { color: #5c2007; }
 .primary-button.unsaved { background: #d9480f; }
 .primary-button.unsaved:hover { background: #b93c0b; }
 
