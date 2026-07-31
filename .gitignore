@@ -27,3 +27,6 @@ src-tauri/target/
 *.p8
 *.p12
 *.mobileprovision
+
+# Isolated worktrees used by background agents
+.claude/worktrees/
