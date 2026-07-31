@@ -1,5 +1,7 @@
-# Generated from npm workspace metadata with FrostBuild v0.5.0, then extended
-# with an explicit Vite output-tree boundary for the desktop web build.
+# Generated from npm workspace metadata with FrostBuild v0.8.0, then extended
+# with an explicit Vite output-tree boundary for the desktop web build and with
+# the release-facing validation gates, which read checked-in configuration and
+# assets rather than a workspace script.
 
 [workspace]
 name = "iroha-pdf"
@@ -8,6 +10,26 @@ default_targets = ["desktop-web"]
 [toolchain.tools]
 npm = "npm"
 node = "node"
+
+[target.iroha-pdf-brand-validate]
+kind = "test"
+tool = "node"
+args = ["release/branding/validate-assets.mjs"]
+inputs = [
+  "apps/desktop/src-tauri/icons/128x128.png",
+  "apps/desktop/src-tauri/icons/128x128@2x.png",
+  "apps/desktop/src-tauri/icons/32x32.png",
+  "apps/desktop/src-tauri/icons/icon.icns",
+  "apps/desktop/src-tauri/icons/icon.ico",
+  "apps/mobile/app.json",
+  "apps/mobile/assets/images/*.png",
+  "assets/branding/*",
+  "release/branding/validate-assets.mjs",
+  "release/store/screenshots/desktop/*.png",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
 
 [target.iroha-pdf-core-test]
 kind = "test"
@@ -23,6 +45,23 @@ kind = "test"
 tool = "npm"
 args = ["run", "typecheck", "--workspace", "@iroha-pdf/core"]
 inputs = ["package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "tsconfig.base.json"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+# Resolves the installed `xcode` and `uuid` packages as well as the vendored
+# glib patch, so the npm lockfile stands in for the module tree the way it does
+# for every other gate here.
+[target.iroha-pdf-dependency-patches]
+kind = "test"
+tool = "node"
+args = ["release/supply-chain/verify-dependency-patches.mjs"]
+inputs = [
+  "apps/desktop/src-tauri/vendor/glib-0.18.5-patched/src/variant_iter.rs",
+  "package-lock.json",
+  "package.json",
+  "release/supply-chain/verify-dependency-patches.mjs",
+]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false
@@ -43,6 +82,15 @@ tool = "npm"
 args = ["run", "typecheck", "--workspace", "@iroha-pdf/desktop"]
 inputs = ["apps/desktop/*", "apps/desktop/e2e-tauri/**/*", "apps/desktop/e2e/**/*", "apps/desktop/src-tauri/**/*", "apps/desktop/src/**/*", "package-lock.json", "package.json", "packages/core/*", "packages/core/src/**/*", "packages/google-drive/*", "packages/google-drive/src/**/*", "tsconfig.base.json"]
 deps = ["iroha-pdf-core-typecheck", "iroha-pdf-google-drive-typecheck"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-eas-validate]
+kind = "test"
+tool = "node"
+args = ["release/mobile/validate-eas-config.mjs"]
+inputs = ["apps/mobile/eas.json", "release/mobile/validate-eas-config.mjs"]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false

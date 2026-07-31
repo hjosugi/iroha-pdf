@@ -37,8 +37,8 @@ jobs:
           install -d "$RUNNER_TEMP/frost"
           curl --fail --location --silent --show-error \
             --output "$RUNNER_TEMP/frost.tar.gz" \
-            https://github.com/hjosugi/frost-build/releases/download/v0.5.0/frostbuild-v0.5.0-x86_64-unknown-linux-musl.tar.gz
-          echo "2f2258482594a0408984531cfc2409c8127556562317af21309e77770ae3ada6  $RUNNER_TEMP/frost.tar.gz" \
+            https://github.com/hjosugi/frost-build/releases/download/v0.8.0/frostbuild-v0.8.0-x86_64-unknown-linux-musl.tar.gz
+          echo "7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795  $RUNNER_TEMP/frost.tar.gz" \
             | sha256sum --check
           tar --extract --gzip --file "$RUNNER_TEMP/frost.tar.gz" \
             --directory "$RUNNER_TEMP/frost" --strip-components=1

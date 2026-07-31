@@ -4,13 +4,19 @@ The repository uses two complementary tools:
 
 - [Task](https://taskfile.dev/) v3.52.0 is the cross-platform developer and CI
   entry point.
-- [FrostBuild](https://github.com/hjosugi/frost-build) v0.5.0 owns the
+- [FrostBuild](https://github.com/hjosugi/frost-build) v0.8.0 owns the
   incremental validation graph and the desktop Vite output tree.
 
 npm remains authoritative for the lockfile, dependency installation, Vitest,
 TypeScript and Vite. Frost operates above those package-manager boundaries: it
 prunes unaffected workspace gates, caches successful tests, and restores the
 verified profile-specific tree below `apps/desktop/dist/`.
+
+The release-facing validation scripts — EAS profiles, brand assets and the
+vendored dependency patches — are Frost `test` targets rather than bare npm
+calls, so they are pruned and cached like every other gate. They read
+checked-in configuration and assets, so each one declares those files as
+inputs: editing `apps/mobile/app.json` reruns the brand gate and nothing else.
 
 ## Install the tools
 
@@ -20,8 +26,8 @@ Install Task with any official method. A version-pinned Go installation is:
 go install github.com/go-task/task/v3/cmd/task@v3.52.0
 ```
 
-Install FrostBuild v0.5.0 from its
-[checksummed release](https://github.com/hjosugi/frost-build/releases/tag/v0.5.0)
+Install FrostBuild v0.8.0 from its
+[checksummed release](https://github.com/hjosugi/frost-build/releases/tag/v0.8.0)
 and place `frost` on `PATH`. No Frost binary is committed to this repository.
 
 Verify both tools:
@@ -32,15 +38,22 @@ frost --version
 task frost:doctor
 ```
 
+Every Frost task refuses a binary whose `frost info version` is not the pinned
+`0.8.0`, which is the version CI installs from that checksummed archive. Frost
+is pre-1.0 and states that a minor release may change manifest or CLI
+semantics, so a local run against a different binary would not mean the same
+thing as the CI run. Raise `FROST_VERSION` in `Taskfile.yml` and the archive
+URL plus SHA-256 in `.github/workflows/ci.yml` together.
+
 ## Common commands
 
 ```bash
 task install          # npm ci
-task check            # cached unit tests and typechecks
+task check            # every cached gate: tests, typechecks, release validation
 task test             # cached unit tests only
 task typecheck        # cached typechecks only
 task build:desktop    # cached/restorable Vite dist tree
-task validate         # EAS and product-identity validation
+task validate         # EAS, product-identity and dependency-patch validation
 task ci               # the complete fast CI quality workflow
 ```
 
