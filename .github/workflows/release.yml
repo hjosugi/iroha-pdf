@@ -1,0 +1,147 @@
+name: Release
+
+# Cutting a release is a CI operation, not a terminal ritual. Tag creation and
+# the GitHub release are made together here so a failed validation cannot leave
+# a dangling tag behind, and so the version in the tag is checked against the
+# version the repository actually declares.
+#
+# This workflow deliberately publishes no binaries. Desktop signing and
+# notarization are unimplemented and docs/RELEASE_GATE.md is still blocked with
+# every evidence row pending, so an attached artifact here would be an unsigned
+# build wearing a release badge. Attach packages only once that gate is met.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the leading v (e.g. 0.2.0)
+        required: true
+        type: string
+      prerelease:
+        description: Mark as a pre-release. Keep this on while RELEASE_GATE.md is blocked.
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag and publish ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Everything below runs before the tag exists, so a mismatch costs nothing
+      # to correct: fix the version and dispatch again.
+      - name: Check the version against the repository
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$VERSION' is not a three-part semantic version"
+            exit 1
+          fi
+
+          declared() { node -p "require('./$1').version"; }
+          fail=0
+          for manifest in package.json apps/desktop/package.json apps/mobile/package.json; do
+            found="$(declared "$manifest")"
+            if [[ "$found" != "$VERSION" ]]; then
+              echo "::error file=$manifest::declares $found, expected $VERSION"
+              fail=1
+            fi
+          done
+
+          tauri="$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")"
+          if [[ "$tauri" != "$VERSION" ]]; then
+            echo "::error file=apps/desktop/src-tauri/tauri.conf.json::declares $tauri, expected $VERSION"
+            fail=1
+          fi
+
+          expo="$(node -p "require('./apps/mobile/app.json').expo.version")"
+          if [[ "$expo" != "$VERSION" ]]; then
+            echo "::error file=apps/mobile/app.json::declares $expo, expected $VERSION"
+            fail=1
+          fi
+
+          # The crate version is what a packaged desktop build reports, so it has
+          # to agree even though nothing here compiles it.
+          cargo="$(sed -n '0,/^version = /s/^version = "\(.*\)"/\1/p' apps/desktop/src-tauri/Cargo.toml)"
+          if [[ "$cargo" != "$VERSION" ]]; then
+            echo "::error file=apps/desktop/src-tauri/Cargo.toml::declares $cargo, expected $VERSION"
+            fail=1
+          fi
+
+          if ! grep -qE "^## $VERSION - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
+            echo "::error file=CHANGELOG.md::no '## $VERSION - YYYY-MM-DD' heading"
+            fail=1
+          fi
+
+          exit "$fail"
+
+      - name: Refuse to overwrite an existing release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::v$VERSION is already released; bump the version instead"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"
+            exit 1
+          fi
+
+      # Section-scoped: everything between this version's heading and the next.
+      - name: Take the notes from the changelog
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v v="## $VERSION - " '
+            index($0, v) == 1 { grab = 1; next }
+            grab && /^## / { exit }
+            grab { print }
+          ' CHANGELOG.md > release-notes.md
+
+          {
+            echo
+            echo "---"
+            echo
+            echo "Built from \`$GITHUB_SHA\`. No signed native packages are attached:"
+            echo "\`docs/RELEASE_GATE.md\` is still blocked, and desktop signing and"
+            echo "notarization are unimplemented."
+          } >> release-notes.md
+
+          cat release-notes.md
+
+      - name: Create the tag and the release together
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+                --title "Iroha PDF v$VERSION" --notes-file release-notes.md)
+          [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
+          # gh creates the tag at --target as part of publishing, so the tag and
+          # the release appear in one step or not at all.
+          gh release create "v$VERSION" "${args[@]}"
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,targetCommitish
