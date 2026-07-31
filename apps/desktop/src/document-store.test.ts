@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   forgetDocument,
   getDocumentFile,
+  recordDraftWrite,
   recordEdit,
   recordSave,
   registerOpenedFile,
@@ -97,6 +98,60 @@ describe('document store', () => {
     expect(file.edits[0]?.at).toBe(20);
     expect(file.pendingEdits).toBe(520);
     forgetDocument('long');
+  });
+
+  it('flags autosave that could not write, and unflags it when it works again', () => {
+    registerOpenedFile('quota', '/tmp/quota.pdf');
+    recordDraftWrite('quota', true);
+    expect(getDocumentFile('quota').draftFailedAt).toBeNull();
+
+    recordDraftWrite('quota', false);
+    expect(getDocumentFile('quota').draftFailedAt).toBeGreaterThan(0);
+
+    recordDraftWrite('quota', true);
+    expect(getDocumentFile('quota').draftFailedAt).toBeNull();
+    forgetDocument('quota');
+  });
+
+  it('keeps the first failure time and does not re-notify while it lasts', () => {
+    registerOpenedFile('quota-repeat', '/tmp/quota-repeat.pdf');
+    let calls = 0;
+    const unsubscribe = subscribe(() => {
+      calls += 1;
+    });
+
+    recordDraftWrite('quota-repeat', false);
+    const first = getDocumentFile('quota-repeat').draftFailedAt;
+    recordDraftWrite('quota-repeat', false);
+    recordDraftWrite('quota-repeat', false);
+    unsubscribe();
+
+    expect(getDocumentFile('quota-repeat').draftFailedAt).toBe(first);
+    // Autosave runs after every edit; only the change of state is worth a render.
+    expect(calls).toBe(1);
+    forgetDocument('quota-repeat');
+  });
+
+  it('drops the autosave warning once the work has reached the file', () => {
+    registerOpenedFile('quota-saved', '/tmp/quota-saved.pdf');
+    recordDraftWrite('quota-saved', false);
+    recordSave('quota-saved', {
+      at: 3_000,
+      path: '/tmp/quota-saved.pdf',
+      byteLength: 64,
+      editCount: 1,
+      kind: 'save',
+    });
+    expect(getDocumentFile('quota-saved').draftFailedAt).toBeNull();
+    forgetDocument('quota-saved');
+  });
+
+  it('does not carry an autosave failure into the next document opened', () => {
+    registerOpenedFile('reopened', '/tmp/reopened.pdf');
+    recordDraftWrite('reopened', false);
+    registerOpenedFile('reopened', '/tmp/reopened.pdf');
+    expect(getDocumentFile('reopened').draftFailedAt).toBeNull();
+    forgetDocument('reopened');
   });
 
   it('notifies subscribers on change', () => {

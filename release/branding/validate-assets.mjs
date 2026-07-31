@@ -1,5 +1,8 @@
 import { readFile } from 'node:fs/promises';
 
+import fontkit from '@pdf-lib/fontkit';
+import { PDFDocument } from 'pdf-lib';
+
 const root = new URL('../../', import.meta.url);
 
 async function read(relativePath) {
@@ -61,4 +64,24 @@ assert(manifest.default === 'iroha-icon.svg', 'Tauri must use the shared master 
 assert(manifest.android_fg === 'iroha-foreground.svg', 'Tauri must use the shared adaptive foreground');
 assert(manifest.android_monochrome === 'iroha-monochrome.svg', 'Tauri must use the shared monochrome mark');
 
-console.log(`Brand assets are complete and consistent (${expectedPngs.size + 2} checked).`);
+// The annotation font is shipped, not fetched — flattening a Japanese note has
+// no network to fall back on — so the committed copy has to be checked here.
+// Embedding proves it parses; the glyph lookup proves it actually covers kana
+// and kanji. Coverage needs its own check because neither embedFont nor
+// encodeText objects to a Latin-only face: it maps every Japanese character to
+// .notdef and the export silently comes out as a row of empty boxes.
+const fontPath = 'apps/mobile/assets/fonts/NotoSansJP-Regular.otf';
+const fontBytes = await read(fontPath);
+assert(fontBytes.subarray(0, 4).toString('latin1') === 'OTTO', `${fontPath} is not an OpenType/CFF font`);
+
+const probe = await PDFDocument.create();
+probe.registerFontkit(fontkit);
+await probe.embedFont(new Uint8Array(fontBytes), { subset: true });
+
+const face = fontkit.create(fontBytes);
+for (const character of 'あアー漢字') {
+  const glyph = face.glyphForCodePoint(character.codePointAt(0));
+  assert(glyph && glyph.id !== 0, `${fontPath} has no glyph for "${character}"`);
+}
+
+console.log(`Brand assets are complete and consistent (${expectedPngs.size + 3} checked).`);

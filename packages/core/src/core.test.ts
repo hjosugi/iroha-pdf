@@ -1,4 +1,6 @@
-import { PDFArray, PDFDocument, PDFName, PDFString } from 'pdf-lib';
+import { readFile } from 'node:fs/promises';
+
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -13,6 +15,33 @@ import {
   reorderPdf,
   rotatePdfPages,
 } from './index';
+
+const TIMESTAMP = '2026-07-12T00:00:00.000Z';
+
+/**
+ * The same Noto Sans JP the desktop e2e fixtures embed, reached the same way
+ * they reach it. `@embedpdf/fonts-jp` exports only `.`, so neither the font nor
+ * its package.json is resolvable through Node — hence the path into the
+ * hoisted root `node_modules` rather than `require.resolve`.
+ */
+async function readFixtureFont(): Promise<Uint8Array> {
+  const path = new URL(
+    '../../../node_modules/@embedpdf/fonts-jp/fonts/NotoSansJP-Regular.otf',
+    import.meta.url,
+  );
+  return new Uint8Array(await readFile(path));
+}
+
+/** True when the document carries an embedded (subsetted) font program. */
+function hasEmbeddedFontFile(document: PDFDocument): boolean {
+  return document.context
+    .enumerateIndirectObjects()
+    .some(([, object]) =>
+      object instanceof PDFDict &&
+      (object.has(PDFName.of('FontFile')) ||
+        object.has(PDFName.of('FontFile2')) ||
+        object.has(PDFName.of('FontFile3'))));
+}
 
 describe('coordinate helpers', () => {
   it('normalizes and clamps page coordinates', () => {
@@ -106,6 +135,62 @@ describe('PDF output safety', () => {
     expect(source).toEqual(original);
     expect(outputBytes).not.toEqual(source);
     expect((await PDFDocument.load(outputBytes)).getPageCount()).toBe(1);
+  });
+
+  it('rejects text the flattening font cannot encode, naming the character', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([200, 300]);
+    const source = await input.save();
+
+    await expect(
+      flattenAnnotations(source, [
+        {
+          id: 'text', documentId: 'doc', pageIndex: 0, kind: 'text', color: '#112233',
+          position: { x: 0.1, y: 0.2 }, text: 'これはメモです', fontSize: 12,
+          createdAt: TIMESTAMP, updatedAt: TIMESTAMP,
+        },
+      ]),
+    ).rejects.toThrow(/"こ" \(U\+3053\).*options\.textFont/s);
+  });
+
+  it('flattens Japanese text when a covering font is supplied', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([200, 300]);
+    const source = await input.save();
+
+    const outputBytes = await flattenAnnotations(
+      source,
+      [
+        {
+          id: 'text', documentId: 'doc', pageIndex: 0, kind: 'text', color: '#112233',
+          position: { x: 0.1, y: 0.2 }, text: 'これはメモです', fontSize: 12,
+          createdAt: TIMESTAMP, updatedAt: TIMESTAMP,
+        },
+      ],
+      { textFont: await readFixtureFont() },
+    );
+
+    const output = await PDFDocument.load(outputBytes);
+    expect(output.getPageCount()).toBe(1);
+    // The subset must actually be carried in the output, otherwise a viewer
+    // without the font installed falls back and the glyphs go missing. Checked
+    // structurally because the bytes are inside compressed object streams.
+    expect(hasEmbeddedFontFile(output)).toBe(true);
+  });
+
+  it('does not embed a font file when the text is Latin', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([200, 300]);
+
+    const outputBytes = await flattenAnnotations(await input.save(), [
+      {
+        id: 'text', documentId: 'doc', pageIndex: 0, kind: 'text', color: '#112233',
+        position: { x: 0.1, y: 0.2 }, text: 'note', fontSize: 12,
+        createdAt: TIMESTAMP, updatedAt: TIMESTAMP,
+      },
+    ]);
+
+    expect(hasEmbeddedFontFile(await PDFDocument.load(outputBytes))).toBe(false);
   });
 
   it('preserves link annotations during structural optimization', async () => {

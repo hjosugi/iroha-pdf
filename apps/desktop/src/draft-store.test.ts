@@ -13,6 +13,39 @@ function item(overrides: Record<string, unknown> = {}): AnnotationTransferItem {
   } as AnnotationTransferItem;
 }
 
+/**
+ * Storage with no room left, which is how a browser behaves once the quota is gone:
+ * reads keep working and writes throw.
+ */
+function fullStorage(backing: Storage): Storage {
+  return {
+    get length() {
+      return backing.length;
+    },
+    clear: () => backing.clear(),
+    getItem: (key) => backing.getItem(key),
+    key: (index) => backing.key(index),
+    removeItem: (key) => backing.removeItem(key),
+    setItem: () => {
+      throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    },
+  };
+}
+
+function withFullStorage(run: () => void): void {
+  const real = globalThis.localStorage;
+  const warn = console.warn;
+  globalThis.localStorage = fullStorage(real);
+  // The warning is expected here; the assertions are on what the caller is told.
+  console.warn = () => {};
+  try {
+    run();
+  } finally {
+    globalThis.localStorage = real;
+    console.warn = warn;
+  }
+}
+
 beforeEach(() => {
   localStorage.clear();
 });
@@ -77,6 +110,27 @@ describe('draft store', () => {
   it('overwrites rather than accumulating', () => {
     saveDraft(PATH, [item(), item()]);
     saveDraft(PATH, [item()]);
+    expect(loadDraft(PATH)?.items).toHaveLength(1);
+  });
+
+  it('confirms a draft that reached storage', () => {
+    expect(saveDraft(PATH, [item()])).toBe(true);
+  });
+
+  it('reports a refused write instead of pretending the work is drafted', () => {
+    withFullStorage(() => {
+      expect(saveDraft(PATH, [item()])).toBe(false);
+    });
+    // Silence here is the data-loss path: nothing was written, so nobody may be told
+    // that anything was.
+    expect(hasDraft(PATH)).toBe(false);
+  });
+
+  it('keeps the last draft that fit when a later one is refused', () => {
+    saveDraft(PATH, [item()]);
+    withFullStorage(() => {
+      expect(saveDraft(PATH, [item(), item()])).toBe(false);
+    });
     expect(loadDraft(PATH)?.items).toHaveLength(1);
   });
 });

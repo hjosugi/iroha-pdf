@@ -15,6 +15,7 @@ import {
 import {
   dismissRecovery,
   getDocumentFile,
+  recordDraftWrite,
   recordEdit,
   recordSave,
   registerOpenedFile,
@@ -115,7 +116,7 @@ export function useEditTimeline(documentId: string): void {
       const path = getDocumentFile(documentId).path;
       if (!path) return;
       annotation.exportAnnotations().wait(
-        (items) => saveDraft(path, items),
+        (items) => recordDraftWrite(documentId, saveDraft(path, items)),
         () => {
           // Export can fail while the engine is mid-operation. The next edit retries,
           // and an explicit Save is unaffected.

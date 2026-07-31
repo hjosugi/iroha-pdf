@@ -47,7 +47,8 @@ bytes that would have hit disk.
 | tools | Highlight over text, a pen stroke, a written note and a shape each reach the saved file as the right annotation type; several coexist; Delete removes the selected mark; undo/redo; saving inside the pen's commit delay still keeps the stroke |
 | tool settings | the colour and width picker appears only while a tool is held; a chosen colour and width are the values written into the annotation's `/C` and `/BS /W`; each tool keeps its own colour; the choice survives a restart |
 | editing existing marks | selecting a mark shows a picker bound to it; recolouring or rethinning rewrites `/C` and `/BS /W` in the saved file and the value actually changes; a highlight offers the highlight palette and no width; the change counts as unsaved work |
-| printing | the print frame is handed a real PDF with every page and image intact; annotations are included; printing leaves the document being edited untouched |
+| printing | the print frame is handed a real PDF with every page and image intact; annotations are included, and unticking the box leaves them out; Current page prints one page and it is the one on screen; a `1,3` range prints exactly those two; printing leaves the document being edited untouched |
+| difficult documents | an encrypted PDF is refused visibly rather than silently; a PDF whose cross-reference table is wrong is repaired and opens, and survives annotate-and-save with all pages and text; an AcroForm keeps every field and value through the same round trip |
 | unsaved work | closing a tab mid-edit asks first and backing out keeps the edits; confirming closes; a saved or untouched document closes without a prompt; the window-close guard arms and disarms with the pending count |
 | autosave | an edit is drafted without being asked; saving clears the draft; work survives a simulated crash (page reload) and is offered back; restoring reports the work as still unsaved and it then reaches the file; discarding is permanent |
 | rendering | poppler and Ghostscript both draw the annotation at the drawn coordinates, and nowhere else; a save with no edits is pixel-identical |
@@ -176,6 +177,15 @@ measured against the real runtime.
 - transparent PNG and EXIF-rotated JPEG images
 
 Fixtures containing customer data must not be committed.
+
+`encrypted.pdf` is the one fixture that cannot be generated from npm dependencies alone:
+pdf-lib cannot write encryption, so it is produced by Ghostscript — which CI installs on
+Linux and macOS — or by qpdf where that is what is available. On a machine with neither,
+Windows CI included, the file is simply not built and the tests that need it skip
+themselves, exactly as the poppler-dependent rendering checks do. Its passwords are in
+`ENCRYPTED_PDF_PASSWORDS`, and nothing in the app can use them yet: opening a
+password-protected PDF is still unimplemented, and the test records that refusal rather
+than pretending otherwise.
 
 ## Mobile matrix
 

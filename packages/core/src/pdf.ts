@@ -1,3 +1,4 @@
+import fontkit from '@pdf-lib/fontkit';
 import {
   PDFDocument,
   StandardFonts,
@@ -204,12 +205,66 @@ function drawAnnotation(page: PDFPage, annotation: PdfAnnotation, font: PDFFont)
   }
 }
 
+export type FlattenAnnotationsOptions = {
+  /**
+   * Font used to draw text annotations. The built-in PDF fonts are WinAnsi and
+   * cannot encode Japanese — the app's primary locale — so a caller that lets
+   * users type outside Latin-1 has to supply one that covers their script.
+   * pdf-lib subsets it, so the output carries only the glyphs actually drawn.
+   */
+  textFont?: Uint8Array;
+};
+
+/**
+ * Returns the first character of `text` that `font` cannot encode, or undefined
+ * when the whole string is representable. pdf-lib's own encoder is the oracle
+ * here rather than a WinAnsi table copied into this repo, which would drift.
+ */
+function findUnencodableCharacter(font: PDFFont, text: string): string | undefined {
+  try {
+    font.encodeText(text);
+    return undefined;
+  } catch {
+    return Array.from(text).find((character) => {
+      try {
+        font.encodeText(character);
+        return false;
+      } catch {
+        return true;
+      }
+    });
+  }
+}
+
 export async function flattenAnnotations(
   source: Uint8Array,
   annotations: PdfAnnotation[],
+  options: FlattenAnnotationsOptions = {},
 ): Promise<Uint8Array> {
   const document = await PDFDocument.load(source);
-  const font = await document.embedFont(StandardFonts.Helvetica);
+
+  let font: PDFFont;
+  if (options.textFont) {
+    document.registerFontkit(fontkit);
+    font = await document.embedFont(options.textFont, { subset: true });
+  } else {
+    font = await document.embedFont(StandardFonts.Helvetica);
+  }
+
+  // Fail before writing anything, and name the character. pdf-lib would
+  // otherwise throw part-way through with a message that says nothing about
+  // which annotation is at fault or what the caller should do about it.
+  for (const annotation of annotations) {
+    if (annotation.kind !== 'text') continue;
+    const character = findUnencodableCharacter(font, annotation.text);
+    if (character === undefined) continue;
+    const codePoint = character.codePointAt(0) ?? 0;
+    throw new Error(
+      `Annotation text contains "${character}" (U+${codePoint.toString(16).toUpperCase().padStart(4, '0')}), ` +
+        'which the font used for flattening cannot encode. ' +
+        'Pass options.textFont with a font covering this script.',
+    );
+  }
 
   for (const annotation of annotations) {
     if (annotation.pageIndex >= document.getPageCount()) continue;

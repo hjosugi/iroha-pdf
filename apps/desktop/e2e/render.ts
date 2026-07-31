@@ -12,7 +12,15 @@ import { join } from 'node:path';
 
 export type Box = { x: number; y: number; width: number; height: number };
 
-function has(tool: string): boolean {
+/**
+ * Whether a command-line tool is installed. Exported because fixtures.ts asks the same
+ * question about the programs it shells out to, and both must answer it the same way.
+ *
+ * Windows has no `which`, so every tool reports missing there — which is the answer
+ * anyway, since CI installs none of these on Windows. Reaching for `where` instead
+ * would be worse than useless: Windows ships its own unrelated `convert.exe`.
+ */
+export function hasTool(tool: string): boolean {
   try {
     execFileSync('which', [tool], { stdio: 'ignore' });
     return true;
@@ -22,13 +30,13 @@ function has(tool: string): boolean {
 }
 
 export const RENDERERS = {
-  poppler: has('pdftoppm'),
-  ghostscript: has('gs'),
-  imagemagick: has('magick') || has('convert'),
+  poppler: hasTool('pdftoppm'),
+  ghostscript: hasTool('gs'),
+  imagemagick: hasTool('magick') || hasTool('convert'),
 };
 
 function magick(args: string[]): string {
-  const binary = has('magick') ? 'magick' : 'convert';
+  const binary = hasTool('magick') ? 'magick' : 'convert';
   return execFileSync(binary, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
 
@@ -107,12 +115,12 @@ export function diffBox(before: string, after: string, thresholdPercent = 8): Bo
  */
 export function rmseAgainst(a: string, b: string, size = '600x800!'): number | null {
   if (!RENDERERS.imagemagick) return null;
-  const binary = has('magick') ? 'magick' : 'convert';
+  const binary = hasTool('magick') ? 'magick' : 'convert';
   try {
     // `compare` writes the metric to stderr and exits non-zero when images differ.
     const output = execFileSync(
-      has('magick') ? 'magick' : 'compare',
-      has('magick')
+      hasTool('magick') ? 'magick' : 'compare',
+      hasTool('magick')
         ? ['compare', '-metric', 'RMSE', '-resize', size, a, '-resize', size, b, 'null:']
         : ['-metric', 'RMSE', '-resize', size, a, '-resize', size, b, 'null:'],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },

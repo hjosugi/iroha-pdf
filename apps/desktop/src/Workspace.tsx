@@ -592,12 +592,35 @@ function RecoveryBanner({ documentId }: { documentId: string }) {
   );
 }
 
+/**
+ * Autosave failing quietly is worse than autosave failing loudly: the whole point of
+ * drafting every edit is that nobody has to think about a crash, so someone who is
+ * never told it stopped will keep working and lose all of it. Saying so is the only
+ * thing that turns this back into a decision they can make.
+ */
+function AutosaveBanner({ documentId }: { documentId: string }) {
+  const file = useDocumentFile(documentId);
+
+  if (file.draftFailedAt === null) return null;
+
+  return (
+    <div className="autosave-banner" role="alert">
+      <span>
+        <strong>Autosave has stopped.</strong> Nothing has been drafted since{' '}
+        {timeFormat.format(file.draftFailedAt)} — browser storage is full or blocked, so a
+        crash would lose this work. Save to put it in the file.
+      </span>
+    </div>
+  );
+}
+
 function ActiveDocument({ documentId, documentName }: { documentId: string; documentName: string }) {
   useEditTimeline(documentId);
   useDeleteSelected(documentId);
   return (
     <>
       <PdfToolbar documentId={documentId} documentName={documentName} />
+      <AutosaveBanner documentId={documentId} />
       <RecoveryBanner documentId={documentId} />
     </>
   );

@@ -25,6 +25,7 @@ import {
   type Point,
   type WorkspaceDocument,
 } from '@iroha-pdf/core';
+import { loadAnnotationFont } from '../../lib/annotation-font';
 import {
   createId,
   deleteAnnotation,
@@ -249,7 +250,12 @@ export default function PdfViewerScreen() {
   const createFlattenedCopy = async (): Promise<File> => {
     if (!document) throw new Error('Document is not loaded');
     const source = await new File(document.localUri).bytes();
-    const output = await flattenAnnotations(source, annotations);
+    // Loaded only when there is text to draw: the face is several megabytes and
+    // highlight- or ink-only exports have no glyphs to encode.
+    const textFont = annotations.some((item) => item.kind === 'text')
+      ? await loadAnnotationFont()
+      : undefined;
+    const output = await flattenAnnotations(source, annotations, { textFont });
     return createOutputPdf(`${document.title}-edited.pdf`, output);
   };
 

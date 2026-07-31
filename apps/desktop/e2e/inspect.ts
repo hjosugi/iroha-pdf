@@ -7,7 +7,16 @@
  */
 import { execFileSync } from 'node:child_process';
 
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber, PDFStream } from 'pdf-lib';
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNumber,
+  PDFStream,
+  PDFString,
+} from 'pdf-lib';
 
 export type Annotation = {
   subtype: string;
@@ -27,6 +36,8 @@ export type PdfFacts = {
   imageCount: number;
   /** Names of embedded font descriptors, used to prove the CJK font survived. */
   fontNames: string[];
+  /** `/AcroForm /Fields` entries, as `/T` name -> `/V` value. Empty when there is no form. */
+  formFields: Record<string, string | null>;
 };
 
 /** PDFName.asString() keeps the leading slash; the reports read better without it. */
@@ -56,6 +67,55 @@ function readStrokeWidth(annot: PDFDict): number | null {
   const border = annot.lookupMaybe(PDFName.of('Border'), PDFArray);
   const legacy = border && border.size() >= 3 ? border.lookupMaybe(2, PDFNumber) : null;
   return legacy ? legacy.asNumber() : null;
+}
+
+/** A field value is a name for buttons, a string for everything else, or absent. */
+function readFieldValue(field: PDFDict): string | null {
+  const value = field.lookup(PDFName.of('V'));
+  if (value instanceof PDFName) return stripSlash(value);
+  if (value instanceof PDFString || value instanceof PDFHexString) return value.decodeText();
+  return null;
+}
+
+/**
+ * `/AcroForm /Fields` as name -> value.
+ *
+ * Fields can nest, so this walks `/Kids`; a form only reaching its widgets through a
+ * parent would otherwise look empty and make a broken round trip look fine.
+ */
+function readFormFields(pdf: PDFDocument): Record<string, string | null> {
+  const acroForm = pdf.catalog.lookupMaybe(PDFName.of('AcroForm'), PDFDict);
+  const roots = acroForm?.lookupMaybe(PDFName.of('Fields'), PDFArray);
+  const fields: Record<string, string | null> = {};
+  if (!roots) return fields;
+
+  const visit = (node: PDFDict, prefix: string): void => {
+    const partial = node.lookup(PDFName.of('T'));
+    const name =
+      partial instanceof PDFString || partial instanceof PDFHexString
+        ? [prefix, partial.decodeText()].filter(Boolean).join('.')
+        : prefix;
+
+    const kids = node.lookupMaybe(PDFName.of('Kids'), PDFArray);
+    // A widget merged into its field has /Kids only when the field is a real parent.
+    const children: PDFDict[] = [];
+    for (let index = 0; index < (kids?.size() ?? 0); index += 1) {
+      const kid = kids!.lookupMaybe(index, PDFDict);
+      if (kid && kid.has(PDFName.of('T'))) children.push(kid);
+    }
+
+    if (children.length === 0) {
+      if (name) fields[name] = readFieldValue(node);
+      return;
+    }
+    for (const kid of children) visit(kid, name);
+  };
+
+  for (let index = 0; index < roots.size(); index += 1) {
+    const field = roots.lookupMaybe(index, PDFDict);
+    if (field) visit(field, '');
+  }
+  return fields;
 }
 
 export async function inspectPdf(bytes: Uint8Array | Buffer): Promise<PdfFacts> {
@@ -114,6 +174,7 @@ export async function inspectPdf(bytes: Uint8Array | Buffer): Promise<PdfFacts> 
     annotations,
     imageCount,
     fontNames: [...fontNames].sort(),
+    formFields: readFormFields(pdf),
   };
 }
 

@@ -4,15 +4,19 @@
  * Everything here is synthetic. docs/TEST_PLAN.md forbids committing fixtures that
  * contain customer data, and generating them also keeps a 500-page file out of git.
  */
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
+
+import { hasTool } from './render';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const FIXTURE_DIR = join(here, 'fixtures');
@@ -338,12 +342,185 @@ export async function buildCorruptPdf(): Promise<Uint8Array> {
   return damaged;
 }
 
+/**
+ * Damaged, but not beyond saving.
+ *
+ * `corrupt.pdf` above is irrecoverable on purpose — half its bytes are gone. Real
+ * damage is usually far less final: the object bodies are all still there and only the
+ * cross-reference table's byte offsets are wrong, which is what an edit that changed a
+ * file's length without rewriting the table leaves behind. A reader that trusts the
+ * table fails; one that rebuilds it by scanning for objects recovers the document.
+ * poppler and qpdf both do, so a viewer that cannot is losing a file it could have
+ * opened.
+ */
+export async function buildRepairablePdf(pageCount = 3): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+
+  for (let index = 0; index < pageCount; index += 1) {
+    const page = pdf.addPage(A4);
+    page.drawText(`Repairable page ${index + 1} of ${pageCount}`, {
+      x: 56,
+      y: page.getHeight() - 72,
+      size: 18,
+      font,
+    });
+  }
+
+  // No object streams: a rebuild finds objects by scanning for `N 0 obj`, and objects
+  // packed inside a stream are unreachable once the xref that points at it is gone.
+  const valid = await pdf.save({ useObjectStreams: false });
+
+  // Buffer's latin1 both ways. TextDecoder('latin1') is windows-1252, which rewrites
+  // bytes 0x80-0x9F and would quietly destroy the deflate headers this must not touch.
+  const text = Buffer.from(valid).toString('latin1');
+  const tableStart = text.lastIndexOf('\nxref\n');
+  const tableEnd = text.indexOf('trailer', tableStart);
+  if (tableStart < 0 || tableEnd < 0) throw new Error('pdf-lib did not write a classic xref table');
+
+  // Every in-use entry now points a few bytes into the object it names, so the object
+  // header no longer parses. The bytes of the objects themselves are untouched.
+  const damaged = text
+    .slice(tableStart, tableEnd)
+    .replace(
+      /^(\d{10}) (\d{5}) n/gm,
+      (_entry, offset: string, generation: string) =>
+        `${String(Number(offset) + 5).padStart(10, '0')} ${generation} n`,
+    );
+
+  return new Uint8Array(
+    Buffer.from(text.slice(0, tableStart) + damaged + text.slice(tableEnd), 'latin1'),
+  );
+}
+
+/** The field names in form.pdf, so tests can assert on them without restating strings. */
+export const FORM_FIELDS = {
+  name: 'claim.name',
+  department: 'claim.department',
+  approved: 'claim.approved',
+} as const;
+
+/** A filled-in AcroForm, per docs/TEST_PLAN.md's required fixture set. */
+export async function buildFormPdf(): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const page = pdf.addPage(A4);
+  const { height } = page.getSize();
+
+  page.drawText('Expense claim', { x: 56, y: height - 72, size: 20, font });
+  for (const [index, label] of ['Name', 'Department', 'Approved'].entries()) {
+    page.drawText(label, { x: 56, y: height - 120 - index * 48, size: 11, font });
+  }
+
+  const form = pdf.getForm();
+
+  const name = form.createTextField(FORM_FIELDS.name);
+  name.setText('Ada Lovelace');
+  name.addToPage(page, { x: 160, y: height - 128, width: 260, height: 22, font });
+
+  const department = form.createDropdown(FORM_FIELDS.department);
+  department.setOptions(['Engineering', 'Design', 'Finance']);
+  department.select('Engineering');
+  department.addToPage(page, { x: 160, y: height - 176, width: 260, height: 22, font });
+
+  const approved = form.createCheckBox(FORM_FIELDS.approved);
+  approved.check();
+  approved.addToPage(page, { x: 160, y: height - 222, width: 18, height: 18 });
+
+  form.updateFieldAppearances(font);
+  return pdf.save({ useObjectStreams: true });
+}
+
+/** The passwords baked into encrypted.pdf. */
+export const ENCRYPTED_PDF_PASSWORDS = { user: 'iroha-user', owner: 'iroha-owner' } as const;
+
+/**
+ * The program used to write encrypted.pdf, or null when neither is installed.
+ *
+ * pdf-lib cannot write encryption at all, so this one fixture has to be produced by an
+ * outside tool. CI installs Ghostscript on Linux and macOS but nothing of the sort on
+ * Windows, so the fixture — and every test that needs it — is absent there. Ghostscript
+ * is preferred because it is the one CI actually has, which keeps a local run and a CI
+ * run looking at the same file.
+ */
+export const ENCRYPTION_TOOL: 'gs' | 'qpdf' | null = hasTool('gs')
+  ? 'gs'
+  : hasTool('qpdf')
+    ? 'qpdf'
+    : null;
+
+/**
+ * A PDF that cannot be opened without a password.
+ *
+ * Unlike everything else here the bytes are not reproducible — an encrypted file
+ * carries a key derived from a per-run document ID — but its content is.
+ */
+export async function buildEncryptedPdf(): Promise<Uint8Array | null> {
+  if (!ENCRYPTION_TOOL) return null;
+
+  const directory = await mkdtemp(join(tmpdir(), 'iroha-encrypt-'));
+  const plain = join(directory, 'plain.pdf');
+  const encrypted = join(directory, 'encrypted.pdf');
+  try {
+    await writeFile(plain, await buildHeavyPdf(2));
+
+    if (ENCRYPTION_TOOL === 'gs') {
+      execFileSync(
+        'gs',
+        [
+          '-q',
+          '-dNOPAUSE',
+          '-dBATCH',
+          '-dSAFER',
+          '-sDEVICE=pdfwrite',
+          `-sOwnerPassword=${ENCRYPTED_PDF_PASSWORDS.owner}`,
+          `-sUserPassword=${ENCRYPTED_PDF_PASSWORDS.user}`,
+          // 128-bit RC4 with everything but reading denied: the ordinary shape of a
+          // document someone locked before sending it on.
+          '-dEncryptionR=3',
+          '-dKeyLength=128',
+          '-dPermissions=-3904',
+          '-o',
+          encrypted,
+          plain,
+        ],
+        { stdio: ['ignore', 'ignore', 'ignore'] },
+      );
+    } else {
+      // The positional form, which every qpdf from 8.x on understands. 256-bit AES
+      // rather than RC4 to match: qpdf 11 refuses to write RC4 without being argued
+      // with, and the point of the fixture is that it is encrypted, not how weakly.
+      execFileSync(
+        'qpdf',
+        [
+          '--encrypt',
+          ENCRYPTED_PDF_PASSWORDS.user,
+          ENCRYPTED_PDF_PASSWORDS.owner,
+          '256',
+          '--',
+          plain,
+          encrypted,
+        ],
+        { stdio: ['ignore', 'ignore', 'ignore'] },
+      );
+    }
+
+    return new Uint8Array(await readFile(encrypted));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
 export const FIXTURES = {
   'complex.pdf': buildComplexPdf,
   'heavy.pdf': () => buildHeavyPdf(),
   'image-heavy.pdf': () => buildImageHeavyPdf(),
   'rotated-mixed.pdf': buildRotatedMixedPdf,
   'corrupt.pdf': buildCorruptPdf,
+  'repairable.pdf': () => buildRepairablePdf(),
+  'form.pdf': buildFormPdf,
+  // Null where the tool that writes it is missing; see ENCRYPTION_TOOL.
+  'encrypted.pdf': buildEncryptedPdf,
 } as const;
 
 export type FixtureName = keyof typeof FIXTURES;
@@ -356,12 +533,21 @@ export function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-/** Builds any fixture that is not already on disk. Safe to call concurrently-ish. */
+/**
+ * Builds any fixture that is not already on disk. Safe to call concurrently-ish.
+ *
+ * A builder returning null means the fixture cannot be produced here — only
+ * encrypted.pdf does that, and only where neither Ghostscript nor qpdf is installed.
+ * Failing the whole run over it would take every unrelated test on Windows down with
+ * it, so the file is simply left absent and its tests skip themselves.
+ */
 export async function ensureFixtures(): Promise<void> {
   await mkdir(FIXTURE_DIR, { recursive: true });
   for (const [name, build] of Object.entries(FIXTURES)) {
     const target = join(FIXTURE_DIR, name);
     if (existsSync(target)) continue;
-    await writeFile(target, await build());
+    const bytes = await build();
+    if (bytes === null) continue;
+    await writeFile(target, bytes);
   }
 }

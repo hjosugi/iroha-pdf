@@ -70,7 +70,14 @@ function isStorable(item: AnnotationTransferItem): boolean {
   return !ctx || ctx.imageData === undefined;
 }
 
-export function saveDraft(path: string, items: AnnotationTransferItem[]): void {
+/**
+ * Writes the draft, and says whether it actually reached storage.
+ *
+ * A full or disabled storage is not something to shrug off here: the draft is the
+ * only copy of an edit that survives a crash, so nobody but the caller can tell the
+ * user that the safety net is gone. Returning false is how they find out.
+ */
+export function saveDraft(path: string, items: AnnotationTransferItem[]): boolean {
   const storable = items.filter(isStorable);
   const draft: Draft = {
     path,
@@ -80,9 +87,12 @@ export function saveDraft(path: string, items: AnnotationTransferItem[]): void {
   };
   try {
     localStorage.setItem(draftKey(path), JSON.stringify(draft, replacer));
-  } catch {
-    // Quota exceeded or storage disabled. The in-memory document is unaffected, and
-    // the user still has the explicit Save button.
+    return true;
+  } catch (error) {
+    // Quota exceeded or storage disabled. The in-memory document is unaffected, but
+    // from here on only an explicit Save keeps the work.
+    console.warn('Iroha PDF: the autosave draft could not be stored', error);
+    return false;
   }
 }
 
