@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { Note } from '@iroha-pdf/core';
 import { ContentColumn } from '@/components/ContentColumn';
+import { alertFailure } from '@/lib/alerts';
 import { getNote, saveNote } from '@/lib/database';
 import { t } from '@/lib/i18n';
 
@@ -93,7 +93,7 @@ export default function NoteEditorScreen() {
 }
 
 function showSaveError(error: unknown): void {
-  Alert.alert(t('note.saveFailed'), error instanceof Error ? error.message : String(error));
+  alertFailure(t('note.saveFailed'), error);
 }
 
 const styles = StyleSheet.create({

@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GOOGLE_DRIVE_SCOPES, GoogleDriveClient, type DriveFile } from '@iroha-pdf/google-drive';
+import { alertFailure } from '@/lib/alerts';
 import { importPdfFile } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
@@ -44,34 +45,36 @@ export default function GoogleDriveScreen() {
     }
   }, [refreshFiles]);
 
-  const connect = async () => {
-    if (!webClientId) {
-      Alert.alert(t('drive.configurationRequired'), t('drive.configurationBody'));
-      return;
-    }
+  /**
+   * Every action on this screen is a network round trip that has to lock the
+   * controls while it runs and report its own failure. The name of the failure
+   * is the only thing that differs between them.
+   */
+  const run = async (failureTitle: string, operation: () => Promise<void>) => {
     try {
       setBusy(true);
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      await GoogleSignin.signIn();
-      setConnected(true);
-      await refreshFiles();
+      await operation();
     } catch (error) {
-      Alert.alert('Google Drive', error instanceof Error ? error.message : String(error));
+      alertFailure(failureTitle, error);
     } finally {
       setBusy(false);
     }
   };
 
-  const refresh = async () => {
-    try {
-      setBusy(true);
-      await refreshFiles();
-    } catch (error) {
-      Alert.alert(t('drive.refreshFailed'), error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
+  const connect = async () => {
+    if (!webClientId) {
+      Alert.alert(t('drive.configurationRequired'), t('drive.configurationBody'));
+      return;
     }
+    await run('Google Drive', async () => {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.signIn();
+      setConnected(true);
+      await refreshFiles();
+    });
   };
+
+  const refresh = () => run(t('drive.refreshFailed'), refreshFiles);
 
   const disconnect = () => {
     Alert.alert(
@@ -92,35 +95,21 @@ export default function GoogleDriveScreen() {
     );
   };
 
-  const runDisconnect = async (revoke: boolean) => {
-    try {
-      setBusy(true);
-      if (revoke) await GoogleSignin.revokeAccess();
-      else await GoogleSignin.signOut();
-      setConnected(false);
-      setFiles([]);
-    } catch (error) {
-      Alert.alert(t('drive.disconnectFailed'), error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const runDisconnect = (revoke: boolean) => run(t('drive.disconnectFailed'), async () => {
+    if (revoke) await GoogleSignin.revokeAccess();
+    else await GoogleSignin.signOut();
+    setConnected(false);
+    setFiles([]);
+  });
 
-  const download = async (driveFile: DriveFile) => {
-    try {
-      setBusy(true);
-      const bytes = await client.download(driveFile.id);
-      const temporary = new File(Paths.cache, `${Date.now()}-${driveFile.name}`);
-      temporary.create({ overwrite: true, intermediates: true });
-      temporary.write(bytes);
-      const imported = await importPdfFile(temporary, driveFile.name, 'google-drive', driveFile.id, driveFile.version);
-      router.push({ pathname: '/viewer/[id]', params: { id: imported.id } });
-    } catch (error) {
-      Alert.alert(t('drive.downloadFailed'), error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const download = (driveFile: DriveFile) => run(t('drive.downloadFailed'), async () => {
+    const bytes = await client.download(driveFile.id);
+    const temporary = new File(Paths.cache, `${Date.now()}-${driveFile.name}`);
+    temporary.create({ overwrite: true, intermediates: true });
+    temporary.write(bytes);
+    const imported = await importPdfFile(temporary, driveFile.name, 'google-drive', driveFile.id, driveFile.version);
+    router.push({ pathname: '/viewer/[id]', params: { id: imported.id } });
+  });
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>

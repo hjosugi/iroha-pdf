@@ -4,7 +4,6 @@ import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,7 +17,9 @@ import {
   rotatePdfPages,
   type ImageInput,
 } from '@iroha-pdf/core';
-import { createOutputPdf } from '@/lib/files';
+import { alertFailure } from '@/lib/alerts';
+import { describeError } from '@/lib/errors';
+import { baseName, createOutputPdf, sharePdf } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 import { ContentColumn } from '@/components/ContentColumn';
@@ -35,10 +36,25 @@ export default function PdfToolsScreen() {
       setBusy(name);
       await operation();
     } catch (error) {
-      Alert.alert(t('tools.failed', { name }), error instanceof Error ? error.message : String(error));
+      alertFailure(t('tools.failed', { name }), error);
     } finally {
       setBusy(null);
     }
+  };
+
+  /**
+   * The shape four of these tools share: ask for one PDF, rewrite its bytes,
+   * and offer the result under a name derived from the original. A cancelled
+   * picker is a silent no-op, not a failure.
+   */
+  const rewritePickedPdf = async (
+    suffix: string,
+    rewrite: (bytes: Uint8Array) => Promise<Uint8Array>,
+  ) => {
+    const input = await pickPdf();
+    if (!input) return;
+    const bytes = await rewrite(await input.file.bytes());
+    await sharePdf(createOutputPdf(`${baseName(input.name)}-${suffix}.pdf`, bytes));
   };
 
   const imageToPdf = () => run(t('tools.imagesTitle'), async () => {
@@ -76,14 +92,13 @@ export default function PdfToolsScreen() {
         });
       } catch (error) {
         const label = asset.fileName ?? asset.uri.split('/').pop() ?? `image ${index + 1}`;
-        const reason = error instanceof Error ? error.message : String(error);
+        const reason = describeError(error);
         throw new Error(t('tools.imageFailed', { index: index + 1, name: label, reason }));
       }
     }
 
     const bytes = await imagesToPdf(images, { pageSize: 'a4', margin: 24 });
-    const output = createOutputPdf('images.pdf', bytes);
-    await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    await sharePdf(createOutputPdf('images.pdf', bytes));
   });
 
   const reorder = () => run(t('tools.reorderTitle'), async () => {
@@ -91,11 +106,7 @@ export default function PdfToolsScreen() {
     if (order.some((value) => !Number.isInteger(value) || value < 0)) {
       throw new Error(t('tools.pageNumbers'));
     }
-    const input = await pickPdf();
-    if (!input) return;
-    const bytes = await reorderPdf(await input.file.bytes(), order);
-    const output = createOutputPdf(`${input.name.replace(/\.pdf$/i, '')}-reordered.pdf`, bytes);
-    await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    await rewritePickedPdf('reordered', (bytes) => reorderPdf(bytes, order));
   });
 
   const merge = () => run(t('tools.mergeTitle'), async () => {
@@ -109,35 +120,22 @@ export default function PdfToolsScreen() {
     const bytes = await mergePdfs(await Promise.all(
       result.assets.map((asset) => new File(asset.uri).bytes()),
     ));
-    const output = createOutputPdf('merged.pdf', bytes);
-    await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    await sharePdf(createOutputPdf('merged.pdf', bytes));
   });
 
   const extract = () => run(t('tools.extract'), async () => {
     const pages = parseOneBasedPages(selectedPages);
-    const input = await pickPdf();
-    if (!input) return;
-    const bytes = await extractPdfPages(await input.file.bytes(), pages);
-    const output = createOutputPdf(`${baseName(input.name)}-extracted.pdf`, bytes);
-    await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    await rewritePickedPdf('extracted', (bytes) => extractPdfPages(bytes, pages));
   });
 
   const remove = () => run(t('tools.remove'), async () => {
     const pages = parseOneBasedPages(selectedPages);
-    const input = await pickPdf();
-    if (!input) return;
-    const bytes = await removePdfPages(await input.file.bytes(), pages);
-    const output = createOutputPdf(`${baseName(input.name)}-pages-removed.pdf`, bytes);
-    await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    await rewritePickedPdf('pages-removed', (bytes) => removePdfPages(bytes, pages));
   });
 
   const rotate = () => run(t('tools.rotate'), async () => {
     const pages = parseOneBasedPages(selectedPages);
-    const input = await pickPdf();
-    if (!input) return;
-    const bytes = await rotatePdfPages(await input.file.bytes(), pages, 90);
-    const output = createOutputPdf(`${baseName(input.name)}-rotated.pdf`, bytes);
-    await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    await rewritePickedPdf('rotated', (bytes) => rotatePdfPages(bytes, pages, 90));
   });
 
   const safeOptimize = () => run(t('tools.optimizeTitle'), async () => {
@@ -145,9 +143,9 @@ export default function PdfToolsScreen() {
     if (!input) return;
     const before = input.file.size;
     const bytes = await optimizePdfStructure(await input.file.bytes());
-    const output = createOutputPdf(`${input.name.replace(/\.pdf$/i, '')}-optimized.pdf`, bytes);
+    const output = createOutputPdf(`${baseName(input.name)}-optimized.pdf`, bytes);
     Alert.alert(t('tools.optimized'), t('tools.optimizedBody', { before: formatBytes(before), after: formatBytes(output.size) }));
-    await Sharing.shareAsync(output.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    await sharePdf(output);
   });
 
   const printPdf = () => run(t('print.open'), async () => {
@@ -205,10 +203,6 @@ async function pickPdf(): Promise<{ file: File; name: string } | null> {
 function formatBytes(bytes: number | null): string {
   if (!bytes) return '0 KB';
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function baseName(name: string): string {
-  return name.replace(/\.pdf$/i, '');
 }
 
 function parseOneBasedPages(value: string): number[] {
