@@ -51,6 +51,7 @@ import {
   useSelectedAnnotations,
   type SaveOutcome,
 } from './use-pdf-file';
+import { t } from './i18n';
 
 type WorkspaceProps = {
   activeDocumentId: string | null;
@@ -109,7 +110,7 @@ function TabStrip({ documents, activeDocumentId }: TabStripProps) {
           </span>
         </button>
       ))}
-      <button className="icon-button" onClick={() => void openPdf()} title="Open PDF">
+      <button className="icon-button" onClick={() => void openPdf()} title={t('document.open')}>
         +
       </button>
     </div>
@@ -338,7 +339,7 @@ function PdfToolbar({ documentId, documentName }: { documentId: string; document
             aria-labelledby="print-dialog-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <h2 id="print-dialog-title">Print PDF</h2>
+            <h2 id="print-dialog-title">{t('print.dialogTitle')}</h2>
             <fieldset>
               <legend>Pages</legend>
               <label><input type="radio" checked={printMode === 'all'} onChange={() => setPrintMode('all')} /> All pages</label>
@@ -351,7 +352,7 @@ function PdfToolbar({ documentId, documentName }: { documentId: string; document
               Include annotations
             </label>
             <div className="dialog-actions">
-              <button className="tool" onClick={() => setPrintOpen(false)}>Cancel</button>
+              <button className="tool" onClick={() => setPrintOpen(false)}>{t('action.cancel')}</button>
               <button
                 className="primary-button"
                 disabled={printMode === 'custom' && !pageRange.trim()}
@@ -471,7 +472,7 @@ function NotePanel({ documentId }: { documentId: string }) {
         placeholder="Write a memo for this PDF…"
         aria-label="Linked note"
       />
-      <span className="saved-indicator">Autosaved locally</span>
+      <span className="saved-indicator">{t('autosave.saved')}</span>
     </>
   );
 }
@@ -555,9 +556,9 @@ function EmptyWorkspace() {
   return (
     <section className="empty-workspace">
       <BrandMark className="empty-mark" />
-      <h1>Your documents, without the clutter.</h1>
+      <h1>{t('app.tagline')}</h1>
       <p>Open a PDF to read, annotate, and save your changes straight back to the file.</p>
-      <button className="primary-button large" onClick={() => void openPdf()}>Open PDF</button>
+      <button className="primary-button large" onClick={() => void openPdf()}>{t('document.open')}</button>
     </section>
   );
 }
@@ -577,7 +578,7 @@ function RecoveryBanner({ documentId }: { documentId: string }) {
   return (
     <div className="recovery-banner" role="status">
       <span>
-        <strong>Unsaved work recovered.</strong> {count} annotation{count === 1 ? '' : 's'} from{' '}
+        <strong>{t('recovery.found')}</strong> {count} annotation{count === 1 ? '' : 's'} from{' '}
         {timeFormat.format(file.recovery.savedAt)} never reached this file.
       </span>
       <span className="recovery-actions">
@@ -669,7 +670,7 @@ export function Workspace({ activeDocumentId, documentStates }: WorkspaceProps) 
               <DocumentContent documentId={activeDocumentId}>
                 {({ isLoading, isError, isLoaded }) => (
                   <>
-                    {isLoading && <div className="center-state">Opening PDF…</div>}
+                    {isLoading && <div className="center-state">{t('document.opening')}</div>}
                     {isError && <div className="center-state">This PDF could not be opened.</div>}
                     {isLoaded && (
                       <GlobalPointerProvider documentId={activeDocumentId}>

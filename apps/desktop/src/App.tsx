@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+
+import { t } from './i18n';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, type PluginBatchRegistrations } from '@embedpdf/core/react';
 import { usePdfiumEngine } from '@embedpdf/engines/react';
@@ -71,7 +73,7 @@ export function App() {
   }
 
   if (isLoading || !engine) {
-    return <main className="center-state">Loading local PDF engine…</main>;
+    return <main className="center-state">{t('app.loadingEngine')}</main>;
   }
 
   return (
@@ -80,7 +82,7 @@ export function App() {
         pluginsReady ? (
           <Workspace activeDocumentId={activeDocumentId} documentStates={documentStates} />
         ) : (
-          <main className="center-state">Preparing workspace…</main>
+          <main className="center-state">{t('app.preparing')}</main>
         )
       }
     </EmbedPDF>
