@@ -40,10 +40,13 @@ loads `apps/mobile/assets/store/iroha-demo.pdf`, creates fixed local records, an
 then redirects to the ordinary production screen. Without the flag the route
 redirects home and cannot seed anything.
 
-Android selects each scene through the private deep link. iOS launches the app
-directly with a validated `IrohaStoreScenario` process argument, which avoids the
-system confirmation shown when automation opens a custom URL scheme. The launch
-argument is ignored unless the screenshot build flag is present.
+Android selects each scene through the private deep link. iOS writes a validated
+`IrohaStoreScenario` value into the app's Simulator preferences and then launches
+the app directly, which avoids the system confirmation shown when automation opens
+a custom URL scheme. Each target screen writes `IrohaStoreReady` only after its
+real UI is committed; the viewer waits for PDFKit's load-complete callback. The
+capture script refuses to take a screenshot until the requested value is reported.
+Both values are ignored unless the screenshot build flag is present.
 
 Android's status bar is fixed at 9:41 with the documented
 [System UI demo protocol](https://android.googlesource.com/platform/frameworks/base/+/android16-qpr2-release/packages/SystemUI/docs/demo_mode.md),

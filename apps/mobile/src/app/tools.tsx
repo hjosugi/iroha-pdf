@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -18,11 +18,14 @@ import {
   type ImageInput,
 } from '@iroha-pdf/core';
 import { createOutputPdf } from '@/lib/files';
+import { markStoreCaptureReady } from '@/lib/store-capture-native';
 
 export default function PdfToolsScreen() {
   const [pageOrder, setPageOrder] = useState('1,2,3');
   const [selectedPages, setSelectedPages] = useState('1');
   const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => markStoreCaptureReady('tools'), []);
 
   const run = async (name: string, operation: () => Promise<void>) => {
     try {

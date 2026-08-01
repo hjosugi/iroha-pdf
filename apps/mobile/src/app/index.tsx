@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import {
   Alert,
@@ -18,6 +18,7 @@ import { BrandMark } from '@/components/BrandMark';
 import { createNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
 import { importPdfFromSystem } from '@/lib/files';
 import { parseStoreCaptureScenario } from '@/lib/store-capture';
+import { markStoreCaptureReady } from '@/lib/store-capture-native';
 
 const STORE_CAPTURE_ENABLED = process.env.EXPO_PUBLIC_STORE_SCREENSHOTS === '1';
 let consumedNativeStoreScenario = false;
@@ -43,6 +44,10 @@ function LibraryScreen() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [recoveryCount, setRecoveryCount] = useState(0);
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (documents.length >= 2 && notes.length >= 2) markStoreCaptureReady('library');
+  }, [documents.length, notes.length]);
 
   const refresh = useCallback(async () => {
     try {

@@ -35,6 +35,7 @@ import {
   saveAnnotation,
 } from '@/lib/database';
 import { createOutputPdf } from '@/lib/files';
+import { markStoreCaptureReady } from '@/lib/store-capture-native';
 
 type Tool = 'hand' | 'highlight' | 'ink' | 'text' | 'eraser';
 
@@ -327,6 +328,7 @@ export default function PdfViewerScreen() {
             setPageCount(pages);
             setLoadingProgress(1);
             setLoadError(null);
+            markStoreCaptureReady('viewer');
           }}
           onPageChanged={(currentPage, pages) => {
             setPage(currentPage);

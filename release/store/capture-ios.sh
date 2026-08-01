@@ -38,31 +38,52 @@ for index in "${!scenarios[@]}"; do
   stdout_log="${RUNNER_TEMP:-/tmp}/iroha-${name}-stdout.log"
   stderr_log="${RUNNER_TEMP:-/tmp}/iroha-${name}-stderr.log"
 
+  xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
+  xcrun simctl spawn "$udid" defaults write "$bundle_id" IrohaStoreScenario -string "$scenario"
+  xcrun simctl spawn "$udid" defaults delete "$bundle_id" IrohaStoreReady >/dev/null 2>&1 || true
+  configured_scenario="$(xcrun simctl spawn "$udid" defaults read "$bundle_id" IrohaStoreScenario)"
+  if [[ "$configured_scenario" != "$scenario" ]]; then
+    echo "failed to configure iOS store scenario: expected $scenario, got $configured_scenario" >&2
+    exit 1
+  fi
+
   : > "$stdout_log"
   : > "$stderr_log"
   launch_output="$(xcrun simctl launch \
     --stdout="$stdout_log" \
     --stderr="$stderr_log" \
-    --terminate-running-process \
     "$udid" \
-    "$bundle_id" \
-    -IrohaStoreScenario "$scenario")"
+    "$bundle_id")"
   launch_pid="${launch_output##*: }"
   [[ "$launch_pid" =~ ^[0-9]+$ ]] || {
     echo "unexpected simctl launch result: $launch_output" >&2
     exit 1
   }
-  if [[ "$scenario" == viewer ]]; then sleep 12; else sleep 5; fi
-  if ! kill -0 "$launch_pid" 2>/dev/null; then
-    echo "Iroha PDF exited before the $scenario screenshot" >&2
+  ready=""
+  for _ in $(seq 1 90); do
+    if ! kill -0 "$launch_pid" 2>/dev/null; then
+      echo "Iroha PDF exited before the $scenario screenshot" >&2
+      cat "$stdout_log" >&2
+      cat "$stderr_log" >&2
+      xcrun simctl spawn "$udid" log show \
+        --last 2m \
+        --style compact \
+        --predicate 'process == "IrohaPDF"' >&2 || true
+      exit 1
+    fi
+    ready="$(xcrun simctl spawn "$udid" defaults read "$bundle_id" IrohaStoreReady 2>/dev/null || true)"
+    [[ "$ready" == "$scenario" ]] && break
+    sleep 2
+  done
+  if [[ "$ready" != "$scenario" ]]; then
+    echo "Iroha PDF did not report the $scenario screen ready within 180 seconds (got: $ready)" >&2
     cat "$stdout_log" >&2
     cat "$stderr_log" >&2
-    xcrun simctl spawn "$udid" log show \
-      --last 2m \
-      --style compact \
-      --predicate 'process == "IrohaPDF"' >&2 || true
     exit 1
   fi
+  # React effects write the marker after commit; leave one frame for Core
+  # Animation and PDFKit to present that committed screen in the simulator.
+  sleep 2
   xcrun simctl io "$udid" screenshot --type=png "$raw" >/dev/null
   "${image_convert[@]}" "$raw" -alpha off -strip -define png:color-type=2 "$final"
   rm -f "$raw"
