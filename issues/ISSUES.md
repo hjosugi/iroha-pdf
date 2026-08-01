@@ -21,12 +21,12 @@ Android emulator（API 36）でアプリを起動し、実際に触って確認�
 1. **複数ページのPDFで2ページ目に到達できない**（#075）。実測で根本原因まで特定
 2. **intent filterが無い**。他アプリからの「共有」「アプリで開く」が不可能。document picker以外の入口が存在しない（#029 / #038と関連）
 3. **開いたファイルへの上書き保存が無い**（#076）。ただしExportは**emulatorで動作確認済み** — 注釈をflattenし、2ページとCJK・表テキストを保持した正当なPDFを生成して共有シートを開く。焼き込まれたハイライトはpopplerでも差分として検出できた（タップ位置と一致）。欠けているのはin-place saveだけで、これにはAndroid SAFのpersistable URI permissionが要る（#038）
-4. **注釈の属性がすべてハードコード。** ink `#2B5CFF`/幅2.4、highlight `#FFE45E`/固定サイズ0.25×0.035、text `#1B1F28`/14pt。色も太さも選べない（desktopは#072/#073で解消済み）
-5. **undo / deleteが無い。** viewerに該当コードが0件。一度置いた注釈を消す手段がない
-6. **Highlightはテキスト選択でもドラッグでもない。** タップ位置に固定サイズの矩形を置くだけ（#007の記述どおり）
-7. **unit testが無い**
+4. ~~注釈の属性がすべてハードコード~~ **解消済み。** 4色パレット（`TOOL_COLORS`, `viewer/[id].tsx:41`）と3段階のink幅を選択できる
+5. ~~undo / deleteが無い~~ **解消済み。** undo/redoスタック（`:115`, `:123`）と消しゴムツール（`:39`）がある
+6. ~~Highlightはタップ位置に固定矩形を置くだけ~~ **解消済み。** `PanResponder`によるドラッグ範囲指定（`:137`）。タップ配置は後方互換の経路として残る
+7. ~~unit testが無い~~ **解消済み。** 30件（`src/lib/database.test.ts` 25件、`annotation-font.test.ts` 5件）
 
-つまりmobileは、desktopがこのセッションで解消した課題（色、削除、履歴、in-place save）を**ほぼそのまま抱えている**。ただし出力経路（Export → 共有シート、Print）はdesktopより自然に統合されている。
+つまりmobileに残るdesktop共通の課題は**in-place saveと編集履歴の永続化**であり、色・削除・undoは解決済み。出力経路（Export → 共有シート、Print）はdesktopより自然に統合されている。なお日本語の注釈はNoto Sans JPを同梱して書き出せるようになり、回転ページでの位置ずれも解消した。
 
 ## 077 [x] The desktop PDF engine was downloaded from a CDN at runtime
 
@@ -126,7 +126,7 @@ Labels: `type:foundation`, `priority:P0`
 | **Android native build** | **成功**（下記） |
 | **Android emulator起動** | **成功**（下記） |
 | **iOS native build** | **未実施 — この環境では不可能** |
-| unit test | **存在しない**（mobileに`test` scriptが無い） |
+| unit test | **30件**（`vitest run`、`node:sqlite`実エンジンでschema/journal/recoveryを検証） |
 
 **Android build 実測（2026-07-20、初回・キャッシュ無し）:**
 
@@ -323,10 +323,10 @@ Acceptance: portrait/landscape、iPad、Android tabletで表示。password PDF U
 
 Labels: `platform:mobile`, `type:feature`, `priority:P0`
 
-- text, fixed highlight, inkを実装済み。**2026-07-20にemulatorでHighlightの動作を確認**（タップ位置に固定矩形が乗る）
-- drag highlight、selection highlight、eraser、move/resize、color、stroke、undo/redoを追加
+- text, highlight, inkを実装済み。drag highlight、eraser、color、stroke、undo/redoも実装済み
+- 残りはselection highlight（react-native-pdfにテキストレイヤが無く実現手段が未確定）とmove/resize
 
-emulator確認で判明: 色・太さ・サイズがすべてハードコードで選択不可、undo / deleteのコードが0件。desktopは#072 / #073 / #071で解消済みなので、同じ方針を移植できる。
+**訂正（2026-08-01）**: 以前この項に「色・太さがハードコードで選択不可」「undo / deleteのコードが0件」と記録されていたが、いずれも誤り。`viewer/[id].tsx:41`に色パレット、`:115`/`:123`にundo/redo、`:39`に消しゴム、`:137`にドラッグhighlightがある。acceptanceのうち未達なのは、zoom/rotation追従とstylus追従の実機確認。
 
 Acceptance: zoom/rotation後もannotation位置がずれず、Apple PencilとAndroid stylusで滑らかに描ける。
 
@@ -382,7 +382,7 @@ Labels: `platform:mobile`, `type:pdf-tool`, `priority:P1`
 
 Acceptance: A4紙を斜めから撮影し、読みやすい300 DPI相当PDFを作成できる。
 
-## 013 [x] Reorder and duplicate PDF pages
+## 013 [~] Reorder and duplicate PDF pages
 
 Labels: `type:pdf-tool`, `priority:P0`
 
@@ -421,13 +421,13 @@ Labels: `platform:desktop`, `type:print`, `priority:P0`
 
 EmbedPDF print pluginは実装済み。page range、current page、annotation on/off dialogを追加する。
 
-**動作確認済み（e2e 3件、`print.spec.ts`）。** printプラグインはbufferを用意して`printReady`イベントを出すだけで、実際の印刷は`PrintFrame`が担う。アプリはこれを明示的にmountしていないため動いていない疑いがあったが、`PrintPluginPackage`が`WithAutoMount`なので自動でmountされており、正常に機能していた。
+**動作確認済み（e2e 6件、`print.spec.ts`）。** printプラグインはbufferを用意して`printReady`イベントを出すだけで、実際の印刷は`PrintFrame`が担う。アプリはこれを明示的にmountしていないため動いていない疑いがあったが、`PrintPluginPackage`が`WithAutoMount`なので自動でmountされており、正常に機能していた。
 
 検証内容: 印刷用に生成されるのが実際のPDFであること、page数と画像が保持されること、注釈が含まれること（toolbarは`includeAnnotations: true`で呼ぶ）、印刷が編集中の文書を変更しないこと。
 
 ネイティブの印刷ダイアログは自動化をブロックするため、ダイアログを操作するのではなく`URL.createObjectURL`を捕まえて**印刷frameへ渡される文書そのもの**を読んで検証する。
 
-未実装: page range、current page、annotation on/offのdialog。実プリンタへの出力確認。
+**訂正（2026-08-01）**: page range / current page / annotation on/offのdialogは実装済み（`Workspace.tsx:344-362`）で、3つとも`print.spec.ts`で検証されている。残るのは実プリンタへの出力確認のみ。
 
 Acceptance: Windows/macOS/Linuxでprint previewと実出力を確認する。
 
@@ -698,7 +698,7 @@ autosaveとrecoveryを`apps/desktop/src/draft-store.ts`に実装。PDF全体で�
 
 - disk full / write失敗時の復旧導線
 - draftはlocalStorage依存。storageを消すと消える
-- mobileは未対応
+- ~~mobileは未対応~~ **訂正（2026-08-01）**: mobileにもwrite-ahead journal（`database.ts:62-74`）、起動時の再照合（`:355-378`）、復旧画面（`app/recovery.tsx`）があり16件のテストが掛かっている。残るのはprocess kill / disk full / DB lockedの実機確認
 
 Acceptance: annotation中にprocess kill、disk full、DB lockedを発生させ、last valid stateとrecovery copyを提示する。
 
@@ -800,7 +800,7 @@ Labels: `type:test`, `priority:P0`
 
 complex.pdfは`subset: false`でフォントを埋め込む。pdf-libのCFFサブセット化はpoppler / Ghostscriptが描画を拒否するフォントを生成し、それでは「アプリがフォントを壊しても検出できない」ため。
 
-未実装: encrypted PDF、malformed but repairable PDF（現在のcorrupt fixtureは復旧不能な破損のみ）、form PDF。
+**訂正（2026-08-01）**: encrypted / repairable / form の3つとも実装済み（`e2e/fixtures.ts`）で`difficult-pdfs.spec.ts`が検証している。判明した未達: パスワードを知っていても暗号化PDFを開けない（プロンプトが無い）。またencryptedのテストはqpdf/Ghostscriptが無い環境（Windows CI）ではskipされる。
 
 ## 055 [ ] Add mobile E2E tests
 
@@ -812,7 +812,7 @@ Acceptance: import → annotate → export → reopen → print前までをMaest
 
 Labels: `platform:desktop`, `type:test`, `priority:P1`
 
-Playwright + Chromiumで13件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*` / `plugin:dialog|*`のinvokeプロトコルをin-memory filesystemで再実装するため、**アプリ側のコードは本物のまま**desktop保存経路を検証できる。
+Playwright + Chromiumで14 spec / 68件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*` / `plugin:dialog|*`のinvokeプロトコルをin-memory filesystemで再実装するため、**アプリ側のコードは本物のまま**desktop保存経路を検証できる。
 
 実Tauriランタイム版を`apps/desktop/e2e-tauri/run.mjs`に追加（`npm run e2e:tauri`）。tauri-driver + WebKitWebDriverで実バイナリを起動し、17項目を検証:
 
@@ -824,7 +824,7 @@ Playwright + Chromiumで13件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*`
 未実装:
 
 - **ネイティブfile dialogは自動化できない。** Wayland上のportal windowで、xdotoolはX11のみ、ydotool/wtypeは未インストール。e2eは`import.meta.env.DEV`のhookでpath指定で開き、dialogのscope付与は`IROHA_E2E_SCOPE`（`debug_assertions`限定）で代替している。dialog経由の選択は人手が必要。
-- multi-tab、note、print
+- multi-tab、note（printは`print.spec.ts` 6件で検証済み）
 - Windows / macOSでの実行（現在Linux Chromium + WebKitGTKのみ）
 
 Acceptance: open → multi-tab → annotate → note → export → reopenをWindows/macOS/Linuxで実行する。
@@ -836,7 +836,7 @@ Labels: `type:ci`, `priority:P0`
 - install lockfile
 - typecheck/test
 - desktop web build
-- **e2e matrix（ubuntu / windows / macOS）を追加。** Playwright + Chromiumで15件。LinuxとmacOSではpoppler/ghostscript/imagemagickを入れてrendering検証まで走る。Windowsは`render.ts`の検出が失敗してrendering testが自動skipされる
+- **e2e matrix（ubuntu / windows / macOS）を追加。** Playwright + Chromiumで14 spec / 68件。LinuxとmacOSではpoppler/ghostscript/imagemagickを入れてrendering検証まで走る。Windowsは`render.ts`の検出が失敗してrendering testが自動skipされる
 - 失敗時にplaywright-reportをartifactへ（retention 14日）
 - 遅いrunner向けに`PERF_BUDGET_SCALE=4`。時間予算のみscaleし、memory/sizeはscaleしない
 
@@ -859,7 +859,7 @@ Expo prebuild validationはQuality jobのstepとして通っている。android�
 未実装:
 
 - 実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証
-- Tauri jobは`cargo build --release`まで。`tauri build`のbundle生成（AppImage/deb/msi/dmg）と署名は#059の範囲で未実施
+- ~~Tauri jobは`cargo build --release`まで~~ **訂正（2026-08-01）**: Tauri jobは`task bundle:desktop`でFrostのターゲットを実行し3 OS分のbundleを生成してartifactに上げる（`ci.yml:207-231`）。releaseワークフローも同じ経路で成果物を添付する。#059に残るのは署名のみ
 - iOSビルドはmacOS runnerでも未実施（#058のEASが前提）
 - e2eはPlaywright + Chromiumのみ。WebKitGTK実バイナリはローカル`e2e:tauri`だけ
 

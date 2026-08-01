@@ -25,6 +25,10 @@ evidence is not a pass.
 
 ## Automated verification — v0.3.0
 
+The evidence below is the v0.3.0 run. v0.4.0 (`0bb56ea`) passed the same nine
+jobs; the artifacts are now named `desktop-packages-<os>` and additionally
+carry the built installers.
+
 - **Release commit:** `0e1786f6aec94b7dde988673b2297fb55afe20b7` (tag `v0.3.0`)
 - **CI run:** <https://github.com/hjosugi/iroha-pdf/actions/runs/30684572747> —
   all nine jobs green on a clean checkout of that commit. `android` runs here
