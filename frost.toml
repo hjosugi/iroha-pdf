@@ -10,6 +10,9 @@ default_targets = ["desktop-web"]
 [toolchain.tools]
 npm = "npm"
 node = "node"
+# Only `desktop-app-linux-debug` spawns cargo directly; every other Rust build
+# goes through the tauri CLI, which npm runs.
+cargo = "cargo"
 
 # Windows names npm `npm.cmd`, and a `command` target is spawned directly rather
 # than through a shell, so the bare name cannot be located there — the Windows
@@ -298,6 +301,44 @@ inputs = [
 output_dirs = ["apps/desktop/bundle/${config}"]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR", "PATH", "CARGO_HOME", "CARGO_TERM_COLOR", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "TMPDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET"]
+sandbox = false
+
+# The binary `npm run e2e:tauri` drives. It cannot be the one above, and that is
+# not a matter of taste: the harness opens its file through the
+# `import.meta.env.DEV` seam in use-pdf-file.ts, which Vite compiles out of a
+# production bundle, and it needs the scope `allow_e2e_scope` grants, which is
+# `#[cfg(debug_assertions)]` and therefore absent from a release binary. A
+# release package is exactly the thing the harness cannot drive. What it can
+# drive is a debug build, which loads `build.devUrl` — the Vite dev server —
+# instead of an embedded `frontendDist`, so this target does not depend on
+# `desktop-web` either. `run.mjs` starts that server itself.
+#
+# Here rather than as a bare `cargo build` in the workflow so the compile that
+# CI runs has declared inputs and one definition, like every other build.
+#
+# The output is where cargo already puts it, not a staged copy: Frost requires
+# `${config}` in a command output so profiles stay isolated, and cargo's dev
+# profile happens to be called `debug` too, so the two agree with nothing
+# copied. They agree only there — `--profile release` would look for a release
+# binary this action never builds — so the Taskfile runs this on the default
+# profile and does not offer another.
+[target.desktop-app-linux-debug]
+kind = "command"
+tool = "cargo"
+args = ["build", "--locked", "--manifest-path", "apps/desktop/src-tauri/Cargo.toml"]
+inputs = [
+  "apps/desktop/src-tauri/Cargo.lock",
+  "apps/desktop/src-tauri/Cargo.toml",
+  "apps/desktop/src-tauri/build.rs",
+  "apps/desktop/src-tauri/capabilities/**/*",
+  "apps/desktop/src-tauri/icons/*",
+  "apps/desktop/src-tauri/src/**/*",
+  "apps/desktop/src-tauri/tauri.conf.json",
+  "apps/desktop/src-tauri/vendor/**/*",
+]
+outputs = ["apps/desktop/src-tauri/target/${config}/iroha-pdf"]
+env = { CI = "true" }
+pass_env = ["PATH", "CARGO_HOME", "CARGO_TERM_COLOR", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "TMPDIR", "TEMP", "TMP"]
 sandbox = false
 
 # `macos-latest` runners are arm64, so a plain build would ship Apple silicon

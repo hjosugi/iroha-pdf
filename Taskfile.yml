@@ -104,6 +104,22 @@ tasks:
     cmds:
       - '{{.FROST_BIN}} build {{.TARGET}} --profile release{{.PLATFORM}} --no-tui'
 
+  # The debug binary `npm run e2e:tauri` drives, which is not the one
+  # `bundle:desktop` produces — see the target's comment in frost.toml. No
+  # `--profile`: the target's output path is cargo's own `target/debug`, which
+  # only lines up with Frost's default config.
+  build:desktop:debug:
+    desc: Build the debug desktop binary the real-runtime e2e drives with Frost
+    preconditions:
+      - sh: command -v "{{.FROST_BIN}}"
+        msg: Install FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
+      - sh: test "$("{{.FROST_BIN}}" info version)" = "{{.FROST_VERSION}}"
+        msg: This workspace is pinned to FrostBuild v{{.FROST_VERSION}}; see docs/BUILD.md
+      - sh: test -d node_modules
+        msg: Run `task install` first
+    cmds:
+      - '{{.FROST_BIN}} build desktop-app-linux-debug --no-tui'
+
   # Plain Node on purpose: the documentation site has no dependencies, so this
   # works in a fresh checkout with neither `task install` nor Frost. The cached
   # CI gate is the `iroha-pdf-site-build` Frost target, which `task check` runs.

@@ -11,7 +11,12 @@
  *   - the dialog's scope grant, which is emulated by IROHA_E2E_SCOPE
  * Scope *denial* is tested, which is the half that matters for safety.
  *
- * Usage: node e2e-tauri/run.mjs
+ * Usage: npm run e2e:tauri
+ *
+ * Needs a debug binary (`task build:desktop:debug`), `tauri-driver`, a WebKitWebDriver,
+ * and a display — `xvfb-run -a` is enough, which is what CI gives it. The Vite dev
+ * server the debug binary loads and the fixture it opens are started and built here if
+ * they are not already there, so nothing else has to be arranged around it.
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -19,14 +24,31 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } f
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureComplexPdf } from './fixture.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(here, '../e2e/fixtures');
 const WORK = '/tmp/iroha-real-e2e';
 const DRIVER_PORT = 4444;
 const DEV_PORT = 1420;
+// Where `task build:desktop:debug` leaves it, unless a CARGO_TARGET_DIR points cargo
+// somewhere else — the second candidate is the shared target directory a developer
+// here uses. IROHA_APP overrides both.
+const APP_CANDIDATES = [
+  join(here, '../src-tauri/target/debug/iroha-pdf'),
+  join(process.env.HOME ?? '', '.cache/cargo-target/debug/iroha-pdf'),
+];
 const APP =
-  process.env.IROHA_APP ??
-  join(process.env.HOME ?? '', '.cache/cargo-target/debug/iroha-pdf');
+  process.env.IROHA_APP ?? APP_CANDIDATES.find((path) => existsSync(path)) ?? APP_CANDIDATES[0];
+// A debug build loads `build.devUrl`, so the webview is served by Vite, not by an
+// embedded `frontendDist`. `import.meta.env.DEV` — the seam this opens files through —
+// is only true there.
+const DEV_URL = `http://localhost:${DEV_PORT}/`;
+// `cargo install tauri-driver` puts it in Cargo's bin directory, which is on an
+// interactive shell's PATH but not necessarily on this process's. Prefer the explicit
+// path, fall back to PATH, so a driver installed some other way still works.
+const CARGO_DRIVER = join(process.env.HOME ?? '', '.cargo/bin/tauri-driver');
+const DRIVER =
+  process.env.TAURI_DRIVER ?? (existsSync(CARGO_DRIVER) ? CARGO_DRIVER : 'tauri-driver');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -52,33 +74,94 @@ async function wd(method, path, body) {
   }
 }
 
+/** Whether something is already serving the app on the dev port. */
+async function devServerAnswers() {
+  try {
+    const response = await fetch(DEV_URL, { signal: AbortSignal.timeout(2000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Starts Vite if it is not already running, and returns the process to stop, or null
+ * when someone else's server is answering — a developer with `npm run dev` open keeps
+ * it, and CI gets one it does not have to manage from the workflow.
+ *
+ * Detached so the kill reaches the whole group: npm spawns Vite as a child, and
+ * signalling only npm would leave the port held.
+ */
+async function startDevServer() {
+  if (await devServerAnswers()) {
+    console.log(`dev server: already answering on ${DEV_URL}`);
+    return null;
+  }
+  const server = spawn('npm', ['run', 'dev'], {
+    cwd: join(here, '..'),
+    stdio: ['ignore', 'ignore', 'pipe'],
+    detached: true,
+  });
+  server.stderr.on('data', (chunk) => console.log(`  (vite) ${String(chunk).trim()}`));
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (server.exitCode !== null) throw new Error('the dev server exited before it served');
+    if (await devServerAnswers()) {
+      console.log(`dev server: started on ${DEV_URL}`);
+      return server;
+    }
+    await sleep(1000);
+  }
+  // Nothing else holds this one yet, so it has to be stopped here or it outlives the run.
+  stopDevServer(server);
+  throw new Error(`the dev server did not answer on ${DEV_URL} within 120s`);
+}
+
+function stopDevServer(server) {
+  if (!server?.pid) return;
+  try {
+    process.kill(-server.pid, 'SIGTERM');
+  } catch {
+    /* already gone */
+  }
+}
+
 async function main() {
   if (!existsSync(APP)) {
-    throw new Error(`app binary not found: ${APP}\nBuild it with: cd src-tauri && cargo build`);
+    throw new Error(
+      `app binary not found: ${APP}\n` +
+        'Build it with: task build:desktop:debug\n' +
+        'It has to be a debug build: the scope grant this drives is #[cfg(debug_assertions)].',
+    );
   }
-  if (!existsSync(join(FIXTURES, 'complex.pdf'))) {
-    throw new Error(`fixtures missing. Run: npm run e2e -- --list`);
-  }
+  const fixture = await ensureComplexPdf();
 
   rmSync(WORK, { recursive: true, force: true });
   mkdirSync(WORK, { recursive: true });
   const target = join(WORK, 'complex.pdf');
-  copyFileSync(join(FIXTURES, 'complex.pdf'), target);
+  copyFileSync(fixture, target);
   const originalHash = sha(target);
   const originalSize = statSync(target).size;
   console.log(`fixture: ${target} (${originalSize} bytes, sha ${originalHash.slice(0, 12)})`);
 
+  const devServer = await startDevServer();
+
   // The app inherits the driver's environment, which is how IROHA_E2E_SCOPE reaches it.
-  const driver = spawn(join(process.env.HOME ?? '', '.cargo/bin/tauri-driver'), [
-    '--port',
-    String(DRIVER_PORT),
-  ], {
+  const driver = spawn(DRIVER, ['--port', String(DRIVER_PORT)], {
     env: {
       ...process.env,
       DISPLAY: process.env.DISPLAY ?? ':0',
       IROHA_E2E_SCOPE: WORK,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  driver.on('error', (error) => {
+    console.error(
+      `\ncould not start ${DRIVER}: ${error.message}\n` +
+        'Install it with: cargo install tauri-driver --version 2.0.6 --locked\n' +
+        'It also needs a WebKitWebDriver on PATH (Debian/Ubuntu: webkit2gtk-driver).',
+    );
+    stopDevServer(devServer);
+    process.exit(2);
   });
   driver.stdout.on('data', (chunk) => {
     const line = String(chunk).trim();
@@ -260,6 +343,7 @@ async function main() {
   } finally {
     if (sessionId) await wd('DELETE', `/session/${sessionId}`).catch(() => {});
     driver.kill('SIGTERM');
+    stopDevServer(devServer);
   }
 
   console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} check(s) FAILED`}`);
