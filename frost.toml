@@ -11,6 +11,18 @@ default_targets = ["desktop-web"]
 npm = "npm"
 node = "node"
 
+# Windows names npm `npm.cmd`, and a `command` target is spawned directly rather
+# than through a shell, so the bare name cannot be located there — the Windows
+# runner failed with `failed to spawn "npm": program not found` while `npm ci`
+# in the adjacent step worked. Naming the tool per platform is the documented
+# way to say that; `pass_env` cannot fix it, because the name is resolved before
+# the action environment applies. Selected by `task bundle:desktop`, which
+# passes `--platform windows` only on a Windows host, so the Linux and macOS
+# builds keep the root toolchain and their existing output paths untouched.
+[platform.windows.tools]
+npm = "npm.cmd"
+node = "node.exe"
+
 [target.iroha-pdf-brand-validate]
 kind = "test"
 tool = "node"

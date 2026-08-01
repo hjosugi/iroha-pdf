@@ -97,8 +97,12 @@ tasks:
       # `OS` is Task's own GOOS, so this resolves without shelling out to a
       # `uname` that a Windows runner may not have on PATH.
       TARGET: 'desktop-app-{{if eq OS "darwin"}}macos{{else if eq OS "windows"}}windows{{else}}linux{{end}}'
+      # Only Windows needs a toolchain overlay, and asking for one changes
+      # where Frost writes, so the other two hosts stay on the root
+      # toolchain and keep the paths they already build into.
+      PLATFORM: '{{if eq OS "windows"}} --platform windows{{end}}'
     cmds:
-      - '{{.FROST_BIN}} build {{.TARGET}} --profile release --no-tui'
+      - '{{.FROST_BIN}} build {{.TARGET}} --profile release{{.PLATFORM}} --no-tui'
 
   # Plain Node on purpose: the documentation site has no dependencies, so this
   # works in a fresh checkout with neither `task install` nor Frost. The cached
