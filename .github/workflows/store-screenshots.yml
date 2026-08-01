@@ -185,8 +185,7 @@ jobs:
         run: |
           set -euo pipefail
           bash release/store/boot-ios-simulator.sh "$UDID"
-          xcrun simctl install "$UDID" "$APP_PATH"
-          bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-iphone-6.9 1320 2868
+          bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-iphone-6.9 1320 2868 "$APP_PATH"
           xcrun simctl shutdown "$UDID"
       - name: Capture iPad 13-inch scenes
         shell: bash
@@ -195,8 +194,7 @@ jobs:
         run: |
           set -euo pipefail
           bash release/store/boot-ios-simulator.sh "$UDID"
-          xcrun simctl install "$UDID" "$APP_PATH"
-          bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-ipad-13 2064 2752
+          bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-ipad-13 2064 2752 "$APP_PATH"
           xcrun simctl shutdown "$UDID"
       - uses: actions/upload-artifact@v4
         with:

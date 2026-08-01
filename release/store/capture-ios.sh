@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-udid="${1:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT}"
-output_dir="${2:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT}"
-expected_width="${3:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT}"
-expected_height="${4:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT}"
+udid="${1:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT APP_PATH}"
+output_dir="${2:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT APP_PATH}"
+expected_width="${3:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT APP_PATH}"
+expected_height="${4:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT APP_PATH}"
+app_path="${5:?usage: capture-ios.sh UDID OUTPUT_DIR WIDTH HEIGHT APP_PATH}"
 bundle_id="app.irohapdf.mobile"
 mkdir -p "$output_dir"
+[[ -d "$app_path" ]] || { echo "iOS simulator app not found: $app_path" >&2; exit 1; }
 
 command -v xcrun >/dev/null
 if command -v magick >/dev/null; then
@@ -27,9 +29,6 @@ xcrun simctl status_bar "$udid" override \
   --wifiBars 3 \
   --cellularBars 4 >/dev/null
 
-app_data_container="$(xcrun simctl get_app_container "$udid" "$bundle_id" data)"
-ready_marker="$app_data_container/Documents/iroha-store-ready.txt"
-
 scenarios=(library viewer tools drive)
 names=(01-library 02-annotate 03-tools 04-drive)
 
@@ -42,6 +41,10 @@ for index in "${!scenarios[@]}"; do
   stderr_log="${RUNNER_TEMP:-/tmp}/iroha-${name}-stderr.log"
 
   xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
+  xcrun simctl uninstall "$udid" "$bundle_id" >/dev/null 2>&1 || true
+  xcrun simctl install "$udid" "$app_path"
+  app_data_container="$(xcrun simctl get_app_container "$udid" "$bundle_id" data)"
+  ready_marker="$app_data_container/Documents/iroha-store-ready.txt"
   rm -f "$ready_marker"
 
   : > "$stdout_log"
