@@ -1,0 +1,124 @@
+name: Branch cleanup
+
+# Merged branches accumulate: this repository squash-merges, so a merged branch
+# keeps a history main never took and shows as "N ahead" forever, which makes it
+# indistinguishable at a glance from a branch carrying real work.
+#
+# GitHub's own "Automatically delete head branches" setting is the better answer
+# for branches created from now on, and enabling it is a single click. This
+# workflow exists because that setting cannot be turned on from a checkout, it
+# does nothing about branches that are already stale, and deleting a ref is not
+# something every environment can do over Git.
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Actually delete. Leave off to list what would go.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  # A merged pull request's head branch has served its purpose. Guarded rather
+  # than trusted: the API is asked whether it really merged.
+  merged-head:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    name: Delete the head branch of ${{ github.event.pull_request.number }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          FORK: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+
+          # A fork's branch is not ours to delete.
+          if [[ "$FORK" != "$GITHUB_REPOSITORY" ]]; then
+            echo "$BRANCH lives in $FORK, not this repository; leaving it alone"
+            exit 0
+          fi
+          if [[ "$BRANCH" == "${GITHUB_REF_NAME:-}" || "$BRANCH" == "$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)" ]]; then
+            echo "::error::refusing to delete the default branch"
+            exit 1
+          fi
+
+          if gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" 2>/dev/null; then
+            echo "deleted $BRANCH"
+          else
+            echo "$BRANCH was already gone"
+          fi
+
+  # Sweeps what is already there. Reports by default; deletes only when asked,
+  # the same shape as scripts/github/protect-main.sh's APPLY.
+  sweep:
+    if: github.event_name == 'workflow_dispatch'
+    name: Sweep merged branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Find and remove branches main already contains
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+
+          default="$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)"
+          git fetch --quiet origin "$default"
+
+          # "Contained in the default branch" is decided by content, not by
+          # ancestry: a squash merge rewrites the commits, so `--merged` would
+          # report nothing and every branch would look unmerged forever. A
+          # branch is finished when it adds no commit the default branch lacks
+          # *and* its tree matches, which is what a squash leaves behind.
+          removed=0 kept=0
+          while read -r branch protected; do
+            [[ -z "$branch" ]] && continue
+            if [[ "$branch" == "$default" ]]; then continue; fi
+            if [[ "$protected" == "true" ]]; then
+              echo "keep    $branch (protected)"; kept=$((kept + 1)); continue
+            fi
+
+            git fetch --quiet origin "$branch"
+            ahead="$(git rev-list --count "origin/$default..FETCH_HEAD")"
+            same_tree=0
+            [[ "$(git rev-parse 'FETCH_HEAD^{tree}')" == "$(git rev-parse "origin/$default^{tree}")" ]] && same_tree=1
+
+            if (( ahead == 0 )) || (( same_tree == 1 )); then
+              if [[ "$APPLY" == "true" ]]; then
+                gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch"
+                echo "delete  $branch (nothing the default branch lacks)"
+              else
+                echo "would   $branch (nothing the default branch lacks)"
+              fi
+              removed=$((removed + 1))
+            else
+              echo "keep    $branch ($ahead commit(s) not in $default)"
+              kept=$((kept + 1))
+            fi
+          done < <(gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" \
+                     --jq '.[] | "\(.name) \(.protected)"')
+
+          if [[ "$APPLY" == "true" ]]; then
+            echo "::notice::deleted $removed branch(es), kept $kept"
+          else
+            echo "::notice::$removed branch(es) would be deleted, $kept kept. Re-run with apply to do it."
+          fi
