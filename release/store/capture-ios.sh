@@ -27,6 +27,9 @@ xcrun simctl status_bar "$udid" override \
   --wifiBars 3 \
   --cellularBars 4 >/dev/null
 
+app_data_container="$(xcrun simctl get_app_container "$udid" "$bundle_id" data)"
+ready_marker="$app_data_container/Documents/iroha-store-ready.txt"
+
 scenarios=(library viewer tools drive)
 names=(01-library 02-annotate 03-tools 04-drive)
 
@@ -39,13 +42,7 @@ for index in "${!scenarios[@]}"; do
   stderr_log="${RUNNER_TEMP:-/tmp}/iroha-${name}-stderr.log"
 
   xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
-  xcrun simctl spawn "$udid" defaults write "$bundle_id" IrohaStoreScenario -string "$scenario"
-  xcrun simctl spawn "$udid" defaults delete "$bundle_id" IrohaStoreReady >/dev/null 2>&1 || true
-  configured_scenario="$(xcrun simctl spawn "$udid" defaults read "$bundle_id" IrohaStoreScenario)"
-  if [[ "$configured_scenario" != "$scenario" ]]; then
-    echo "failed to configure iOS store scenario: expected $scenario, got $configured_scenario" >&2
-    exit 1
-  fi
+  rm -f "$ready_marker"
 
   : > "$stdout_log"
   : > "$stderr_log"
@@ -53,7 +50,8 @@ for index in "${!scenarios[@]}"; do
     --stdout="$stdout_log" \
     --stderr="$stderr_log" \
     "$udid" \
-    "$bundle_id")"
+    "$bundle_id" \
+    -IrohaStoreScenario "$scenario")"
   launch_pid="${launch_output##*: }"
   [[ "$launch_pid" =~ ^[0-9]+$ ]] || {
     echo "unexpected simctl launch result: $launch_output" >&2
@@ -71,7 +69,9 @@ for index in "${!scenarios[@]}"; do
         --predicate 'process == "IrohaPDF"' >&2 || true
       exit 1
     fi
-    ready="$(xcrun simctl spawn "$udid" defaults read "$bundle_id" IrohaStoreReady 2>/dev/null || true)"
+    if [[ -f "$ready_marker" ]]; then
+      ready="$(<"$ready_marker")"
+    fi
     [[ "$ready" == "$scenario" ]] && break
     sleep 2
   done
