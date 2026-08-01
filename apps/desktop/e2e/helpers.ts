@@ -131,3 +131,37 @@ export async function saveAs(page: Page): Promise<void> {
 export function backupPathFor(path: string): string {
   return path.replace(/\.pdf$/i, '') + '.iroha-original.pdf';
 }
+
+/** A normalised rectangle over page 1, as a fraction of its rendered box. */
+export type PageBox = { x1: number; y1: number; x2: number; y2: number };
+
+/**
+ * Selects a tool, tolerating it already being selected. Written out in three
+ * specs identically before this; a tool that silently failed to activate would
+ * make each of them fail somewhere later and less legibly.
+ */
+export async function useTool(page: Page, label: string): Promise<void> {
+  const button = page.getByRole('button', { name: label, exact: true });
+  if (!(await button.evaluate((node) => node.classList.contains('active')))) await button.click();
+  await expect(button).toHaveClass(/active/);
+}
+
+/**
+ * Drags across a normalised box on page 1, through a midpoint so the app sees
+ * a real gesture rather than a teleport. The settle wait is what the annotation
+ * plugin needs to commit the shape.
+ */
+export async function dragOn(page: Page, box: PageBox): Promise<void> {
+  const bounds = await firstPage(page).boundingBox();
+  if (!bounds) throw new Error('page 1 has no bounding box');
+  const sx = bounds.x + bounds.width * box.x1;
+  const sy = bounds.y + bounds.height * box.y1;
+  const ex = bounds.x + bounds.width * box.x2;
+  const ey = bounds.y + bounds.height * box.y2;
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move((sx + ex) / 2, (sy + ey) / 2, { steps: 10 });
+  await page.mouse.move(ex, ey, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+}

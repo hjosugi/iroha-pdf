@@ -8,7 +8,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boot, firstPage, openPdf, save } from './helpers';
+import { boot, dragOn, firstPage, openPdf, save, useTool } from './helpers';
 import { inspectPdf } from './inspect';
 import { readVirtualFile } from './tauri-stub';
 
@@ -16,31 +16,12 @@ const TITLE_LINE = { x1: 0.1, y1: 0.088, x2: 0.45, y2: 0.088 };
 const BLANK_AREA = { x1: 0.2, y1: 0.6, x2: 0.55, y2: 0.72 };
 const INK_SETTLE_MS = 1000;
 
-async function useTool(page: Page, label: string): Promise<void> {
-  const button = page.getByRole('button', { name: label, exact: true });
-  if (!(await button.evaluate((node) => node.classList.contains('active')))) await button.click();
-  await expect(button).toHaveClass(/active/);
-}
 
 async function putToolDown(page: Page, label: string): Promise<void> {
   const button = page.getByRole('button', { name: label, exact: true });
   if (await button.evaluate((node) => node.classList.contains('active'))) await button.click();
 }
 
-async function dragOn(page: Page, box: typeof BLANK_AREA): Promise<void> {
-  const bounds = await firstPage(page).boundingBox();
-  if (!bounds) throw new Error('page 1 has no bounding box');
-  const sx = bounds.x + bounds.width * box.x1;
-  const sy = bounds.y + bounds.height * box.y1;
-  const ex = bounds.x + bounds.width * box.x2;
-  const ey = bounds.y + bounds.height * box.y2;
-  await page.mouse.move(sx, sy);
-  await page.mouse.down();
-  await page.mouse.move((sx + ex) / 2, (sy + ey) / 2, { steps: 10 });
-  await page.mouse.move(ex, ey, { steps: 10 });
-  await page.mouse.up();
-  await page.waitForTimeout(600);
-}
 
 /** Clicks the middle of a box, which is where a mark drawn there will be. */
 async function clickInside(page: Page, box: typeof BLANK_AREA): Promise<void> {
