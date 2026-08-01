@@ -31,6 +31,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/with-modular-ios-headers",
       "expo-router",
       "expo-document-picker",
       "expo-secure-store",

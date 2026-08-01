@@ -39,6 +39,7 @@ inputs = [
   "apps/mobile/app.json",
   "apps/mobile/assets/fonts/*.otf",
   "apps/mobile/assets/images/*.png",
+  "apps/mobile/plugins/*.js",
   "assets/branding/*",
   "release/branding/validate-assets.mjs",
   "release/store/screenshots/desktop/*.png",

@@ -97,6 +97,15 @@ jobs:
       - name: Resolve public Expo config
         run: npx expo config --type public --json > expo-config.json
         working-directory: apps/mobile
+      - name: Validate iOS prebuild structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform ios --no-install --clean
+          grep --fixed-strings --line-regexp 'use_modular_headers!' ios/Podfile
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_DOCTOR: "1"
       - name: Validate Android prebuild
         run: npx expo prebuild --platform android --no-install --clean
         working-directory: apps/mobile
