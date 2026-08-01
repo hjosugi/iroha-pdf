@@ -59,8 +59,9 @@ issues/
 
 - サイト: https://hjosugi.github.io/iroha-pdf/
 - プライバシーポリシー（ストアとOAuth同意画面へ入力する安定URL）: https://hjosugi.github.io/iroha-pdf/privacy/
+- App Store / Google Play提出文、画像、再生成手順: [release/store/README.md](release/store/README.md)
 
-ローカルで生成して確認する場合は`task site`または`npm run site`を実行し、`site/dist/`を静的配信してください。リポジトリ設定でGitHub Pagesを有効化するまで上記URLは404です。詳細は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
+ローカルで生成して確認する場合は`task site`または`npm run site`を実行し、`site/dist/`を静的配信してください。公開URLと提出時の確認項目は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
 
 ## セットアップ
 

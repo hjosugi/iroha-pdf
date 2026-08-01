@@ -40,10 +40,11 @@ loads `apps/mobile/assets/store/iroha-demo.pdf`, creates fixed local records, an
 then redirects to the ordinary production screen. Without the flag the route
 redirects home and cannot seed anything.
 
-The Android job captures a 1080x1920 Pixel 6 AVD. The macOS job captures the
-accepted native canvases from an iPhone 16 Pro Max Simulator (1320x2868) and an
-iPad Pro 13-inch M4 Simulator (2064x2752). Every raw simulator image is converted
-to an opaque 24-bit RGB PNG; transparency is rejected by both store workflows.
+The Android job captures a 1080x1920 Pixel 6 AVD. The macOS 26 job uses Xcode
+26.6 (Swift 6.2, required by Expo SDK 57) and captures the accepted native
+canvases from an iPhone 17 Pro Max Simulator (1320x2868) and an iPad Pro 13-inch
+M5 Simulator (2064x2752). Every raw simulator image is converted to an opaque
+24-bit RGB PNG; transparency is rejected by both store workflows.
 
 Run and retrieve it from a pushed branch:
 

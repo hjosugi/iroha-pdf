@@ -11,6 +11,7 @@ icon has the same silhouette and does not depend on an installed font.
 - `assets/branding/iroha-foreground.svg`: transparent white adaptive foreground
 - `assets/branding/iroha-monochrome.svg`: Android themed-icon mask
 - `assets/branding/iroha-splash.svg`: blue mark on a transparent splash canvas
+- `assets/branding/iroha-feature-graphic.svg`: Google Play 1024x500 artwork
 - `assets/branding/tauri-icon-manifest.json`: Tauri platform generation inputs
 
 Run `npm run brand:generate` after changing any source. Generated PNG, ICNS,
@@ -54,9 +55,11 @@ account names, local paths, OAuth data, or production Drive contents.
 Desktop screenshots live in `release/store/screenshots/desktop/` and are
 captured from synthetic fixtures by `npm run store:screenshots:desktop`. The
 committed set covers the empty local-first workspace, a PDF with editing tools,
-and an unsaved annotation. Mobile screenshots must come
-from the release candidate on the required phone/tablet matrix; do not stretch a
-phone capture to invent a tablet result.
+and an unsaved annotation.
 
-Before submission, record the device/OS, locale, source commit, and release build
-ID beside the screenshots in the external release evidence store.
+Mobile capture is the reproducible native workflow documented in
+`release/store/README.md`. It uses one deterministic, synthetic two-page PDF and
+the real release-configured screens on Android, iPhone and iPad simulators. It
+never stretches a phone image into a tablet result. The committed evidence file
+records the device image, exact source commit and GitHub Actions run that created
+the submission set.
