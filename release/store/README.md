@@ -24,10 +24,12 @@ annotation and export, on-device page tools, then the limited Google Drive
 permission explanation. The first two therefore communicate the primary value
 even on store surfaces that show only the first screenshots.
 
-The `en-US` and `ja-JP` listings use the same product-accurate screenshots. The
-current mobile interface is English; a Japanese description must not be paired
-with invented Japanese UI that the shipped app does not provide. Add a separate
-Japanese screenshot set only after the app itself ships Japanese localization.
+The mobile interface now follows the OS language in Japanese and English. The
+committed submission set is captured with the simulator/emulator in English and
+is shared by the `en-US` and `ja-JP` listings; it contains no translated marketing
+text baked into the pixels. If a locale-specific Japanese screenshot set is added,
+capture the actual Japanese UI with this same release workflow—never translate or
+composite controls after capture—and map it explicitly in the store consoles.
 
 ## Reproduce the screenshots
 

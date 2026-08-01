@@ -71,16 +71,14 @@ test.describe('an encrypted PDF', () => {
       expect(state.shown, `the UI must not show ${leak}`).not.toContain(leak);
     }
     // The app must still be usable afterwards.
-    await expect(page.getByRole('button', { name: /Open PDF|\+/ }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Open (another )?PDF|\+/ }).first()).toBeVisible();
 
     // The half of the fixture story that is NOT covered, pinned here so it cannot be
-    // mistaken for coverage: there is no password prompt anywhere, so a PDF the user
-    // has the password for is still unopenable. The fixture exists (issues 054 /
-    // GitHub #59) but the capability does not. Delete this assertion — and rewrite the
-    // test above it — when asking for a password lands.
+    // mistaken for coverage: desktop has no password prompt, so a PDF the user has the
+    // password for is still unopenable here. Mobile has its own native prompt and gate.
     expect(
       state.shown.toLowerCase(),
-      'no password prompt exists yet; update this test when one does',
+      'desktop has no password prompt yet; update this test when one does',
     ).not.toContain('password');
   });
 });

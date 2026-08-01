@@ -2,7 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import type { WorkspaceDocument } from '@iroha-pdf/core';
-import { createId, saveDocument } from './database';
+import { createId, deleteDocument, saveDocument } from './database';
 
 function documentsDirectory(): Directory {
   const directory = new Directory(Paths.document, 'iroha-pdf', 'documents');
@@ -33,7 +33,7 @@ export async function importPdfFile(
 ): Promise<WorkspaceDocument> {
   const id = createId('pdf');
   const destination = new File(documentsDirectory(), `${id}.pdf`);
-  source.copy(destination);
+  await source.copy(destination);
   const document: WorkspaceDocument = {
     id,
     title: title.replace(/\.pdf$/i, ''),
@@ -45,8 +45,39 @@ export async function importPdfFile(
     sizeBytes: destination.size,
     modifiedAt: new Date().toISOString(),
   };
-  await saveDocument(document);
+  try {
+    await saveDocument(document);
+  } catch (error) {
+    // Do not leave an invisible private copy behind when the catalogue write
+    // fails. The provider original remains untouched and can be selected again.
+    if (destination.exists) destination.delete();
+    throw error;
+  }
   return document;
+}
+
+export async function removeImportedDocument(document: WorkspaceDocument): Promise<void> {
+  const file = new File(document.localUri);
+  // The URI always points at the private copy made by importPdfFile. Provider
+  // originals are never deleted by this app.
+  if (!file.exists) {
+    await deleteDocument(document.id);
+    return;
+  }
+
+  // Quarantine first, then remove the catalogue row. If SQLite rejects the
+  // transaction, moving the bytes back keeps the library entry usable instead
+  // of leaving it pointed at a file already destroyed.
+  const quarantined = new File(Paths.cache, `iroha-delete-${document.id}.pdf`);
+  if (quarantined.exists) quarantined.delete();
+  file.moveSync(quarantined);
+  try {
+    await deleteDocument(document.id);
+  } catch (error) {
+    file.moveSync(new File(document.localUri));
+    throw error;
+  }
+  file.delete();
 }
 
 export function createOutputPdf(name: string, bytes: Uint8Array): File {

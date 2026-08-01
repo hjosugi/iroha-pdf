@@ -35,11 +35,22 @@ import {
   saveAnnotation,
 } from '@/lib/database';
 import { createOutputPdf } from '@/lib/files';
+import { t } from '@/lib/i18n';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 
 type Tool = 'hand' | 'highlight' | 'ink' | 'text' | 'eraser';
 
 const TOOL_COLORS = ['#2B5CFF', '#FFE45E', '#E24A3B', '#16835F'] as const;
+
+function toolLabel(tool: Tool): string {
+  switch (tool) {
+    case 'hand': return t('edit.hand');
+    case 'highlight': return t('edit.highlight');
+    case 'ink': return t('edit.pen');
+    case 'text': return t('edit.text');
+    case 'eraser': return t('edit.eraser');
+  }
+}
 
 function distanceToAnnotation(point: Point, annotation: PdfAnnotation): number {
   if (annotation.kind === 'ink') {
@@ -58,6 +69,7 @@ export default function PdfViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const [document, setDocument] = useState<WorkspaceDocument | null>(null);
+  const [documentLoaded, setDocumentLoaded] = useState(false);
   const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
@@ -80,6 +92,7 @@ export default function PdfViewerScreen() {
   const [highlightPreview, setHighlightPreview] = useState<{ start: Point; end: Point } | null>(null);
   const [undoStack, setUndoStack] = useState<PdfAnnotation[]>([]);
   const [redoStack, setRedoStack] = useState<PdfAnnotation[]>([]);
+  const [busyAction, setBusyAction] = useState<'export' | 'print' | null>(null);
 
   useEffect(() => {
     void Promise.all([getDocument(id), listAnnotations(id)]).then(async ([nextDocument, nextAnnotations]) => {
@@ -91,42 +104,56 @@ export default function PdfViewerScreen() {
       }
     }).catch((error: unknown) => {
       Alert.alert(
-        'Local storage unavailable',
+        t('error.storage'),
         error instanceof Error ? error.message : String(error),
       );
-    });
+    }).finally(() => setDocumentLoaded(true));
   }, [id, navigation]);
 
   const visibleAnnotations = annotations.filter((annotation) => annotation.pageIndex === page - 1);
 
-  const persist = async (annotation: PdfAnnotation, recordHistory = true) => {
-    setAnnotations((current) => [...current, annotation]);
-    await saveAnnotation(annotation);
-    if (recordHistory) {
-      setUndoStack((current) => [...current, annotation]);
-      setRedoStack([]);
+  const persist = async (annotation: PdfAnnotation, recordHistory = true): Promise<boolean> => {
+    try {
+      await saveAnnotation(annotation);
+      setAnnotations((current) => [...current.filter((item) => item.id !== annotation.id), annotation]);
+      if (recordHistory) {
+        setUndoStack((current) => [...current, annotation]);
+        setRedoStack([]);
+      }
+      return true;
+    } catch (error) {
+      Alert.alert(t('edit.annotationSaveFailed'), error instanceof Error ? error.message : String(error));
+      return false;
     }
   };
 
-  const removeAnnotation = async (annotation: PdfAnnotation) => {
-    setAnnotations((current) => current.filter((item) => item.id !== annotation.id));
-    await deleteAnnotation(annotation.id);
+  const removeAnnotation = async (annotation: PdfAnnotation): Promise<boolean> => {
+    try {
+      await deleteAnnotation(annotation.id);
+      setAnnotations((current) => current.filter((item) => item.id !== annotation.id));
+      return true;
+    } catch (error) {
+      Alert.alert(t('edit.annotationDeleteFailed'), error instanceof Error ? error.message : String(error));
+      return false;
+    }
   };
 
   const undo = async () => {
     const annotation = undoStack.at(-1);
     if (!annotation) return;
-    setUndoStack((current) => current.slice(0, -1));
-    setRedoStack((current) => [...current, annotation]);
-    await removeAnnotation(annotation);
+    if (await removeAnnotation(annotation)) {
+      setUndoStack((current) => current.slice(0, -1));
+      setRedoStack((current) => [...current, annotation]);
+    }
   };
 
   const redo = async () => {
     const annotation = redoStack.at(-1);
     if (!annotation) return;
-    setRedoStack((current) => current.slice(0, -1));
-    setUndoStack((current) => [...current, annotation]);
-    await persist({ ...annotation, updatedAt: new Date().toISOString() }, false);
+    if (await persist({ ...annotation, updatedAt: new Date().toISOString() }, false)) {
+      setRedoStack((current) => current.slice(0, -1));
+      setUndoStack((current) => [...current, annotation]);
+    }
   };
 
   const pointFromEvent = (x: number, y: number): Point => ({
@@ -249,7 +276,7 @@ export default function PdfViewerScreen() {
   };
 
   const createFlattenedCopy = async (): Promise<File> => {
-    if (!document) throw new Error('Document is not loaded');
+    if (!document) throw new Error(t('document.notFound'));
     const source = await new File(document.localUri).bytes();
     // Loaded only when there is text to draw: the face is several megabytes and
     // highlight- or ink-only exports have no glyphs to encode.
@@ -262,45 +289,60 @@ export default function PdfViewerScreen() {
 
   const exportCopy = async () => {
     try {
+      setBusyAction('export');
       const output = await createFlattenedCopy();
       await Sharing.shareAsync(output.uri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
       });
     } catch (error) {
-      Alert.alert('Export failed', error instanceof Error ? error.message : String(error));
+      Alert.alert(t('error.export'), error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusyAction(null);
     }
   };
 
   const print = async () => {
     try {
+      setBusyAction('print');
       const output = await createFlattenedCopy();
       await Print.printAsync({ uri: output.uri });
     } catch (error) {
-      Alert.alert('Print failed', error instanceof Error ? error.message : String(error));
+      Alert.alert(t('print.failed'), error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusyAction(null);
     }
   };
 
-  if (!document) return <SafeAreaView style={styles.container} />;
+  if (!documentLoaded) {
+    return <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}><View accessibilityRole="progressbar" accessibilityLabel={t('document.loading')} style={styles.fullState}><ActivityIndicator color="#2B5CFF" /></View></SafeAreaView>;
+  }
+
+  if (!document) {
+    return <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}><View style={styles.fullState}><Text accessibilityRole="header" style={styles.viewerErrorTitle}>{t('document.notFound')}</Text><Text style={styles.viewerErrorBody}>{t('document.removed')}</Text></View></SafeAreaView>;
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <View style={styles.toolbar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolScroll} contentContainerStyle={styles.toolRow}>
           {(['hand', 'highlight', 'ink', 'text', 'eraser'] as const).map((item) => (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('edit.annotationTool', { name: toolLabel(item) })}
+              accessibilityState={{ selected: tool === item }}
               key={item}
               style={[styles.tool, tool === item && styles.activeTool]}
               onPress={() => setTool(item)}
             >
-              <Text style={[styles.toolText, tool === item && styles.activeToolText]}>{item}</Text>
+              <Text style={[styles.toolText, tool === item && styles.activeToolText]}>{toolLabel(item)}</Text>
             </Pressable>
           ))}
-          <Pressable disabled={undoStack.length === 0} style={styles.compactTool} onPress={() => void undo()}><Text>↶</Text></Pressable>
-          <Pressable disabled={redoStack.length === 0} style={styles.compactTool} onPress={() => void redo()}><Text>↷</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('edit.undoLabel')} accessibilityState={{ disabled: undoStack.length === 0 }} disabled={undoStack.length === 0} style={[styles.compactTool, undoStack.length === 0 && styles.disabledButton]} onPress={() => void undo()}><Text>↶</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('edit.redoLabel')} accessibilityState={{ disabled: redoStack.length === 0 }} disabled={redoStack.length === 0} style={[styles.compactTool, redoStack.length === 0 && styles.disabledButton]} onPress={() => void redo()}><Text>↷</Text></Pressable>
         </ScrollView>
-        <Pressable style={styles.textButton} onPress={exportCopy}><Text>Export</Text></Pressable>
-        <Pressable style={styles.primaryButton} onPress={print}><Text style={styles.primaryText}>Print</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('document.exportLabel')} accessibilityState={{ disabled: busyAction !== null }} disabled={busyAction !== null} style={[styles.textButton, busyAction !== null && styles.disabledButton]} onPress={() => void exportCopy()}><Text>{t(busyAction === 'export' ? 'document.exporting' : 'document.export')}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('print.open')} accessibilityState={{ disabled: busyAction !== null }} disabled={busyAction !== null} style={[styles.primaryButton, busyAction !== null && styles.disabledButton]} onPress={() => void print()}><Text style={styles.primaryText}>{t(busyAction === 'print' ? 'print.preparing' : 'print.open')}</Text></Pressable>
       </View>
 
       <View style={styles.viewer}>
@@ -340,7 +382,7 @@ export default function PdfViewerScreen() {
               setPasswordAttempt('');
               setPasswordPromptVisible(true);
             } else {
-              setLoadError(message);
+              setLoadError(t('document.unsupported'));
             }
           }}
           style={styles.pdf}
@@ -349,15 +391,17 @@ export default function PdfViewerScreen() {
           <View style={styles.viewerState} pointerEvents="none">
             <ActivityIndicator color="#2B5CFF" />
             <Text style={styles.viewerStateText}>
-              Opening PDF… {Math.round(loadingProgress * 100)}%
+              {t('document.opening')} {Math.round(loadingProgress * 100)}%
             </Text>
           </View>
         ) : null}
         {loadError ? (
           <View style={styles.viewerState}>
-            <Text style={styles.viewerErrorTitle}>This PDF could not be opened.</Text>
-            <Text numberOfLines={4} style={styles.viewerErrorBody}>{loadError}</Text>
+              <Text style={styles.viewerErrorTitle}>{t('document.openFailed')}</Text>
+            <Text style={styles.viewerErrorBody}>{loadError}</Text>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('document.retryLabel')}
               style={styles.primaryButton}
               onPress={() => {
                 setLoadError(null);
@@ -365,7 +409,7 @@ export default function PdfViewerScreen() {
                 setReloadKey((value) => value + 1);
               }}
             >
-              <Text style={styles.primaryText}>Try again</Text>
+              <Text style={styles.primaryText}>{t('document.retry')}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -409,13 +453,16 @@ export default function PdfViewerScreen() {
           {TOOL_COLORS.map((item) => (
             <Pressable
               key={item}
-              accessibilityLabel={`Annotation color ${item}`}
+              accessibilityLabel={t('edit.annotationColor', { color: item })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: color === item }}
+              hitSlop={4}
               style={[styles.colorSwatch, { backgroundColor: item }, color === item && styles.selectedSwatch]}
               onPress={() => setColor(item)}
             />
           ))}
           {tool === 'ink' ? [1.5, 2.4, 4].map((width) => (
-            <Pressable key={width} style={[styles.strokeChoice, strokeWidth === width && styles.activeTool]} onPress={() => setStrokeWidth(width)}>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('edit.inkWidth', { width })} accessibilityState={{ selected: strokeWidth === width }} key={width} style={[styles.strokeChoice, strokeWidth === width && styles.activeTool]} onPress={() => setStrokeWidth(width)}>
               <Text style={styles.strokeChoiceText}>{width}</Text>
             </Pressable>
           )) : null}
@@ -423,29 +470,29 @@ export default function PdfViewerScreen() {
       ) : null}
 
       <View style={styles.pageBar}>
-        <Pressable disabled={page <= 1} onPress={() => setPage((value) => Math.max(1, value - 1))}><Text style={styles.pageButton}>‹</Text></Pressable>
-        <Text style={styles.pageLabel}>{page} / {pageCount}</Text>
-        <Pressable disabled={page >= pageCount} onPress={() => setPage((value) => Math.min(pageCount, value + 1))}><Text style={styles.pageButton}>›</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('document.previousPage')} accessibilityState={{ disabled: page <= 1 }} style={styles.pageControl} disabled={page <= 1} onPress={() => setPage((value) => Math.max(1, value - 1))}><Text style={[styles.pageButton, page <= 1 && styles.disabledText]}>‹</Text></Pressable>
+        <Text accessibilityRole="text" accessibilityLabel={t('document.pageOf', { page, count: pageCount })} style={styles.pageLabel}>{page} / {pageCount}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('document.nextPage')} accessibilityState={{ disabled: page >= pageCount }} style={styles.pageControl} disabled={page >= pageCount} onPress={() => setPage((value) => Math.min(pageCount, value + 1))}><Text style={[styles.pageButton, page >= pageCount && styles.disabledText]}>›</Text></Pressable>
       </View>
 
-      <Modal visible={pendingTextPoint !== null} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
+      <Modal visible={pendingTextPoint !== null} transparent animationType="fade" onRequestClose={() => setPendingTextPoint(null)}>
+        <View accessibilityViewIsModal style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add text</Text>
-            <TextInput autoFocus value={textValue} onChangeText={setTextValue} style={styles.modalInput} placeholder="Text on PDF" />
+            <Text accessibilityRole="header" style={styles.modalTitle}>{t('edit.addText')}</Text>
+            <TextInput accessibilityLabel={t('edit.textPlaceholder')} autoFocus value={textValue} onChangeText={setTextValue} style={styles.modalInput} placeholder={t('edit.textPlaceholder')} />
             <View style={styles.modalActions}>
-              <Pressable style={styles.textButton} onPress={() => setPendingTextPoint(null)}><Text>Cancel</Text></Pressable>
-              <Pressable style={styles.primaryButton} onPress={confirmText}><Text style={styles.primaryText}>Add</Text></Pressable>
+              <Pressable accessibilityRole="button" style={styles.textButton} onPress={() => setPendingTextPoint(null)}><Text>{t('action.cancel')}</Text></Pressable>
+              <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={confirmText}><Text style={styles.primaryText}>{t('action.add')}</Text></Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={passwordPromptVisible} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
+      <Modal visible={passwordPromptVisible} transparent animationType="fade" onRequestClose={() => setPasswordPromptVisible(false)}>
+        <View accessibilityViewIsModal style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Password-protected PDF</Text>
-            <Text style={styles.modalBody}>Enter the document password. It is used only to open this file and is not saved.</Text>
+            <Text accessibilityRole="header" style={styles.modalTitle}>{t('password.title')}</Text>
+            <Text style={styles.modalBody}>{t('password.body')}</Text>
             <TextInput
               autoFocus
               secureTextEntry
@@ -459,10 +506,11 @@ export default function PdfViewerScreen() {
                 setReloadKey((value) => value + 1);
               }}
               style={styles.modalInput}
-              placeholder="Document password"
+              accessibilityLabel={t('password.placeholder')}
+              placeholder={t('password.placeholder')}
             />
             <View style={styles.modalActions}>
-              <Pressable style={styles.textButton} onPress={() => setPasswordPromptVisible(false)}><Text>Cancel</Text></Pressable>
+              <Pressable accessibilityRole="button" style={styles.textButton} onPress={() => setPasswordPromptVisible(false)}><Text>{t('action.cancel')}</Text></Pressable>
               <Pressable
                 disabled={!passwordAttempt}
                 style={[styles.primaryButton, !passwordAttempt && styles.disabledButton]}
@@ -473,7 +521,7 @@ export default function PdfViewerScreen() {
                   setReloadKey((value) => value + 1);
                 }}
               >
-                <Text style={styles.primaryText}>Open</Text>
+                <Text style={styles.primaryText}>{t('action.open')}</Text>
               </Pressable>
             </View>
           </View>
@@ -485,16 +533,17 @@ export default function PdfViewerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#E2E4E8' },
+  fullState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24, backgroundColor: '#F6F7F9' },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 5, padding: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E3E5E9' },
   toolScroll: { flex: 1 },
   toolRow: { gap: 5, paddingRight: 6 },
-  tool: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: '#F0F1F4' },
-  compactTool: { borderRadius: 8, paddingHorizontal: 7, paddingVertical: 7, backgroundColor: '#F0F1F4' },
+  tool: { minHeight: 44, justifyContent: 'center', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: '#F0F1F4' },
+  compactTool: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 7, backgroundColor: '#F0F1F4' },
   activeTool: { backgroundColor: '#E7EDFF' },
   toolText: { color: '#59606D', fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
   activeToolText: { color: '#2B5CFF' },
-  textButton: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#ECEEF2' },
-  primaryButton: { borderRadius: 8, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: '#2B5CFF' },
+  textButton: { minHeight: 44, justifyContent: 'center', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#ECEEF2' },
+  primaryButton: { minHeight: 44, justifyContent: 'center', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#2B5CFF' },
   primaryText: { color: '#FFFFFF', fontWeight: '700' },
   viewer: { flex: 1, margin: 8, overflow: 'hidden', borderRadius: 8, backgroundColor: '#FFFFFF' },
   pdf: { flex: 1, backgroundColor: '#FFFFFF' },
@@ -503,15 +552,17 @@ const styles = StyleSheet.create({
   viewerErrorTitle: { color: '#252A34', fontSize: 16, fontWeight: '800', textAlign: 'center' },
   viewerErrorBody: { color: '#717986', lineHeight: 19, textAlign: 'center' },
   pageBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28, padding: 8, backgroundColor: '#FFFFFF' },
-  annotationOptions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 7, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#ECEEF2' },
-  colorSwatch: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#FFFFFF' },
+  annotationOptions: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#ECEEF2' },
+  colorSwatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: '#FFFFFF' },
   selectedSwatch: { borderColor: '#171B24', transform: [{ scale: 1.1 }] },
-  strokeChoice: { borderRadius: 7, minWidth: 30, alignItems: 'center', padding: 5, backgroundColor: '#ECEEF2' },
+  strokeChoice: { borderRadius: 7, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', padding: 5, backgroundColor: '#ECEEF2' },
   strokeChoiceText: { color: '#505865', fontSize: 10, fontWeight: '700' },
   pageButton: { color: '#2B5CFF', fontSize: 28, fontWeight: '500' },
+  pageControl: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   pageLabel: { color: '#5C6470', fontSize: 12, fontWeight: '700' },
+  disabledText: { color: '#B7BCC5' },
   modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(16,19,25,.45)' },
-  modalCard: { width: '100%', borderRadius: 18, padding: 18, backgroundColor: '#FFFFFF' },
+  modalCard: { width: '100%', maxWidth: 520, alignSelf: 'center', borderRadius: 18, padding: 18, backgroundColor: '#FFFFFF' },
   modalTitle: { color: '#20252E', fontSize: 18, fontWeight: '800' },
   modalBody: { marginTop: 8, color: '#6D7480', lineHeight: 19 },
   modalInput: { marginVertical: 16, borderRadius: 10, borderWidth: 1, borderColor: '#DFE2E7', padding: 12 },

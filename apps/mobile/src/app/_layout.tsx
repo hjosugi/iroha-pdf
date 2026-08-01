@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initializeDatabase } from '@/lib/database';
+import { t } from '@/lib/i18n';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -25,10 +26,10 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="viewer/[id]" options={{ title: 'PDF' }} />
-        <Stack.Screen name="note/[id]" options={{ title: 'Note' }} />
-        <Stack.Screen name="tools" options={{ title: 'PDF tools' }} />
+        <Stack.Screen name="note/[id]" options={{ title: t('note.label') }} />
+        <Stack.Screen name="tools" options={{ title: t('tools.title') }} />
         <Stack.Screen name="drive" options={{ title: 'Google Drive' }} />
-        <Stack.Screen name="recovery" options={{ title: 'Recovery copies' }} />
+        <Stack.Screen name="recovery" options={{ title: t('recovery.title') }} />
         <Stack.Screen name="store-preview" options={{ headerShown: false }} />
       </Stack>
     </SafeAreaProvider>

@@ -1,10 +1,10 @@
 # GitHub issues backlog
 
-このファイルの各`##`セクションを1件のGitHub Issueとして登録してください。`[x]`はstarterで実装済み、`[~]`は部分実装、`[ ]`は未実装です。実装済みでも実機証跡がない項目はcloseしないでください。
+このファイルは初期バックログと検証記録のリポジトリ内ミラーです。Issueは既にGitHubへ登録済みのため、状態・優先度・番号の正はGitHub Issuesです。`[x]`は実装済み、`[~]`は部分実装、`[ ]`は未実装です。実装済みでも実機証跡がない項目はcloseしません。
 
-## モバイル棚卸し（2026-07-20、emulator実機確認）
+## モバイル棚卸し（2026-07-20 Android emulator、2026-08-01 native screenshot matrix）
 
-Android emulator（API 36）でアプリを起動し、実際に触って確認した結果。**それまでmobileは一度もbuildも起動もされていなかった**ため、`[x]`の多くは実装があるという意味でしかなかった。
+Android emulator（API 36）で手動確認した2026-07-20時点の記録に、2026-08-01のRelease構成スクリーンショットmatrixを追記しています。下の欠落一覧は発見時点の履歴も含むため、取消線と「解消済み」を現在状態として読んでください。
 
 **動作を確認できたもの:**
 
@@ -125,7 +125,7 @@ Labels: `type:foundation`, `priority:P0`
 | `expo prebuild --platform all` | android / ios両方の生成に成功 |
 | **Android native build** | **成功**（下記） |
 | **Android emulator起動** | **成功**（下記） |
-| **iOS native build** | **未実施 — この環境では不可能** |
+| **iOS native build** | **Release Simulator build成功**（GitHub Actions 30711299124、物理端末・署名は未実施） |
 | unit test | **30件**（`vitest run`、`node:sqlite`実エンジンでschema/journal/recoveryを検証） |
 
 **Android build 実測（2026-07-20、初回・キャッシュ無し）:**
@@ -138,7 +138,7 @@ Labels: `type:foundation`, `priority:P0`
 
 サイズはdebugビルドが未strippedのnative libraryを全ABI分同梱するため。**release APK / AABのサイズは未計測**で、store提出には別途確認が要る（#059）。
 
-iOSは**macOS + Xcodeが必須**でLinuxでは原理的にビルドできない。EAS build（#058）かmacOS runnerが要る。
+iOSはmacOS + Xcodeが必須で、GitHubのmacOS runnerによるunsigned Release Simulator buildは成功した。残るのはEAS project、署名、物理端末、TestFlight / store archiveの検証である。
 
 2回目（cache有り）は**12m 59s**。ディスク消費の実測（CI設計の参考）: SDK 2.6 GB + gradle cache 5.3 GB + 生成プロジェクト4.1 GB。初回42分はNDK取得とnative compileが大半なので、CIではSDKとgradle cacheの保存が要る。
 
@@ -752,17 +752,21 @@ Expo SDK 57既知のHermes V1/Reanimated memory問題を実機で測定する。
 
 Acceptance: importあり/なし、Worklets Bundle Modeあり/なしでcold startとRSSを比較し、構成を決定する。
 
-## 049 [ ] Add accessibility and keyboard support
+## 049 [~] Add accessibility and keyboard support
 
 Labels: `type:accessibility`, `priority:P1`
 
 Acceptance: VoiceOver/TalkBack、dynamic type、contrast、external keyboard、focus order、reduced motionを実機検証する。
 
-## 050 [ ] Add Japanese and English localization
+**更新（2026-08-02）**: mobile主要画面へaccessibility role/label/stateと44px以上の操作領域を追加。desktopのnested interactive tabを解消し、focus-visible、Escapeで閉じるprint dialog、狭幅時にも消えないdetails panelを実装した。VoiceOver/TalkBack、dynamic type、external keyboard、reduced motionの物理端末検証が残る。
+
+## 050 [~] Add Japanese and English localization
 
 Labels: `type:i18n`, `priority:P1`
 
 Acceptance: UI、errors、print settings、OAuth explanation、file size/dateがlocale対応する。technical errorsをそのまま表示しない。
+
+**更新（2026-08-02）**: coreの型付き日英catalogをmobile/desktopの主要画面、エラー、印刷設定、OAuth説明、復旧UIへ適用した。OS localeによる日付表示も使用している。native moduleが返す予期しないエラー本文の分類、実機での長文/dynamic type確認が残る。
 
 ## 051 [~] Add privacy, security, and threat-model documentation
 
@@ -800,7 +804,7 @@ Labels: `type:test`, `priority:P0`
 
 complex.pdfは`subset: false`でフォントを埋め込む。pdf-libのCFFサブセット化はpoppler / Ghostscriptが描画を拒否するフォントを生成し、それでは「アプリがフォントを壊しても検出できない」ため。
 
-**訂正（2026-08-01）**: encrypted / repairable / form の3つとも実装済み（`e2e/fixtures.ts`）で`difficult-pdfs.spec.ts`が検証している。判明した未達: パスワードを知っていても暗号化PDFを開けない（プロンプトが無い）。またencryptedのテストはqpdf/Ghostscriptが無い環境（Windows CI）ではskipされる。
+**訂正（2026-08-02）**: encrypted / repairable / form の3つとも実装済み（`e2e/fixtures.ts`）で`difficult-pdfs.spec.ts`が検証している。desktopは暗号化PDFを明示的に拒否する。mobileは保存しないpassword promptを実装済みだが、native E2Eと物理端末証跡がない。またencryptedのdesktopテストはqpdf/Ghostscriptが無い環境（Windows CI）ではskipされる。
 
 ## 055 [ ] Add mobile E2E tests
 
@@ -812,7 +816,7 @@ Acceptance: import → annotate → export → reopen → print前までをMaest
 
 Labels: `platform:desktop`, `type:test`, `priority:P1`
 
-Playwright + Chromiumで14 spec / 68件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*` / `plugin:dialog|*`のinvokeプロトコルをin-memory filesystemで再実装するため、**アプリ側のコードは本物のまま**desktop保存経路を検証できる。
+Playwright + Chromiumで14 spec / 69件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*` / `plugin:dialog|*`のinvokeプロトコルをin-memory filesystemで再実装するため、**アプリ側のコードは本物のまま**desktop保存経路を検証できる。
 
 実Tauriランタイム版を`apps/desktop/e2e-tauri/run.mjs`に追加（`npm run e2e:tauri`）。tauri-driver + WebKitWebDriverで実バイナリを起動し、17項目を検証:
 
@@ -836,7 +840,7 @@ Labels: `type:ci`, `priority:P0`
 - install lockfile
 - typecheck/test
 - desktop web build
-- **e2e matrix（ubuntu / windows / macOS）を追加。** Playwright + Chromiumで14 spec / 68件。LinuxとmacOSではpoppler/ghostscript/imagemagickを入れてrendering検証まで走る。Windowsは`render.ts`の検出が失敗してrendering testが自動skipされる
+- **e2e matrix（ubuntu / windows / macOS）を追加。** 現在はPlaywright + Chromiumで14 spec / 69件。LinuxとmacOSではpoppler/ghostscript/imagemagickを入れてrendering検証まで走る。Windowsは`render.ts`の検出が失敗してrendering testが自動skipされる
 - 失敗時にplaywright-reportをartifactへ（retention 14日）
 - 遅いrunner向けに`PERF_BUDGET_SCALE=4`。時間予算のみscaleし、memory/sizeはscaleしない
 
@@ -860,14 +864,16 @@ Expo prebuild validationはQuality jobのstepとして通っている。android�
 
 - 実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証
 - ~~Tauri jobは`cargo build --release`まで~~ **訂正（2026-08-01）**: Tauri jobは`task bundle:desktop`でFrostのターゲットを実行し3 OS分のbundleを生成してartifactに上げる（`ci.yml:207-231`）。releaseワークフローも同じ経路で成果物を添付する。#059に残るのは署名のみ
-- iOSビルドはmacOS runnerでも未実施（#058のEASが前提）
+- iOSのunsigned Release Simulator buildはstore screenshot workflowで実施済み。EAS署名、物理端末、TestFlight / archiveは未実施
 - e2eはPlaywright + Chromiumのみ。WebKitGTK実バイナリはローカル`e2e:tauri`だけ
 
 Acceptance: PR必須checkとして動き、artifact retentionを設定する。
 
-## 058 [ ] Configure EAS development, preview, and production profiles
+## 058 [~] Configure EAS development, preview, and production profiles
 
 Labels: `platform:mobile`, `type:release`, `priority:P0`
+
+`eas.json`のdevelopment / preview / productionの環境分離、remote credentials、store distribution、auto incrementを定義し、CIで構成を検証する。EAS project ID、remote credentials、store service account、signed build ID、preview rollback drillは未実施。
 
 Acceptance: internal distribution、store signing、environment separation、secret management、rollback手順を検証する。
 

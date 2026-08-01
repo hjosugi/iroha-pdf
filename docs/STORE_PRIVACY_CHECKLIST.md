@@ -32,12 +32,13 @@ two store records even if the documentation layout changes. Tracked in issue
   logs, or diagnostics: none in the current build.
 - On-device PDF/note processing: not off-device collection.
 - Optional Google Drive transfer: user initiated, direct to Google, for app
-  functionality; includes selected files, Drive identifiers/revisions, and
-  appData synchronization metadata.
+  functionality; the current UI lists app-visible file metadata and downloads
+  the selected PDF. It does not currently upload PDFs or appData synchronization
+  metadata.
 - Encryption in transit: yes for Google OAuth and Drive HTTPS endpoints.
-- Deletion: local app-data deletion plus separate Google sign-out/revocation
-  and Drive/appData deletion as described in
-  [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md).
+- Deletion: local PDF/note deletion plus Google sign-out/revocation in the app;
+  Drive file/appData deletion remains a separate Google-side action as described
+  in [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md).
 
 ## Store listing assets
 

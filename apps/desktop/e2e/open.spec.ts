@@ -186,7 +186,7 @@ test.describe('opening a PDF', () => {
     ).toBe(true);
 
     // The app must still be usable afterwards.
-    await expect(page.getByRole('button', { name: /Open PDF|\+/ }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Open (another )?PDF|\+/ }).first()).toBeVisible();
   });
 
   test('a failed document reports plainly, without leaking engine internals', async ({ page }) => {

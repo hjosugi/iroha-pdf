@@ -48,9 +48,10 @@ bytes that would have hit disk.
 | tool settings | the colour and width picker appears only while a tool is held; a chosen colour and width are the values written into the annotation's `/C` and `/BS /W`; each tool keeps its own colour; the choice survives a restart |
 | editing existing marks | selecting a mark shows a picker bound to it; recolouring or rethinning rewrites `/C` and `/BS /W` in the saved file and the value actually changes; a highlight offers the highlight palette and no width; the change counts as unsaved work |
 | printing | the print frame is handed a real PDF with every page and image intact; annotations are included, and unticking the box leaves them out; Current page prints one page and it is the one on screen; a `1,3` range prints exactly those two; printing leaves the document being edited untouched |
-| difficult documents | an encrypted PDF is refused visibly rather than silently; a PDF whose cross-reference table is wrong is repaired and opens, and survives annotate-and-save with all pages and text; an AcroForm keeps every field and value through the same round trip |
+| difficult documents | desktop refuses an encrypted PDF visibly rather than silently; a PDF whose cross-reference table is wrong is repaired and opens, and survives annotate-and-save with all pages and text; an AcroForm keeps every field and value through the same round trip |
 | unsaved work | closing a tab mid-edit asks first and backing out keeps the edits; confirming closes; a saved or untouched document closes without a prompt; the window-close guard arms and disarms with the pending count |
 | autosave | an edit is drafted without being asked; saving clears the draft; work survives a simulated crash (page reload) and is offered back; restoring reports the work as still unsaved and it then reaches the file; discarding is permanent |
+| keyboard/responsive access | tab select/close are separate controls with no nested buttons; the print dialog closes with Escape and restores focus; narrow windows keep history and notes reachable |
 | rendering | poppler and Ghostscript both draw the annotation at the drawn coordinates, and nowhere else; a save with no edits is pixel-identical |
 | performance | 500-page first-page latency, heap, deep scroll; 40 MB scan open/annotate/save; bundle weight; shell paint before the wasm engine loads |
 
@@ -80,11 +81,19 @@ shows its launcher and keeps the process alive even when no bundle ever arrives,
 separates installed from working.
 
 Looking at the screen is what found issue 074 — every screen overlapped the status bar,
-because `SafeAreaView` from `react-native` is an iOS-only no-op on Android. Neither
-typecheck nor the build says a word about that.
+because `SafeAreaView` from `react-native` is an iOS-only no-op on Android. The mobile
+screens now use `react-native-safe-area-context`, and the release-configured Android
+screenshots are the visual regression evidence. This remains a useful example of why
+typecheck and a successful build are not enough.
 
-**iOS has never been built and cannot be built here**: it needs macOS and Xcode. That
-needs EAS (issue 058) or a macOS runner.
+**iOS now builds in CI for Simulator.** On 2026-08-01 the store-screenshot workflow
+built one unsigned Release configuration with Xcode 26.6 and ran it on an iPhone 17
+Pro Max Simulator and an iPad Pro 13-inch Simulator. The committed screenshots bind
+that run and source commit in `release/store/screenshots/evidence.json`. This proves
+native compilation, installation, launch, the seeded local database, ordinary library,
+viewer, tools and Drive pre-sign-in screens, and PDFKit load completion. It does **not**
+prove signing, App Store archive privacy manifests, physical-device input, Files/share/
+print sheets, memory pressure, battery, rotation or Pencil behaviour.
 
 The mobile `src/lib` modules are covered by `iroha-pdf-mobile-test`. A double that only
 recorded the SQL they issue would prove nothing, so `apps/mobile/test-sqlite.ts` puts
@@ -96,8 +105,10 @@ relaunching over the file the previous launch left behind, and the write journal
 `SQLITE_BUSY` path by a second connection actually taking the write lock. The font
 `annotation-font.ts` caches is the one the repository really ships.
 
-What still needs a device is everything above `src/lib`: the screens, the PDF view, the
-share and print sheets, and Expo's own asset and document-picker resolution.
+The release-configured Android/iOS screenshot matrix now exercises the ordinary screens
+and PDF view with a deterministic bundled fixture. What still needs physical devices is
+document/photo provider resolution, share and print sheets, production OAuth, stylus,
+rotation, memory-pressure recovery, battery/thermal behaviour and accessibility services.
 
 The "really is page 1" check screenshots what the app painted and compares it against
 poppler's own render. It uses no fixed similarity threshold: font substitution and
@@ -192,9 +203,9 @@ pdf-lib cannot write encryption, so it is produced by Ghostscript — which CI i
 Linux and macOS — or by qpdf where that is what is available. On a machine with neither,
 Windows CI included, the file is simply not built and the tests that need it skip
 themselves, exactly as the poppler-dependent rendering checks do. Its passwords are in
-`ENCRYPTED_PDF_PASSWORDS`, and nothing in the app can use them yet: opening a
-password-protected PDF is still unimplemented, and the test records that refusal rather
-than pretending otherwise.
+`ENCRYPTED_PDF_PASSWORDS`. Desktop still records a deliberate refusal; mobile now has a
+password prompt that does not persist the password, but needs native E2E and physical-
+device evidence before that path is considered verified.
 
 ## Mobile matrix
 

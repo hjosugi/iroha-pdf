@@ -2,12 +2,45 @@
 
 For **v0.4.0**, commit `0bb56eaafa94dee26f0f6c685acdfb29308c7338`.
 
+This is a release snapshot, not a claim that every later `main` change is covered by
+the same run. After v0.4.0, `main` commit `f14b456677e60bfff23bf305e6617ccbeb57dbf7`
+added store submission inputs. Its CI run 30712634194 passed, and native screenshot run
+30711299124 built unsigned Release apps for Android, iPhone Simulator and iPad
+Simulator. The additions do not change the physical-device and signed-artifact gaps
+listed below.
+
+## Unreleased UI/UX and documentation audit — 2026-08-02
+
+Implementation commit `8860f71804c5377e2c750bdc612f0361cb782889` is the
+source commit for the audit and its native screenshots.
+
+- [CI run 30719401503](https://github.com/hjosugi/iroha-pdf/actions/runs/30719401503)
+  completed successfully: all eight pull-request jobs passed on a clean checkout
+  (quality/Expo, supply chain, three desktop package builds and Playwright on
+  Linux, macOS and Windows). The main-only Android debug job was intentionally
+  skipped.
+- The run passed 114 unit tests — core 39, google-drive 9, desktop 25 and mobile
+  41 — plus all 69 Playwright tests in 14 spec files on each desktop OS. It also
+  built and link-checked 18 site pages from 16 documents and validated two store
+  locales and 12 mobile screenshots.
+- [Native screenshot run 30719408179](https://github.com/hjosugi/iroha-pdf/actions/runs/30719408179)
+  built unsigned Release apps, installed them on a Pixel 6 AVD, iPhone 17 Pro Max
+  Simulator and iPad Pro 13-inch Simulator, captured four ordinary product
+  scenes per device, then validated and assembled the submission artifact. The
+  committed `release/store/screenshots/evidence.json` binds those images to the
+  exact run and source commit. All 12 images were also reviewed at full size for
+  clipping, safe areas, tablet width, touch-target layout and truthful OAuth state.
+
+This evidence covers the implemented UI/UX changes and simulator/emulator
+rendering. It does not change any physical-device, production OAuth, signed
+artifact, store-submission or performance gate below.
+
 The authoritative evidence is CI, not a developer machine: run
 <https://github.com/hjosugi/iroha-pdf/actions/runs/30691337190> is green on a
 clean checkout of that commit across Linux, macOS and Windows. What follows
 records what that proves and, more importantly, what it does not.
 
-## Passed in CI
+## Passed in v0.4.0 CI
 
 - `npm ci` from the committed lockfile.
 - Typecheck across all four workspaces.
@@ -51,7 +84,8 @@ Packaging and signing:
 
 Devices and accounts — nothing below has been run on real hardware:
 
-- Mobile development build with `react-native-pdf`; iOS has never been built.
+- Signed mobile production builds on physical hardware. Android and iOS Release
+  Simulator/Emulator builds now exist, but are not device or signing evidence.
 - Google OAuth client and consent screen; Drive download, update and resumable
   upload against the live API.
 - AirPrint and the Android Print Service.
@@ -62,10 +96,11 @@ Fixtures and cases still missing:
 
 - A 300 MB document. The largest exercised is the 41.6 MB image-heavy fixture,
   and the measured desktop ceiling stops at 249 MB.
-- Encrypted, malformed-but-repairable and AcroForm fixtures now exist, but two
-  limits they revealed are unresolved: the app cannot open a password-protected
-  PDF at all — there is no prompt — and saving an annotated repairable PDF
-  writes an incremental update that leaves the damaged xref in place.
+- Encrypted, malformed-but-repairable and AcroForm fixtures now exist. Mobile has
+  a password prompt and does not persist the password, but that path still lacks
+  physical-device evidence; desktop still refuses encrypted PDFs. Saving an
+  annotated repairable PDF writes an incremental update that leaves the damaged
+  xref in place.
 
 ## Environment note
 
