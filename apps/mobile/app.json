@@ -18,6 +18,10 @@
       }
     },
     "android": {
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#2B5CFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

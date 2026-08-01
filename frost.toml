@@ -160,7 +160,12 @@ sandbox = false
 kind = "test"
 tool = "node"
 args = ["release/mobile/validate-eas-config.mjs"]
-inputs = ["apps/mobile/eas.json", "release/mobile/validate-eas-config.mjs"]
+inputs = [
+  "apps/mobile/app.json",
+  "apps/mobile/eas.json",
+  "apps/mobile/plugins/*.js",
+  "release/mobile/validate-eas-config.mjs",
+]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false

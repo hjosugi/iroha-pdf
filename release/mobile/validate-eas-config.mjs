@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const config = JSON.parse(await readFile(new URL("../../apps/mobile/eas.json", import.meta.url), "utf8"));
+const app = JSON.parse(await readFile(new URL("../../apps/mobile/app.json", import.meta.url), "utf8"));
 const expected = {
   development: { distribution: "internal", environment: "development" },
   preview: { distribution: "internal", environment: "preview" },
@@ -23,4 +24,12 @@ assert.equal(config.build.preview.android.buildType, "apk");
 assert.equal(config.build.production.autoIncrement, true);
 assert.ok(config.submit.production, "missing production submit profile");
 
-console.log("EAS development, preview, production, signing, and submit policies are valid.");
+const blocked = new Set(app.expo.android.blockedPermissions);
+assert.ok(blocked.has("android.permission.RECORD_AUDIO"), "release builds must not request an unused microphone permission");
+assert.ok(blocked.has("android.permission.SYSTEM_ALERT_WINDOW"), "release builds must not request the dev-client overlay permission");
+assert.ok(
+  app.expo.plugins.includes("./plugins/with-modular-ios-headers"),
+  "iOS prebuild must make Google Sign-In's Swift dependencies modular",
+);
+
+console.log("EAS profiles, native permission policy, iOS pods, signing, and submit policies are valid.");
