@@ -42,6 +42,7 @@ inputs = [
   "assets/branding/*",
   "release/branding/validate-assets.mjs",
   "release/store/screenshots/desktop/*.png",
+  "release/store/play/*.png",
 ]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]

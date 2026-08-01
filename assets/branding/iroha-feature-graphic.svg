@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500">
+  <!--
+    Google Play feature graphic. 1024x500 is the only size Play accepts, and a
+    listing cannot be published without one.
+
+    Text-free on purpose, for two reasons. The brand master is text-free so the
+    mark stays legible at favicon size, and Play draws the app title over this
+    image itself — a wordmark baked in here would collide with the one Play
+    adds. It also keeps the asset reproducible: nothing renders through a font,
+    so rsvg-convert produces identical bytes on any machine, which is what lets
+    CI check the committed PNG rather than trusting it.
+
+    Play crops toward the centre on narrow viewports, so the mark sits dead
+    centre and the sheets are decoration that can be lost without losing
+    meaning. Everything stays inside a 64px margin so nothing is clipped.
+  -->
+  <rect width="1024" height="500" fill="#2B5CFF"/>
+
+  <!--
+    Two pairs of offset sheets, one either side: a workspace holds documents,
+    not a file. Mirrored so the composition reads as deliberate rather than
+    lopsided, and kept faint so the mark stays the subject.
+  -->
+  <g opacity="0.16" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linejoin="round">
+    <g transform="translate(196 250)">
+      <rect x="-84" y="-112" width="168" height="224" rx="13" transform="rotate(-8)"/>
+      <rect x="-56" y="-96" width="168" height="224" rx="13" transform="rotate(6)"/>
+    </g>
+    <g transform="translate(828 250) scale(-1 1)">
+      <rect x="-84" y="-112" width="168" height="224" rx="13" transform="rotate(-8)"/>
+      <rect x="-56" y="-96" width="168" height="224" rx="13" transform="rotate(6)"/>
+    </g>
+  </g>
+
+  <!-- The mark: the same two strokes as the app icon, nothing added. -->
+  <g transform="translate(512 250) scale(0.42) translate(-512 -512)">
+    <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="82">
+      <path d="M330 292c-22 132-12 307 43 407 31 57 81 31 129-69"/>
+      <path d="M587 347c82 80 119 181 127 303"/>
+    </g>
+  </g>
+</svg>

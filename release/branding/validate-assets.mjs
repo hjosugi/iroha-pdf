@@ -31,6 +31,11 @@ const expectedPngs = new Map([
   ['release/store/screenshots/desktop/01-local-first-workspace.png', [1440, 900]],
   ['release/store/screenshots/desktop/02-pdf-editing.png', [1440, 900]],
   ['release/store/screenshots/desktop/03-annotation-ready-to-save.png', [1440, 900]],
+  // Play rejects a listing without a feature graphic, and 1024x500 is the only
+  // size it accepts. Checked here because the failure is otherwise discovered
+  // in the Play Console, by a human, at submission time.
+  ['release/store/play/feature-graphic.png', [1024, 500]],
+  ['release/store/play/icon-512.png', [512, 512]],
 ]);
 
 for (const [relativePath, expected] of expectedPngs) {
