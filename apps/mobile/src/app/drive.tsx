@@ -5,6 +5,7 @@ import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } fr
 
 import { GOOGLE_DRIVE_SCOPES, GoogleDriveClient, type DriveFile } from '@iroha-pdf/google-drive';
 import { importPdfFile } from '@/lib/files';
+import { markStoreCaptureReady } from '@/lib/store-capture-native';
 
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
@@ -19,6 +20,7 @@ export default function GoogleDriveScreen() {
       scopes: [...GOOGLE_DRIVE_SCOPES],
       offlineAccess: false,
     });
+    markStoreCaptureReady('drive');
   }, []);
 
   const client = new GoogleDriveClient({

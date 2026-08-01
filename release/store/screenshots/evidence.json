@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "90040bd2b95c58401285e99dab1e27cd2b8df405",
+  "githubRunId": "30711299124",
+  "syntheticFixture": "apps/mobile/assets/store/iroha-demo.pdf",
+  "devices": [
+    {
+      "platform": "Android",
+      "model": "Pixel 6 AVD",
+      "canvas": "1080x1920",
+      "systemImage": "API 36 Google APIs x86_64"
+    },
+    {
+      "platform": "iOS",
+      "model": "iPhone 17 Pro Max Simulator",
+      "canvas": "1320x2868"
+    },
+    {
+      "platform": "iPadOS",
+      "model": "iPad Pro 13-inch (M5) Simulator",
+      "canvas": "2064x2752"
+    }
+  ]
+}

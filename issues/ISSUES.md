@@ -923,11 +923,12 @@ desktop / mobileのアプリ内headerも同じvector pathを描画するため�
 
 desktop store screenshotはsynthetic fixtureだけを使い、1440×900で3枚（local-first empty state、PDF editing、annotation ready to save）をPlaywrightから生成した。`npm run store:screenshots:desktop`で再現できる。
 
+mobile store screenshotもcustomer dataやaccountを使わない合成2ページPDFをseedし、release設定のnative appから取得できるようにした。GitHub ActionsがPixel 6 AVD、iPhone 17 Pro Max Simulator、iPad Pro 13-inch M5 Simulatorで同じ4 sceneを撮影し、Play 1080×1920、App Store 6.9-inch 1320×2868、iPad 13-inch 2064×2752のopaque RGB PNGへ固定する。source commit、run ID、fixture、device matrixは`release/store/screenshots/evidence.json`に保存し、`npm run validate:store`が日英掲載文と12枚をまとめて検証する。
+
 名称についてはApple public Search API、Google Play検索、quoted web検索、J-PlatPat/WIPO/USPTOのindexed page、`irohapdf.com` / `.app`のRDAPを予備調査し、exact-nameのPDF app / markは見つからなかった。これは法的clearanceではなく、domainも取得していない。手順と検索先は`docs/BRAND.md`に記録。
 
 未完了:
 
-- mobileのphone / tablet store screenshots（release candidate実機から取得する）
 - release ownerによる対象国の最終trademark確認とdomain取得判断
 
 Acceptance: trademark/domain/store検索後に名称を確定し、adaptive icon、monochrome icon、iOS icon、splash、Tauri icons、store screenshotsを作成する。

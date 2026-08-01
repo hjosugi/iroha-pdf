@@ -127,6 +127,7 @@ tasks:
         {{.FROST_BIN}} test --no-tui
         iroha-pdf-eas-validate
         iroha-pdf-brand-validate
+        iroha-pdf-store-validate
         iroha-pdf-dependency-patches
 
   ci:

@@ -1,0 +1,250 @@
+name: Store screenshots
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22.13.0
+  EXPO_PUBLIC_STORE_SCREENSHOTS: '1'
+
+jobs:
+  android:
+    name: Android phone screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Allow the runner to use KVM acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -e /dev/kvm ]] || { echo '/dev/kvm is unavailable on this runner' >&2; exit 1; }
+          sudo chown "$USER" /dev/kvm
+          [[ -r /dev/kvm && -w /dev/kvm ]] || { echo '/dev/kvm is not accessible' >&2; exit 1; }
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Install the Android emulator image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            emulator \
+            'system-images;android-36;google_apis;x86_64'
+          echo no | avdmanager create avd \
+            --force \
+            --name iroha-store-phone \
+            --package 'system-images;android-36;google_apis;x86_64' \
+            --device pixel_6
+          "$ANDROID_SDK_ROOT/emulator/emulator" -list-avds | grep -Fx iroha-store-phone
+      - name: Generate the native project
+        run: npx expo prebuild --platform android --no-install --clean
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_DOCTOR: '1'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/Android/Sdk/ndk
+            ~/Android/Sdk/cmake
+          key: store-android-${{ runner.os }}-${{ hashFiles('apps/mobile/package.json') }}
+          restore-keys: |
+            android-${{ runner.os }}-
+            store-android-${{ runner.os }}-
+      - name: Build the installable release APK
+        # This APK is installed only on the x86_64 capture AVD. Limiting native
+        # compilation avoids building unused physical-device ABI slices.
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
+        working-directory: apps/mobile/android
+      - name: Wait for Android and install the app
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Start after Gradle releases its memory. Running a 4 GB AVD beside a
+          # cold native build can let the hosted runner's OOM killer remove the
+          # emulator, after which an unbounded `adb wait-for-device` hangs.
+          adb start-server
+          emulator_bin="$ANDROID_SDK_ROOT/emulator/emulator"
+          [[ -x "$emulator_bin" ]] || { echo "Android emulator not found at $emulator_bin" >&2; exit 1; }
+          nohup "$emulator_bin" @iroha-store-phone \
+            -no-window -noaudio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect -camera-back none -camera-front none \
+            -memory 3072 > "$RUNNER_TEMP/android-emulator.log" 2>&1 &
+          emulator_pid=$!
+          for _ in $(seq 1 180); do
+            if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then
+              break
+            fi
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/android-emulator.log"
+              exit 1
+            fi
+            sleep 2
+          done
+          [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == 1 ]] || {
+            cat "$RUNNER_TEMP/android-emulator.log"
+            exit 1
+          }
+          adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+      - name: Install the image normalizer
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends imagemagick
+      - name: Capture the four Android scenes
+        run: bash release/store/capture-android.sh release/store/screenshots/android-phone
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots-android
+          path: release/store/screenshots/android-phone/
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    name: iPhone and iPad screenshots
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select a Swift 6.2-or-newer toolchain required by Expo SDK 57
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Install the image normalizer
+        run: command -v magick >/dev/null || brew install imagemagick
+      - name: Generate the native project and install pods
+        run: npx expo prebuild --platform ios --clean
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_DOCTOR: '1'
+      - name: Build one release app for both simulators
+        shell: bash
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/iroha-derived" \
+            ARCHS="$(uname -m)" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          app="$(find "$RUNNER_TEMP/iroha-derived/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
+          [[ -n "$app" ]] || { echo 'built simulator app not found' >&2; exit 1; }
+          echo "APP_PATH=$app" >> "$GITHUB_ENV"
+      - name: Create the accepted-size simulators
+        id: simulators
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="$(xcrun simctl list runtimes --json | jq -r '
+            [.runtimes[] | select(.isAvailable and (.name | startswith("iOS ")))]
+            | sort_by(.version) | last | .identifier')"
+          phone_type="$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name == "iPhone 17 Pro Max") | .identifier')"
+          ipad_type="$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name == "iPad Pro 13-inch (M5)") | .identifier')"
+          [[ -n "$runtime" && "$runtime" != null ]] || { xcrun simctl list runtimes; exit 1; }
+          [[ -n "$phone_type" ]] || { xcrun simctl list devicetypes; exit 1; }
+          [[ -n "$ipad_type" ]] || { xcrun simctl list devicetypes; exit 1; }
+          phone="$(xcrun simctl create IrohaStorePhone "$phone_type" "$runtime")"
+          ipad="$(xcrun simctl create IrohaStorePad "$ipad_type" "$runtime")"
+          echo "phone=$phone" >> "$GITHUB_OUTPUT"
+          echo "ipad=$ipad" >> "$GITHUB_OUTPUT"
+      - name: Capture iPhone 6.9-inch scenes
+        shell: bash
+        env:
+          UDID: ${{ steps.simulators.outputs.phone }}
+        run: |
+          set -euo pipefail
+          bash release/store/boot-ios-simulator.sh "$UDID"
+          bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-iphone-6.9 1320 2868 "$APP_PATH"
+          xcrun simctl shutdown "$UDID"
+      - name: Capture iPad 13-inch scenes
+        shell: bash
+        env:
+          UDID: ${{ steps.simulators.outputs.ipad }}
+        run: |
+          set -euo pipefail
+          bash release/store/boot-ios-simulator.sh "$UDID"
+          bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-ipad-13 2064 2752 "$APP_PATH"
+          xcrun simctl shutdown "$UDID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots-ios
+          path: |
+            release/store/screenshots/ios-iphone-6.9/
+            release/store/screenshots/ios-ipad-13/
+          if-no-files-found: error
+          retention-days: 30
+
+  assemble:
+    name: Assemble submission screenshot set
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: store-screenshots-android
+          path: release/store/screenshots/android-phone
+      - uses: actions/download-artifact@v5
+        with:
+          name: store-screenshots-ios
+          path: release/store/screenshots
+      - name: Record exact provenance
+        shell: bash
+        run: |
+          jq --null-input \
+            --arg sourceCommit "$GITHUB_SHA" \
+            --arg githubRunId "$GITHUB_RUN_ID" \
+            '{
+              sourceCommit: $sourceCommit,
+              githubRunId: $githubRunId,
+              syntheticFixture: "apps/mobile/assets/store/iroha-demo.pdf",
+              devices: [
+                { platform: "Android", model: "Pixel 6 AVD", canvas: "1080x1920", systemImage: "API 36 Google APIs x86_64" },
+                { platform: "iOS", model: "iPhone 17 Pro Max Simulator", canvas: "1320x2868" },
+                { platform: "iPadOS", model: "iPad Pro 13-inch (M5) Simulator", canvas: "2064x2752" }
+              ]
+            }' > release/store/screenshots/evidence.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Validate the assembled submission set
+        run: node release/store/validate-submission-assets.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-submission-screenshots
+          path: release/store/screenshots/
+          if-no-files-found: error
+          retention-days: 30

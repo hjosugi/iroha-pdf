@@ -4,3 +4,8 @@ declare module '*.otf' {
   const asset: number;
   export default asset;
 }
+
+declare module '*.pdf' {
+  const asset: number;
+  export default asset;
+}

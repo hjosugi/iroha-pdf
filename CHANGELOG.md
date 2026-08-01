@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Reproducible, store-ready screenshot sets for Android phones, 6.9-inch
+  iPhones, and 13-inch iPads. A release-configured native app loads only a
+  deterministic synthetic PDF, and CI records the source commit, run, emulator,
+  dimensions, RGB encoding, and scene order with the committed images.
+- Complete English and Japanese App Store and Google Play listing copy, plus a
+  validator for every current field limit, URL, screenshot, alt text, and asset
+  provenance.
+- Google Play's mandatory 1024x500 feature graphic and separate 512x512 RGBA
+  listing icon, generated from the same font-independent SVG brand source.
+
+### Fixed
+
+- iOS prebuild now gives Google Sign-In's transitive Swift dependencies module
+  maps and the native screenshot build selects the Swift 6.2 toolchain required
+  by Expo SDK 57.
+- Release manifests explicitly remove unused microphone, camera, Face ID,
+  Android dev-overlay, and legacy broad-storage permissions while retaining a
+  specific photo-library purpose for the image-to-PDF feature.
+
 ## 0.4.0 - 2026-08-01
 
 The first release that carries installable desktop applications. They are

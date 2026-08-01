@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import {
   Alert,
   FlatList,
@@ -15,13 +15,26 @@ import type { Note, WorkspaceDocument } from '@iroha-pdf/core';
 import { BrandMark } from '@/components/BrandMark';
 import { createNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
 import { importPdfFromSystem } from '@/lib/files';
+import { markStoreCaptureReady, readStoreCaptureScenario } from '@/lib/store-capture-native';
 
-export default function LibraryScreen() {
+export default function LibraryRoute() {
+  const scenario = readStoreCaptureScenario();
+  if (scenario) {
+    return <Redirect href={{ pathname: '/store-preview', params: { screen: scenario } }} />;
+  }
+  return <LibraryScreen />;
+}
+
+function LibraryScreen() {
   const router = useRouter();
   const [documents, setDocuments] = useState<WorkspaceDocument[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [recoveryCount, setRecoveryCount] = useState(0);
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (documents.length >= 2 && notes.length >= 2) markStoreCaptureReady('library');
+  }, [documents.length, notes.length]);
 
   const refresh = useCallback(async () => {
     try {
