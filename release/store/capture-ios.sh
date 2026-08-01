@@ -45,8 +45,9 @@ for index in "${!scenarios[@]}"; do
   xcrun simctl install "$udid" "$app_path"
   app_data_container="$(xcrun simctl get_app_container "$udid" "$bundle_id" data)"
   scenario_marker="$app_data_container/Documents/iroha-store-scenario.txt"
+  route_marker="$app_data_container/Documents/iroha-store-route.txt"
   ready_marker="$app_data_container/Documents/iroha-store-ready.txt"
-  rm -f "$ready_marker"
+  rm -f "$route_marker" "$ready_marker"
   printf '%s' "$scenario" > "$scenario_marker"
 
   : > "$stdout_log"
@@ -62,6 +63,7 @@ for index in "${!scenarios[@]}"; do
     exit 1
   }
   ready=""
+  route=""
   for _ in $(seq 1 90); do
     if ! kill -0 "$launch_pid" 2>/dev/null; then
       echo "Iroha PDF exited before the $scenario screenshot" >&2
@@ -76,11 +78,18 @@ for index in "${!scenarios[@]}"; do
     if [[ -f "$ready_marker" ]]; then
       ready="$(<"$ready_marker")"
     fi
+    if [[ -f "$route_marker" ]]; then
+      route="$(<"$route_marker")"
+    fi
+    if [[ -n "$route" && "$route" != "$scenario" ]]; then
+      echo "Iroha PDF routed to $route while preparing the $scenario screenshot" >&2
+      exit 1
+    fi
     [[ "$ready" == "$scenario" ]] && break
     sleep 2
   done
   if [[ "$ready" != "$scenario" ]]; then
-    echo "Iroha PDF did not report the $scenario screen ready within 180 seconds (got: $ready)" >&2
+    echo "Iroha PDF did not report the $scenario screen ready within 180 seconds (route: $route, ready: $ready)" >&2
     cat "$stdout_log" >&2
     cat "$stderr_log" >&2
     exit 1
