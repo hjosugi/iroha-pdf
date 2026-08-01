@@ -6,6 +6,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { Note, PdfAnnotation, WorkspaceDocument } from '@iroha-pdf/core';
 import { saveAnnotation, saveDocument, saveNote } from '@/lib/database';
 import { parseStoreCaptureScenario } from '@/lib/store-capture';
+import { clearStoreCaptureScenario } from '@/lib/store-capture-native';
 
 const ENABLED = process.env.EXPO_PUBLIC_STORE_SCREENSHOTS === '1';
 const DOCUMENT_ID = 'store-fixture-project-handoff';
@@ -19,6 +20,9 @@ export default function StorePreviewScreen() {
   useEffect(() => {
     if (!ENABLED) return;
     const scenario = parseStoreCaptureScenario(screen) ?? 'library';
+    // Clear only after this route has mounted. Clearing in the index route lets
+    // a Redirect re-render switch back to LibraryScreen before navigation wins.
+    clearStoreCaptureScenario();
     void seedStoreFixture()
       .then(() => {
         if (scenario === 'viewer') {

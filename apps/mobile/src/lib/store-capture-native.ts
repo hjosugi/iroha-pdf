@@ -14,6 +14,12 @@ export function readStoreCaptureScenario(): StoreCaptureScenario | null {
   return marker.exists ? parseStoreCaptureScenario(marker.textSync()) : null;
 }
 
+export function clearStoreCaptureScenario(): void {
+  if (!STORE_CAPTURE_ENABLED || Platform.OS !== 'ios') return;
+  const marker = new File(Paths.document, SCENARIO_FILE);
+  if (marker.exists) marker.delete();
+}
+
 export function markStoreCaptureReady(scenario: StoreCaptureScenario): void {
   if (!STORE_CAPTURE_ENABLED || Platform.OS !== 'ios') return;
   const marker = new File(Paths.document, READY_FILE);

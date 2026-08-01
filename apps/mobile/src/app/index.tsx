@@ -3,7 +3,6 @@ import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import {
   Alert,
   FlatList,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -18,22 +17,12 @@ import { createNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/
 import { importPdfFromSystem } from '@/lib/files';
 import { markStoreCaptureReady, readStoreCaptureScenario } from '@/lib/store-capture-native';
 
-const STORE_CAPTURE_ENABLED = process.env.EXPO_PUBLIC_STORE_SCREENSHOTS === '1';
-let consumedNativeStoreScenario = false;
-
 export default function LibraryRoute() {
-  const scenario = nativeStoreCaptureScenario();
+  const scenario = readStoreCaptureScenario();
   if (scenario) {
     return <Redirect href={{ pathname: '/store-preview', params: { screen: scenario } }} />;
   }
   return <LibraryScreen />;
-}
-
-function nativeStoreCaptureScenario() {
-  if (!STORE_CAPTURE_ENABLED || Platform.OS !== 'ios' || consumedNativeStoreScenario) return null;
-  const scenario = readStoreCaptureScenario();
-  if (scenario) consumedNativeStoreScenario = true;
-  return scenario;
 }
 
 function LibraryScreen() {

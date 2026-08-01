@@ -64,18 +64,36 @@ wait_for_viewer() {
   return 1
 }
 
+start_scenario() {
+  local scenario="$1"
+  adb shell am force-stop "$package"
+  adb shell am start -W \
+    -a android.intent.action.VIEW \
+    -d "iroha-pdf:///store-preview?screen=$scenario" \
+    "$package" >/dev/null
+}
+
 for index in "${!scenarios[@]}"; do
   scenario="${scenarios[$index]}"
   name="${names[$index]}"
   raw="$output_dir/.${name}-rgba.png"
   final="$output_dir/${name}.png"
 
-  adb shell am force-stop "$package"
-  adb shell am start -W \
-    -a android.intent.action.VIEW \
-    -d "iroha-pdf:///store-preview?screen=$scenario" \
-    "$package" >/dev/null
-  if [[ "$scenario" == viewer ]]; then wait_for_viewer; else sleep 5; fi
+  if [[ "$scenario" == viewer ]]; then
+    viewer_ready=false
+    for attempt in 1 2 3; do
+      start_scenario "$scenario"
+      if wait_for_viewer; then
+        viewer_ready=true
+        break
+      fi
+      printf 'retrying viewer launch after attempt %d\n' "$attempt" >&2
+    done
+    [[ "$viewer_ready" == true ]] || exit 1
+  else
+    start_scenario "$scenario"
+    sleep 5
+  fi
   adb exec-out screencap -p > "$raw"
   "${image_convert[@]}" "$raw" -alpha off -strip -define png:color-type=2 "$final"
   rm -f "$raw"
