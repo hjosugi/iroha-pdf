@@ -161,8 +161,7 @@ jobs:
           UDID: ${{ steps.simulators.outputs.phone }}
         run: |
           set -euo pipefail
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" --booted
+          xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP_PATH"
           bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-iphone-6.9 1320 2868
           xcrun simctl shutdown "$UDID"
@@ -172,8 +171,7 @@ jobs:
           UDID: ${{ steps.simulators.outputs.ipad }}
         run: |
           set -euo pipefail
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" --booted
+          xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP_PATH"
           bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-ipad-13 2064 2752
           xcrun simctl shutdown "$UDID"
