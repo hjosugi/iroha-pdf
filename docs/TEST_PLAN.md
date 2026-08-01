@@ -15,9 +15,21 @@ checks page count, dimensions, decoded text operators, corrupt-input rejection,
 and reopen after reorder/extract/optimization. Renderer golden screenshots
 remain part of the device/desktop E2E gate because `pdf-lib` does not render.
 
-`e2e:tauri` needs `cargo install tauri-driver`, a `WebKitWebDriver` binary, a debug app
-build (`cd apps/desktop/src-tauri && cargo build`), a vite dev server on port 1420, and a
-running graphical session. It opens a real window.
+`e2e:tauri` drives the real Tauri runtime — a real window, the real webview, the
+real file dialogs — rather than the Playwright stub, and runs 22 checks. It needs
+`cargo install tauri-driver`, a `WebKitWebDriver` binary (Debian: `webkit2gtk-driver`),
+a graphical session, and a **debug** app build from `task build:desktop:debug`.
+
+The build has to be a debug one. The harness drives the app through
+`window.__IROHA_DEV__`, which sits behind `import.meta.env.DEV` and is compiled
+out of a production build, and its scope grant is `#[cfg(debug_assertions)]`.
+`task bundle:desktop` therefore produces exactly the binary this cannot drive.
+
+Nothing else needs starting by hand: the harness runs its own Vite dev server on
+1420 when nothing is already answering there, and builds the `complex.pdf`
+fixture itself from the same source the Playwright suite uses, so the two cannot
+drift apart. On CI it is the `Real-runtime e2e (ubuntu)` job, which is
+deliberately not a required check yet.
 
 Two diagnostics are excluded from the default run because they are slow, write hundreds
 of megabytes of fixtures, and in one case deliberately kill the renderer:
