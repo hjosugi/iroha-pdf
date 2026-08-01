@@ -421,31 +421,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p assets
+          # Not `assets/`: this repository has one, holding the brand masters,
+          # and the checkout is still here — mkdir -p would have kept its
+          # contents and SHA256SUMS would have tried to hash a directory.
+          # Recreated rather than reused so a re-run cannot inherit a file.
+          rm -rf release-assets && mkdir release-assets
 
           for dir in staged/bundle-*; do
             for file in "$dir"/*; do
               name="$(basename "$file")"
-              if [[ -e "assets/$name" ]]; then
+              if [[ -e "release-assets/$name" ]]; then
                 echo "::error::two platforms both produced $name"
                 exit 1
               fi
-              cp -- "$file" "assets/$name"
+              cp -- "$file" "release-assets/$name"
             done
           done
 
           # Written from inside the directory so the file lists bare names and
           # `sha256sum --check` works wherever the downloads landed. Generated
           # before it is moved in, so it never tries to cover itself.
-          (cd assets && sha256sum -- *) > SHA256SUMS
-          mv SHA256SUMS assets/SHA256SUMS
+          (cd release-assets && sha256sum -- *) > SHA256SUMS
+          mv SHA256SUMS release-assets/SHA256SUMS
 
           # The per-host set is already enforced by the Frost target that built
           # it. This is the whole-release view: what a user must be able to
           # download from any of the three platforms.
           fail=0
           for pattern in '*.AppImage' '*.deb' '*.rpm' '*.dmg' '*.msi' '*-setup.exe'; do
-            if ! compgen -G "assets/$pattern" >/dev/null; then
+            if ! compgen -G "release-assets/$pattern" >/dev/null; then
               echo "::error::the release would be missing $pattern"
               fail=1
             fi
@@ -454,8 +458,8 @@ jobs:
             exit 1
           fi
 
-          ls -l assets
-          cat assets/SHA256SUMS
+          ls -l release-assets
+          cat release-assets/SHA256SUMS
 
       # Re-checked because the bundle jobs take the better part of an hour and
       # the check in `verify` is that stale by now. This is still before the tag
@@ -493,7 +497,7 @@ jobs:
                 --title "Iroha PDF v$VERSION"
                 --notes-file staged/release-notes/release-notes.md)
           [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
-          gh release create "v$VERSION" "${args[@]}" assets/*
+          gh release create "v$VERSION" "${args[@]}" release-assets/*
 
       - name: Check the draft carries every asset
         shell: bash
@@ -505,7 +509,7 @@ jobs:
           gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" \
             --json assets --jq '.assets[] | select(.state == "uploaded") | .name' |
             sort > uploaded.txt
-          ls assets | sort > expected.txt
+          ls release-assets | sort > expected.txt
           if ! diff --unified expected.txt uploaded.txt; then
             echo "::error::the draft does not carry exactly the assets that were built"
             exit 1
