@@ -92,8 +92,9 @@ therefore fails CI rather than the store console.
 ## Google Play submission
 
 - [x] Inspect the merged Android manifest. `MANAGE_EXTERNAL_STORAGE` is absent;
-  camera, microphone and dev-overlay permissions are explicitly removed, and
-  legacy read/write storage permissions are capped at Android 12L (API 32).
+  camera, microphone, dev-overlay and legacy broad read/write storage
+  permissions are explicitly removed. Imports use the system document/photo
+  providers instead of storage-wide access.
 - [ ] Review every bundled SDK in the Google Play SDK Index.
 - [ ] Complete Data safety using the current implementation declaration above;
   explicitly evaluate user-initiated Drive transfers under current Play rules.

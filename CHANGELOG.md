@@ -19,9 +19,9 @@
 - iOS prebuild now gives Google Sign-In's transitive Swift dependencies module
   maps and the native screenshot build selects the Swift 6.2 toolchain required
   by Expo SDK 57.
-- Release manifests explicitly remove unused microphone, camera, Face ID, and
-  Android dev-overlay permissions while retaining a specific photo-library
-  purpose for the image-to-PDF feature.
+- Release manifests explicitly remove unused microphone, camera, Face ID,
+  Android dev-overlay, and legacy broad-storage permissions while retaining a
+  specific photo-library purpose for the image-to-PDF feature.
 
 ## 0.4.0 - 2026-08-01
 

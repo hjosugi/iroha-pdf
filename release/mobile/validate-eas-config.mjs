@@ -27,6 +27,8 @@ assert.ok(config.submit.production, "missing production submit profile");
 const blocked = new Set(app.expo.android.blockedPermissions);
 assert.ok(blocked.has("android.permission.RECORD_AUDIO"), "release builds must not request an unused microphone permission");
 assert.ok(blocked.has("android.permission.SYSTEM_ALERT_WINDOW"), "release builds must not request the dev-client overlay permission");
+assert.ok(blocked.has("android.permission.READ_EXTERNAL_STORAGE"), "document-provider import must not request broad legacy read access");
+assert.ok(blocked.has("android.permission.WRITE_EXTERNAL_STORAGE"), "document-provider export must not request broad legacy write access");
 assert.ok(
   app.expo.plugins.includes("./plugins/with-modular-ios-headers"),
   "iOS prebuild must make Google Sign-In's Swift dependencies modular",
