@@ -32,6 +32,9 @@ jobs:
   build:
     name: Build and check the site
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -43,10 +46,16 @@ jobs:
       # links and sitemap.xml are right even if the repository or owner is
       # renamed. Skipped on pull requests: it requires Pages to be enabled, and
       # a fork's PR must still be able to prove the site builds.
+      # `enablement` turns Pages on for the repository if it is not on already,
+      # rather than failing and waiting for someone to find the setting. This is
+      # what the action's own error message points at when Pages is off, and it
+      # is why this job asks for `pages: write` — the rest of it only reads.
       - name: Configure Pages
         id: pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       # No dependencies to install: the generator is plain Node with no imports
       # outside this repository, which is also why nothing here runs `npm ci`.
