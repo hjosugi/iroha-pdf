@@ -26,6 +26,13 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+      - name: Allow the runner to use KVM acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -e /dev/kvm ]] || { echo '/dev/kvm is unavailable on this runner' >&2; exit 1; }
+          sudo chown "$USER" /dev/kvm
+          [[ -r /dev/kvm && -w /dev/kvm ]] || { echo '/dev/kvm is not accessible' >&2; exit 1; }
       - name: Install locked dependencies
         run: npm ci
       - name: Install the Android emulator image
