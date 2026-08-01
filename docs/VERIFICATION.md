@@ -1,9 +1,9 @@
 # Verification report
 
-For **v0.3.0**, commit `0e1786f6aec94b7dde988673b2297fb55afe20b7`.
+For **v0.4.0**, commit `0bb56eaafa94dee26f0f6c685acdfb29308c7338`.
 
 The authoritative evidence is CI, not a developer machine: run
-<https://github.com/hjosugi/iroha-pdf/actions/runs/30684572747> is green on a
+<https://github.com/hjosugi/iroha-pdf/actions/runs/30691337190> is green on a
 clean checkout of that commit across Linux, macOS and Windows. What follows
 records what that proves and, more importantly, what it does not.
 
@@ -39,11 +39,15 @@ records what that proves and, more importantly, what it does not.
 
 Packaging and signing:
 
-- **No packaged desktop application has been built.** CI compiles the native
-  binary on all three OSes but does not run `tauri build`, so no `.AppImage`,
-  `.deb`, `.dmg`, `.msi` or NSIS installer exists, and none has ever been
-  installed or uninstalled. Releases carry no binaries.
-- Windows signing and macOS notarization are unimplemented (#64).
+- Packages are now built and published — AppImage, deb and rpm on Linux, a
+  universal dmg on macOS, msi and NSIS installers on Windows, with SHA256SUMS.
+  The Linux AppImage was launched to confirm it starts; **no package on any
+  platform has been installed or uninstalled**, and the `Packages` row of
+  `docs/RELEASE_GATE.md` stays `pending` for that reason.
+- Every package is **unsigned**. Windows signing and macOS notarization are
+  unimplemented (#64), so macOS Gatekeeper refuses the first launch and Windows
+  SmartScreen warns. A matching SHA256SUMS entry proves a download is what CI
+  built; it says nothing about who built it.
 
 Devices and accounts — nothing below has been run on real hardware:
 
