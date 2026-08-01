@@ -59,6 +59,31 @@ const foregroundSource = await read('assets/branding/iroha-foreground.svg');
 assert(iconSource.includes(Buffer.from('#2B5CFF')), 'master icon must use brand blue');
 assert(foregroundSource.includes(Buffer.from('stroke="#FFFFFF"')), 'foreground must use the white mark');
 
+// The desktop shell carries the mark as an inline data URI instead of fetching
+// a `/favicon.svg`, because the app is built to need no network at all. That
+// makes it a hand-copied duplicate of the master, and a duplicate that nothing
+// checks is a duplicate that drifts: regenerating the brand would leave the
+// window and the browser tab wearing the previous logo, silently. So the URL is
+// re-derived here from the master and compared, rather than pattern-matched.
+const desktopShellPath = 'apps/desktop/index.html';
+const desktopShell = (await read(desktopShellPath)).toString('utf8');
+const percentEncoded = { '<': '%3C', '>': '%3E', '#': '%23' };
+const expectedFavicon = `data:image/svg+xml,${iconSource
+  .toString('utf8')
+  .replace(/\n\s*/g, '')
+  .trim()
+  .replace(/"/g, "'")
+  .replace(/[<>#]/g, (character) => percentEncoded[character])}`;
+assert(
+  desktopShell.includes(`href="${expectedFavicon}"`),
+  `${desktopShellPath} must declare the inline favicon derived from assets/branding/iroha-icon.svg;` +
+    ` expected href="${expectedFavicon}"`,
+);
+assert(
+  /<link\s[^>]*rel="icon"/.test(desktopShell),
+  `${desktopShellPath} must reference that favicon from a rel="icon" link`,
+);
+
 const manifest = JSON.parse(await read('assets/branding/tauri-icon-manifest.json'));
 assert(manifest.default === 'iroha-icon.svg', 'Tauri must use the shared master icon');
 assert(manifest.android_fg === 'iroha-foreground.svg', 'Tauri must use the shared adaptive foreground');
@@ -84,4 +109,4 @@ for (const character of 'あアー漢字') {
   assert(glyph && glyph.id !== 0, `${fontPath} has no glyph for "${character}"`);
 }
 
-console.log(`Brand assets are complete and consistent (${expectedPngs.size + 3} checked).`);
+console.log(`Brand assets are complete and consistent (${expectedPngs.size + 4} checked).`);

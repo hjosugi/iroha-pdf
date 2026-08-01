@@ -1,14 +1,24 @@
 name: Release
 
-# Cutting a release is a CI operation, not a terminal ritual. Tag creation and
-# the GitHub release are made together here so a failed validation cannot leave
-# a dangling tag behind, and so the version in the tag is checked against the
-# version the repository actually declares.
+# Cutting a release is a CI operation, not a terminal ritual. The tag is the
+# last thing this workflow creates. Everything that can fail — the version
+# check, the CI-passed check, and all three desktop builds — runs before it
+# exists, the GitHub release is then created as a *draft* with every asset
+# already attached, and only the final step turns that draft into a published
+# release. Publishing a draft is the moment GitHub creates refs/tags/vX.Y.Z, so
+# a failed build or a failed upload leaves no tag, no release page, and nothing
+# a user can download.
 #
-# This workflow deliberately publishes no binaries. Desktop signing and
-# notarization are unimplemented and docs/RELEASE_GATE.md is still blocked with
-# every evidence row pending, so an attached artifact here would be an unsigned
-# build wearing a release badge. Attach packages only once that gate is met.
+# The desktop packages published here are UNSIGNED. Windows code signing and
+# macOS notarization are unimplemented (issue #64) and docs/RELEASE_GATE.md is
+# still blocked with every evidence row pending, including the `Packages` row
+# that would record signature verification. That used to be the reason this
+# workflow attached nothing at all. The project now ships the executables
+# regardless, so the caveat moves rather than disappears: the release notes
+# state that the packages are unsigned, describe the Gatekeeper and SmartScreen
+# warnings a user will actually meet, and a SHA256SUMS file lets a download be
+# checked against what CI built. Replace that section, not the packages, once
+# issue #64 lands.
 on:
   workflow_dispatch:
     inputs:
@@ -29,9 +39,13 @@ concurrency:
   group: release-${{ inputs.version }}
   cancel-in-progress: false
 
+env:
+  NODE_VERSION: 22.13.0
+  CARGO_TERM_COLOR: always
+
 jobs:
-  release:
-    name: Tag and publish ${{ inputs.version }}
+  verify:
+    name: Verify ${{ inputs.version }} is releasable
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -75,8 +89,9 @@ jobs:
             fail=1
           fi
 
-          # The crate version is what a packaged desktop build reports, so it has
-          # to agree even though nothing here compiles it.
+          # The crate version is what a packaged desktop build reports, and
+          # tauri.conf.json's version is stamped into every bundle filename the
+          # `bundle` job below produces, so both have to agree with the tag.
           cargo="$(sed -n '0,/^version = /s/^version = "\(.*\)"/\1/p' apps/desktop/src-tauri/Cargo.toml)"
           if [[ "$cargo" != "$VERSION" ]]; then
             echo "::error file=apps/desktop/src-tauri/Cargo.toml::declares $cargo, expected $VERSION"
@@ -94,7 +109,7 @@ jobs:
       # publishable. The required set is the one branch protection already
       # enforces on main, read out of scripts/github/protect-main.sh rather than
       # copied here: two lists would drift, and a release gate that drifts weaker
-      # fails silently. `android` and this workflow's own job are not required
+      # fails silently. `android` and this workflow's own jobs are not required
       # checks there, so they are not demanded here either.
       - name: Require CI to have passed on this commit
         shell: bash
@@ -187,18 +202,286 @@ jobs:
             grab { print }
           ' CHANGELOG.md > release-notes.md
 
+          # The footer is written here, before anything is built, so the claim
+          # it makes is reviewable in this file rather than assembled from
+          # whatever happened to upload.
           {
             echo
             echo "---"
             echo
-            echo "Built from \`$GITHUB_SHA\`. No signed native packages are attached:"
-            echo "\`docs/RELEASE_GATE.md\` is still blocked, and desktop signing and"
-            echo "notarization are unimplemented."
+            echo "Built from \`$GITHUB_SHA\` by GitHub Actions, one runner per platform."
           } >> release-notes.md
+          cat >> release-notes.md <<'FOOTER'
+
+          ## Desktop packages
+
+          | Platform | Files |
+          |---|---|
+          | Linux x86_64 | `.AppImage`, `.deb`, `.rpm` |
+          | macOS (Apple silicon and Intel) | `.dmg`, a universal binary |
+          | Windows x86_64 | `.msi`, NSIS `-setup.exe` |
+
+          ## These packages are not signed
+
+          Windows code signing and macOS notarization are unimplemented
+          ([#64](https://github.com/hjosugi/iroha-pdf/issues/64)), and the `Packages`
+          row of `docs/RELEASE_GATE.md` — signature verification, install and
+          uninstall evidence — is still pending along with every other row. Nothing
+          attached here has been through that gate. Expect this:
+
+          - **macOS** refuses the first launch: *"Iroha PDF" cannot be opened because
+            the developer cannot be verified.* Gatekeeper is doing its job. Open the
+            app from Finder with Control-click then **Open**, or remove the quarantine
+            attribute yourself, only if you trust this build.
+          - **Windows** shows *Windows protected your PC* from SmartScreen for both the
+            `.msi` and the NSIS installer. **More info** then **Run anyway**.
+          - **Linux** packages carry no repository or GPG signature. `apt` and `dnf`
+            will say so when installing the `.deb` or `.rpm`.
+
+          Check what you downloaded against what CI built before you run it:
+
+          ```
+          sha256sum --check --ignore-missing SHA256SUMS
+          ```
+
+          A matching checksum proves the file is byte-for-byte the artifact this
+          workflow produced. It is not a signature and says nothing about who built
+          it — only a signed, notarized release can do that.
+          FOOTER
 
           cat release-notes.md
 
-      - name: Create the tag and the release together
+      - name: Retain the release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+          retention-days: 7
+
+  # Nothing here touches the repository's releases or tags. It only produces
+  # files, so every way it can fail is a way that leaves the repository exactly
+  # as it was.
+  #
+  # The packaging itself is a Frost target (`desktop-app-*` in frost.toml), not
+  # a command spelled out here: it declares its inputs, depends on the
+  # desktop-web output tree, and is the same target CI runs on every pull
+  # request. What this job owns is the runner, the toolchain and the upload.
+  bundle:
+    name: Bundle (${{ matrix.os }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    # Three cold Rust release builds, plus tauri fetching WiX and NSIS on
+    # Windows and linuxdeploy and the AppImage runtime on Linux, plus a second
+    # architecture on macOS.
+    timeout-minutes: 75
+    strategy:
+      # A release needs all three platforms, so one failure already means
+      # nothing publishes. Letting the others finish costs a few runner-minutes
+      # and shows every platform's failure in one dispatch instead of one per
+      # attempt.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Add the second macOS architecture
+        if: runner.os == 'macOS'
+        # `macos-latest` is arm64, so a plain build would ship Apple silicon
+        # only. `desktop-app-macos` builds `universal-apple-darwin`, which lipos
+        # both slices into one binary and needs nothing but the second standard
+        # library — no certificate, no Apple ID, no notarization credentials.
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          # Keyed apart from the CI job's cache of the same workspace so a
+          # release build and a pull-request build do not evict each other.
+          prefix-key: release-bundle
+      - uses: go-task/setup-task@v2.1.0
+        with:
+          version: 3.52.0
+      - name: Install checksummed FrostBuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Linux)
+              asset=frostbuild-v0.8.0-x86_64-unknown-linux-musl.tar.gz
+              sha=7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795 ;;
+            macOS)
+              asset=frostbuild-v0.8.0-aarch64-apple-darwin.tar.gz
+              sha=834b3d841e78e5a46851fb84202d49a6faaa5c0cc64d9b9e0cee0fd314d01bf6 ;;
+            Windows)
+              asset=frostbuild-v0.8.0-x86_64-pc-windows-msvc.zip
+              sha=358e95577aa865b679cf35f31405ae9ffe2f4acc7b586f65cf5a253bd1394b31 ;;
+            *)
+              echo "::error::no pinned FrostBuild release for $RUNNER_OS"
+              exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/frost"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/$asset" \
+            "https://github.com/hjosugi/frost-build/releases/download/v0.8.0/$asset"
+          # Chosen by runner, not by which binary exists: macOS has a
+          # `sha256sum`, but a BSD one that rejects `--check` and the
+          # "digest  path" line GNU reads, so probing for the name picks a tool
+          # that cannot do the job. Compared as strings so no --check dialect
+          # is involved at all.
+          # Read from stdin, not by name. GNU sha256sum escapes a filename
+          # containing a backslash and marks the line by prefixing the digest
+          # with one, and every Windows path has backslashes — the digest then
+          # compares unequal to an identical pin. With stdin there is no
+          # filename in the output to escape.
+          case "$RUNNER_OS" in
+            macOS) actual="$(shasum --algorithm 256 < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+            *)     actual="$(sha256sum < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+          esac
+          if [[ "$actual" != "$sha" ]]; then
+            echo "::error::$asset has sha256 $actual; the pin expects $sha"
+            exit 1
+          fi
+          case "$asset" in
+            *.zip)
+              unzip -q -j "$RUNNER_TEMP/$asset" -d "$RUNNER_TEMP/frost" ;;
+            *)
+              tar --extract --gzip --file "$RUNNER_TEMP/$asset" \
+                --directory "$RUNNER_TEMP/frost" --strip-components=1 ;;
+          esac
+          echo "$RUNNER_TEMP/frost" >> "$GITHUB_PATH"
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        # `xdg-utils` is not optional: the AppImage bundler copies
+        # /usr/bin/xdg-open into the AppDir and aborts the whole bundle without
+        # it. patchelf rewrites the rpath of the binaries it copies in. tauri
+        # downloads linuxdeploy and the AppImage runtime itself.
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+      - name: Install locked dependencies
+        run: npm ci
+
+      # Builds the desktop-web tree through the graph, runs every bundler
+      # `bundle.targets: "all"` selects for this host, and stages the packages
+      # into apps/desktop/bundle/release/ under names with no spaces in them.
+      # The target fails if the host's expected set is incomplete or if a
+      # package does not carry the version tauri.conf.json declares — which the
+      # verify job has already checked equals the version being released.
+      - name: Build and bundle the desktop app through Frost
+        run: task bundle:desktop
+
+      # Windows builds under a Frost platform overlay, because npm is named
+      # `npm.cmd` there; asking for an overlay puts its name in ${config}, so
+      # the packages land one directory deeper. Resolved here rather than
+      # hardcoded twice: a wrong path fails the upload loudly, but a wrong
+      # guess about which host is which would not.
+      - name: Locate the staged packages
+        id: staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$(find apps/desktop/bundle -type d -name release -print -quit)"
+          if [[ -z "$dir" ]]; then
+            echo "::error::the bundle step staged nothing under apps/desktop/bundle"
+            exit 1
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          printf 'staged in %s:\n' "$dir"
+          ls -1 "$dir"
+
+      - name: Retain the bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ runner.os }}
+          path: ${{ steps.staged.outputs.dir }}/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Tag and publish ${{ inputs.version }}
+    needs: [verify, bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Collect the notes and every platform's bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: staged
+
+      - name: Assemble the assets and their checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+
+          for dir in staged/bundle-*; do
+            for file in "$dir"/*; do
+              name="$(basename "$file")"
+              if [[ -e "assets/$name" ]]; then
+                echo "::error::two platforms both produced $name"
+                exit 1
+              fi
+              cp -- "$file" "assets/$name"
+            done
+          done
+
+          # Written from inside the directory so the file lists bare names and
+          # `sha256sum --check` works wherever the downloads landed. Generated
+          # before it is moved in, so it never tries to cover itself.
+          (cd assets && sha256sum -- *) > SHA256SUMS
+          mv SHA256SUMS assets/SHA256SUMS
+
+          # The per-host set is already enforced by the Frost target that built
+          # it. This is the whole-release view: what a user must be able to
+          # download from any of the three platforms.
+          fail=0
+          for pattern in '*.AppImage' '*.deb' '*.rpm' '*.dmg' '*.msi' '*-setup.exe'; do
+            if ! compgen -G "assets/$pattern" >/dev/null; then
+              echo "::error::the release would be missing $pattern"
+              fail=1
+            fi
+          done
+          if (( fail )); then
+            exit 1
+          fi
+
+          ls -l assets
+          cat assets/SHA256SUMS
+
+      # Re-checked because the bundle jobs take the better part of an hour and
+      # the check in `verify` is that stale by now. This is still before the tag
+      # exists.
+      - name: Refuse to overwrite an existing release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::v$VERSION is already released; bump the version instead"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"
+            exit 1
+          fi
+
+      # A draft release has no tag: GitHub creates refs/tags/vX.Y.Z at the
+      # target commit only when the draft is published. Creating the draft with
+      # every asset attached, then publishing it, is what keeps the old
+      # guarantee intact now that there are assets — an upload that fails leaves
+      # a draft nobody can see and no tag, and the step below deletes even that.
+      - name: Create the release as a draft with every asset
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -206,10 +489,57 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
-          args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
-                --title "Iroha PDF v$VERSION" --notes-file release-notes.md)
+          args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft
+                --title "Iroha PDF v$VERSION"
+                --notes-file staged/release-notes/release-notes.md)
           [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
-          # gh creates the tag at --target as part of publishing, so the tag and
-          # the release appear in one step or not at all.
-          gh release create "v$VERSION" "${args[@]}"
-          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,targetCommitish
+          gh release create "v$VERSION" "${args[@]}" assets/*
+
+      - name: Check the draft carries every asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[] | select(.state == "uploaded") | .name' |
+            sort > uploaded.txt
+          ls assets | sort > expected.txt
+          if ! diff --unified expected.txt uploaded.txt; then
+            echo "::error::the draft does not carry exactly the assets that were built"
+            exit 1
+          fi
+
+      - name: Publish the release, which creates the tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          gh release edit "v$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isDraft,isPrerelease,targetCommitish
+
+      # Anything that failed above happened while the release was still a draft,
+      # so no tag was created. Remove the draft too, and only if it is still a
+      # draft: a published release is never this job's to delete.
+      - name: Discard the draft if publishing did not finish
+        if: failure() || cancelled()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          state="$(
+            gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" \
+              --json isDraft --jq .isDraft 2>/dev/null || echo absent
+          )"
+          if [[ "$state" == "true" ]]; then
+            gh release delete "v$VERSION" --repo "$GITHUB_REPOSITORY" --yes
+            echo "deleted the unpublished draft v$VERSION; no tag was created"
+          else
+            echo "no draft to discard (v$VERSION is $state)"
+          fi

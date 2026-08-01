@@ -31,17 +31,57 @@ jobs:
       - uses: go-task/setup-task@v2.1.0
         with:
           version: 3.52.0
+      # Byte-identical to the block in the `tauri` job below and in
+      # .github/workflows/release.yml. It runs on three operating systems there,
+      # so it is written once and copied rather than kept in two shapes; raise
+      # the version in all three together with FROST_VERSION in Taskfile.yml.
       - name: Install checksummed FrostBuild
         shell: bash
         run: |
-          install -d "$RUNNER_TEMP/frost"
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Linux)
+              asset=frostbuild-v0.8.0-x86_64-unknown-linux-musl.tar.gz
+              sha=7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795 ;;
+            macOS)
+              asset=frostbuild-v0.8.0-aarch64-apple-darwin.tar.gz
+              sha=834b3d841e78e5a46851fb84202d49a6faaa5c0cc64d9b9e0cee0fd314d01bf6 ;;
+            Windows)
+              asset=frostbuild-v0.8.0-x86_64-pc-windows-msvc.zip
+              sha=358e95577aa865b679cf35f31405ae9ffe2f4acc7b586f65cf5a253bd1394b31 ;;
+            *)
+              echo "::error::no pinned FrostBuild release for $RUNNER_OS"
+              exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/frost"
           curl --fail --location --silent --show-error \
-            --output "$RUNNER_TEMP/frost.tar.gz" \
-            https://github.com/hjosugi/frost-build/releases/download/v0.8.0/frostbuild-v0.8.0-x86_64-unknown-linux-musl.tar.gz
-          echo "7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795  $RUNNER_TEMP/frost.tar.gz" \
-            | sha256sum --check
-          tar --extract --gzip --file "$RUNNER_TEMP/frost.tar.gz" \
-            --directory "$RUNNER_TEMP/frost" --strip-components=1
+            --output "$RUNNER_TEMP/$asset" \
+            "https://github.com/hjosugi/frost-build/releases/download/v0.8.0/$asset"
+          # Chosen by runner, not by which binary exists: macOS has a
+          # `sha256sum`, but a BSD one that rejects `--check` and the
+          # "digest  path" line GNU reads, so probing for the name picks a tool
+          # that cannot do the job. Compared as strings so no --check dialect
+          # is involved at all.
+          # Read from stdin, not by name. GNU sha256sum escapes a filename
+          # containing a backslash and marks the line by prefixing the digest
+          # with one, and every Windows path has backslashes — the digest then
+          # compares unequal to an identical pin. With stdin there is no
+          # filename in the output to escape.
+          case "$RUNNER_OS" in
+            macOS) actual="$(shasum --algorithm 256 < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+            *)     actual="$(sha256sum < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+          esac
+          if [[ "$actual" != "$sha" ]]; then
+            echo "::error::$asset has sha256 $actual; the pin expects $sha"
+            exit 1
+          fi
+          case "$asset" in
+            *.zip)
+              unzip -q -j "$RUNNER_TEMP/$asset" -d "$RUNNER_TEMP/frost" ;;
+            *)
+              tar --extract --gzip --file "$RUNNER_TEMP/$asset" \
+                --directory "$RUNNER_TEMP/frost" --strip-components=1 ;;
+          esac
           echo "$RUNNER_TEMP/frost" >> "$GITHUB_PATH"
       - name: Install locked dependencies
         run: npm ci
@@ -65,10 +105,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # This job used to run a bare `cargo build --release`: a compile with no
+  # declared inputs, no relationship to `desktop-web`, and no packaging, which
+  # meant nothing ever proved the installers a release ships can be produced at
+  # all. It now runs the same Frost target the Release workflow runs, so a
+  # bundler that breaks breaks here, on the pull request, and not halfway
+  # through cutting a release.
+  #
+  # The job name is load-bearing: scripts/github/protect-main.sh requires
+  # `Tauri (<os>)` on main and .github/workflows/release.yml reads that list to
+  # decide whether a commit is releasable. Renaming it silently weakens both.
   tauri:
     name: Tauri (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # Was 45 for a compile. Bundling adds three bundlers on Linux, WiX and NSIS
+    # downloads on Windows, and a second architecture on macOS.
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -80,29 +132,104 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+      - name: Add the second macOS architecture
+        if: runner.os == 'macOS'
+        # `desktop-app-macos` builds `universal-apple-darwin`, which needs both
+        # slices' standard libraries. No credentials are involved.
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
+      - uses: go-task/setup-task@v2.1.0
+        with:
+          version: 3.52.0
+      - name: Install checksummed FrostBuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Linux)
+              asset=frostbuild-v0.8.0-x86_64-unknown-linux-musl.tar.gz
+              sha=7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795 ;;
+            macOS)
+              asset=frostbuild-v0.8.0-aarch64-apple-darwin.tar.gz
+              sha=834b3d841e78e5a46851fb84202d49a6faaa5c0cc64d9b9e0cee0fd314d01bf6 ;;
+            Windows)
+              asset=frostbuild-v0.8.0-x86_64-pc-windows-msvc.zip
+              sha=358e95577aa865b679cf35f31405ae9ffe2f4acc7b586f65cf5a253bd1394b31 ;;
+            *)
+              echo "::error::no pinned FrostBuild release for $RUNNER_OS"
+              exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/frost"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/$asset" \
+            "https://github.com/hjosugi/frost-build/releases/download/v0.8.0/$asset"
+          # Chosen by runner, not by which binary exists: macOS has a
+          # `sha256sum`, but a BSD one that rejects `--check` and the
+          # "digest  path" line GNU reads, so probing for the name picks a tool
+          # that cannot do the job. Compared as strings so no --check dialect
+          # is involved at all.
+          # Read from stdin, not by name. GNU sha256sum escapes a filename
+          # containing a backslash and marks the line by prefixing the digest
+          # with one, and every Windows path has backslashes — the digest then
+          # compares unequal to an identical pin. With stdin there is no
+          # filename in the output to escape.
+          case "$RUNNER_OS" in
+            macOS) actual="$(shasum --algorithm 256 < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+            *)     actual="$(sha256sum < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+          esac
+          if [[ "$actual" != "$sha" ]]; then
+            echo "::error::$asset has sha256 $actual; the pin expects $sha"
+            exit 1
+          fi
+          case "$asset" in
+            *.zip)
+              unzip -q -j "$RUNNER_TEMP/$asset" -d "$RUNNER_TEMP/frost" ;;
+            *)
+              tar --extract --gzip --file "$RUNNER_TEMP/$asset" \
+                --directory "$RUNNER_TEMP/frost" --strip-components=1 ;;
+          esac
+          echo "$RUNNER_TEMP/frost" >> "$GITHUB_PATH"
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
+        # `xdg-utils` is new: the AppImage bundler copies /usr/bin/xdg-open into
+        # the AppDir and fails outright without it. The rest is unchanged;
+        # patchelf is what rewrites the rpath of the binaries it copies in.
         run: >-
           sudo apt-get update && sudo apt-get install -y --no-install-recommends
-          libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
       - name: Install locked dependencies
         run: npm ci
-      - name: Build desktop web assets
-        run: npm run build --workspace @iroha-pdf/desktop
-      - name: Build Tauri native executable without packaging
-        run: >-
-          cargo build --release --locked
-          --manifest-path apps/desktop/src-tauri/Cargo.toml
-      - name: Retain native executable
+      # Builds the desktop-web tree through the graph and then bundles it. The
+      # Vite build is a Frost dependency of the packaging target, so there is no
+      # separate web-asset step here any more.
+      - name: Build and bundle the desktop app through Frost
+        run: task bundle:desktop
+      # Windows builds under a Frost platform overlay, because npm is named
+      # `npm.cmd` there; asking for an overlay puts its name in ${config}, so
+      # the packages land one directory deeper. Resolved here rather than
+      # hardcoded twice: a wrong path fails the upload loudly, but a wrong
+      # guess about which host is which would not.
+      - name: Locate the staged packages
+        id: staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$(find apps/desktop/bundle -type d -name release -print -quit)"
+          if [[ -z "$dir" ]]; then
+            echo "::error::the bundle step staged nothing under apps/desktop/bundle"
+            exit 1
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          printf 'staged in %s:\n' "$dir"
+          ls -1 "$dir"
+
+      - name: Retain the desktop packages
         uses: actions/upload-artifact@v4
         with:
-          name: tauri-${{ runner.os }}
-          path: |
-            apps/desktop/src-tauri/target/release/iroha-pdf
-            apps/desktop/src-tauri/target/release/iroha-pdf.exe
+          name: desktop-packages-${{ runner.os }}
+          path: ${{ steps.staged.outputs.dir }}/
           if-no-files-found: error
           retention-days: 14
 

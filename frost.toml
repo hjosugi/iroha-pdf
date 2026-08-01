@@ -11,11 +11,26 @@ default_targets = ["desktop-web"]
 npm = "npm"
 node = "node"
 
+# Windows names npm `npm.cmd`, and a `command` target is spawned directly rather
+# than through a shell, so the bare name cannot be located there — the Windows
+# runner failed with `failed to spawn "npm": program not found` while `npm ci`
+# in the adjacent step worked. Naming the tool per platform is the documented
+# way to say that; `pass_env` cannot fix it, because the name is resolved before
+# the action environment applies. Selected by `task bundle:desktop`, which
+# passes `--platform windows` only on a Windows host, so the Linux and macOS
+# builds keep the root toolchain and their existing output paths untouched.
+[platform.windows.tools]
+npm = "npm.cmd"
+node = "node.exe"
+
 [target.iroha-pdf-brand-validate]
 kind = "test"
 tool = "node"
 args = ["release/branding/validate-assets.mjs"]
 inputs = [
+  # The desktop shell inlines the mark as a data URI, so it is brand surface and
+  # editing it must rerun this gate.
+  "apps/desktop/index.html",
   "apps/desktop/src-tauri/icons/128x128.png",
   "apps/desktop/src-tauri/icons/128x128@2x.png",
   "apps/desktop/src-tauri/icons/32x32.png",
@@ -27,6 +42,33 @@ inputs = [
   "assets/branding/*",
   "release/branding/validate-assets.mjs",
   "release/store/screenshots/desktop/*.png",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+# Builds the GitHub Pages documentation site into a temporary directory and
+# refuses a broken internal link, a dangling anchor, an off-origin subresource,
+# or a missing /privacy/ page. Its inputs are the documents it publishes, so
+# editing one reruns this and nothing else. `site/dist/` is deliberately absent:
+# the gate builds its own copy and never reads a checked-out output tree.
+[target.iroha-pdf-site-build]
+kind = "test"
+tool = "node"
+args = ["site/verify.mjs"]
+inputs = [
+  "CHANGELOG.md",
+  "SECURITY.md",
+  "THIRD_PARTY_NOTICES.md",
+  "apps/mobile/assets/images/icon.png",
+  "assets/branding/iroha-icon.svg",
+  "docs/*.md",
+  "package.json",
+  "site/assets/site.css",
+  "site/build.mjs",
+  "site/catalog.mjs",
+  "site/markdown.mjs",
+  "site/verify.mjs",
 ]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
@@ -154,5 +196,150 @@ inputs = [
 ]
 output_dirs = ["apps/desktop/dist/${config}"]
 env = { CI = "true" }
-pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+pass_env = ["PATH", "PATHEXT", "NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+# Desktop packaging. `tauri build` compiles the Rust binary and then runs every
+# bundler that `bundle.targets: "all"` selects for the host, so what comes out
+# is host-specific: .AppImage/.deb/.rpm on Linux, .dmg on macOS, .msi and an
+# NSIS .exe on Windows. Frost has no per-host conditional inside a single
+# target, and hiding the difference inside a script that branches on
+# `process.platform` would put the bundler invocation back outside the graph —
+# the thing this target exists to stop. So there is one target per host, and the
+# only difference between them is visible here: the macOS universal flag, and
+# the Cargo output directory that flag implies.
+#
+# Two overrides are pushed in through `--config`, which tauri merges over
+# tauri.conf.json. `beforeBuildCommand` is emptied and `frontendDist` is aimed
+# at the desktop-web output tree, so the web assets come from the graph through
+# `deps` rather than from tauri shelling out to npm behind Frost's back — the
+# same output-tree boundary the desktop-web target draws, now actually consumed.
+# The trailing `-- --locked` reaches cargo and keeps Cargo.lock authoritative.
+#
+# That tree reaches these targets through `deps` and not through `inputs`: Frost
+# resolves input globs before it builds dependencies, so naming
+# `apps/desktop/dist/${config}/**/*` here would fail on a clean checkout, where
+# it has not been produced yet. `deps` is what carries it — desktop-web declares
+# the tree as its `output_dirs`, and its digest is part of this action's key.
+#
+# Frost spawns tools directly rather than through a shell, so the `--config`
+# JSON reaches npm as one argv element; npm's own script runner is the only hop
+# that has to quote it again, which is the same hop `desktop-web` already goes
+# through. Verified on Linux; the Windows and macOS runs are CI's to prove.
+#
+# The bundles land in Cargo's target directory, whose layout carries no Frost
+# profile and so cannot be an `output_dirs` entry; the collect step copies them
+# to `apps/desktop/bundle/${config}`, which can be, and checks on the way that
+# the host produced its full set at the version tauri.conf.json declares.
+
+[target.desktop-app-linux]
+kind = "command"
+tool = "npm"
+args = [
+  "--prefix", "apps/desktop", "run", "tauri:build", "--",
+  "--ci",
+  "--config", "{\"build\":{\"beforeBuildCommand\":\"\",\"frontendDist\":\"../dist/${config}\"}}",
+  "--", "--locked",
+]
+steps = [
+  { tool = "node", args = [
+    "release/desktop/collect-bundles.mjs",
+    "apps/desktop/src-tauri/target/release/bundle",
+    "apps/desktop/bundle/${config}",
+  ] },
+]
+deps = ["desktop-web"]
+inputs = [
+  "apps/desktop/package.json",
+  "apps/desktop/src-tauri/Cargo.lock",
+  "apps/desktop/src-tauri/Cargo.toml",
+  "apps/desktop/src-tauri/build.rs",
+  "apps/desktop/src-tauri/capabilities/**/*",
+  "apps/desktop/src-tauri/icons/*",
+  "apps/desktop/src-tauri/src/**/*",
+  "apps/desktop/src-tauri/tauri.conf.json",
+  "apps/desktop/src-tauri/vendor/**/*",
+  "package-lock.json",
+  "package.json",
+  "release/desktop/collect-bundles.mjs",
+]
+output_dirs = ["apps/desktop/bundle/${config}"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR", "PATH", "CARGO_HOME", "CARGO_TERM_COLOR", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "TMPDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET"]
+sandbox = false
+
+# `macos-latest` runners are arm64, so a plain build would ship Apple silicon
+# only. `--target universal-apple-darwin` lipos both slices into one binary and
+# needs nothing but the second standard library — no certificate, no Apple ID,
+# no notarization credentials. It also moves the bundle tree under that triple.
+[target.desktop-app-macos]
+kind = "command"
+tool = "npm"
+args = [
+  "--prefix", "apps/desktop", "run", "tauri:build", "--",
+  "--ci", "--target", "universal-apple-darwin",
+  "--config", "{\"build\":{\"beforeBuildCommand\":\"\",\"frontendDist\":\"../dist/${config}\"}}",
+  "--", "--locked",
+]
+steps = [
+  { tool = "node", args = [
+    "release/desktop/collect-bundles.mjs",
+    "apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle",
+    "apps/desktop/bundle/${config}",
+  ] },
+]
+deps = ["desktop-web"]
+inputs = [
+  "apps/desktop/package.json",
+  "apps/desktop/src-tauri/Cargo.lock",
+  "apps/desktop/src-tauri/Cargo.toml",
+  "apps/desktop/src-tauri/build.rs",
+  "apps/desktop/src-tauri/capabilities/**/*",
+  "apps/desktop/src-tauri/icons/*",
+  "apps/desktop/src-tauri/src/**/*",
+  "apps/desktop/src-tauri/tauri.conf.json",
+  "apps/desktop/src-tauri/vendor/**/*",
+  "package-lock.json",
+  "package.json",
+  "release/desktop/collect-bundles.mjs",
+]
+output_dirs = ["apps/desktop/bundle/${config}"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR", "PATH", "CARGO_HOME", "CARGO_TERM_COLOR", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "TMPDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET"]
+sandbox = false
+
+[target.desktop-app-windows]
+kind = "command"
+tool = "npm"
+args = [
+  "--prefix", "apps/desktop", "run", "tauri:build", "--",
+  "--ci",
+  "--config", "{\"build\":{\"beforeBuildCommand\":\"\",\"frontendDist\":\"../dist/${config}\"}}",
+  "--", "--locked",
+]
+steps = [
+  { tool = "node", args = [
+    "release/desktop/collect-bundles.mjs",
+    "apps/desktop/src-tauri/target/release/bundle",
+    "apps/desktop/bundle/${config}",
+  ] },
+]
+deps = ["desktop-web"]
+inputs = [
+  "apps/desktop/package.json",
+  "apps/desktop/src-tauri/Cargo.lock",
+  "apps/desktop/src-tauri/Cargo.toml",
+  "apps/desktop/src-tauri/build.rs",
+  "apps/desktop/src-tauri/capabilities/**/*",
+  "apps/desktop/src-tauri/icons/*",
+  "apps/desktop/src-tauri/src/**/*",
+  "apps/desktop/src-tauri/tauri.conf.json",
+  "apps/desktop/src-tauri/vendor/**/*",
+  "package-lock.json",
+  "package.json",
+  "release/desktop/collect-bundles.mjs",
+]
+output_dirs = ["apps/desktop/bundle/${config}"]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR", "PATH", "CARGO_HOME", "CARGO_TERM_COLOR", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "TMPDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET"]
 sandbox = false
