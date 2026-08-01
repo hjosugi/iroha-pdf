@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import {
   Alert,
   FlatList,
+  NativeModules,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -15,8 +17,28 @@ import type { Note, WorkspaceDocument } from '@iroha-pdf/core';
 import { BrandMark } from '@/components/BrandMark';
 import { createNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
 import { importPdfFromSystem } from '@/lib/files';
+import { parseStoreCaptureScenario } from '@/lib/store-capture';
 
-export default function LibraryScreen() {
+const STORE_CAPTURE_ENABLED = process.env.EXPO_PUBLIC_STORE_SCREENSHOTS === '1';
+let consumedNativeStoreScenario = false;
+
+export default function LibraryRoute() {
+  const scenario = nativeStoreCaptureScenario();
+  if (scenario) {
+    return <Redirect href={{ pathname: '/store-preview', params: { screen: scenario } }} />;
+  }
+  return <LibraryScreen />;
+}
+
+function nativeStoreCaptureScenario() {
+  if (!STORE_CAPTURE_ENABLED || Platform.OS !== 'ios' || consumedNativeStoreScenario) return null;
+  const settings = (NativeModules.SettingsManager as { settings?: Record<string, unknown> } | undefined)?.settings;
+  const scenario = parseStoreCaptureScenario(settings?.IrohaStoreScenario);
+  if (scenario) consumedNativeStoreScenario = true;
+  return scenario;
+}
+
+function LibraryScreen() {
   const router = useRouter();
   const [documents, setDocuments] = useState<WorkspaceDocument[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);

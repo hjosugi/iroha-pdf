@@ -40,6 +40,11 @@ loads `apps/mobile/assets/store/iroha-demo.pdf`, creates fixed local records, an
 then redirects to the ordinary production screen. Without the flag the route
 redirects home and cannot seed anything.
 
+Android selects each scene through the private deep link. iOS launches the app
+directly with a validated `IrohaStoreScenario` process argument, which avoids the
+system confirmation shown when automation opens a custom URL scheme. The launch
+argument is ignored unless the screenshot build flag is present.
+
 The Android job captures a 1080x1920 Pixel 6 AVD. The macOS 26 job uses Xcode
 26.6 (with a Swift 6.2-or-newer toolchain, required by Expo SDK 57) and captures the accepted native
 canvases from an iPhone 17 Pro Max Simulator (1320x2868) and an iPad Pro 13-inch

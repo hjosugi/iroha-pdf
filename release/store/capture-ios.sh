@@ -36,8 +36,11 @@ for index in "${!scenarios[@]}"; do
   raw="$output_dir/.${name}-rgba.png"
   final="$output_dir/${name}.png"
 
-  xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
-  xcrun simctl openurl "$udid" "iroha-pdf:///store-preview?screen=$scenario"
+  xcrun simctl launch \
+    --terminate-running-process \
+    "$udid" \
+    "$bundle_id" \
+    -IrohaStoreScenario "$scenario" >/dev/null
   if [[ "$scenario" == viewer ]]; then sleep 12; else sleep 5; fi
   xcrun simctl io "$udid" screenshot --type=png "$raw" >/dev/null
   "${image_convert[@]}" "$raw" -alpha off -strip -define png:color-type=2 "$final"

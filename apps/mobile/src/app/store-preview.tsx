@@ -5,12 +5,11 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import type { Note, PdfAnnotation, WorkspaceDocument } from '@iroha-pdf/core';
 import { saveAnnotation, saveDocument, saveNote } from '@/lib/database';
+import { parseStoreCaptureScenario } from '@/lib/store-capture';
 
 const ENABLED = process.env.EXPO_PUBLIC_STORE_SCREENSHOTS === '1';
 const DOCUMENT_ID = 'store-fixture-project-handoff';
 const FIXED_AT = '2026-01-15T09:41:00.000Z';
-
-type Scenario = 'library' | 'viewer' | 'tools' | 'drive';
 
 export default function StorePreviewScreen() {
   const router = useRouter();
@@ -19,7 +18,7 @@ export default function StorePreviewScreen() {
 
   useEffect(() => {
     if (!ENABLED) return;
-    const scenario = isScenario(screen) ? screen : 'library';
+    const scenario = parseStoreCaptureScenario(screen) ?? 'library';
     void seedStoreFixture()
       .then(() => {
         if (scenario === 'viewer') {
@@ -52,10 +51,6 @@ export default function StorePreviewScreen() {
       )}
     </View>
   );
-}
-
-function isScenario(value: string | undefined): value is Scenario {
-  return value === 'library' || value === 'viewer' || value === 'tools' || value === 'drive';
 }
 
 async function seedStoreFixture(): Promise<void> {
