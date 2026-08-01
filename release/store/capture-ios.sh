@@ -44,8 +44,10 @@ for index in "${!scenarios[@]}"; do
   xcrun simctl uninstall "$udid" "$bundle_id" >/dev/null 2>&1 || true
   xcrun simctl install "$udid" "$app_path"
   app_data_container="$(xcrun simctl get_app_container "$udid" "$bundle_id" data)"
+  scenario_marker="$app_data_container/Documents/iroha-store-scenario.txt"
   ready_marker="$app_data_container/Documents/iroha-store-ready.txt"
   rm -f "$ready_marker"
+  printf '%s' "$scenario" > "$scenario_marker"
 
   : > "$stdout_log"
   : > "$stderr_log"
@@ -53,8 +55,7 @@ for index in "${!scenarios[@]}"; do
     --stdout="$stdout_log" \
     --stderr="$stderr_log" \
     "$udid" \
-    "$bundle_id" \
-    -IrohaStoreScenario "$scenario")"
+    "$bundle_id")"
   launch_pid="${launch_output##*: }"
   [[ "$launch_pid" =~ ^[0-9]+$ ]] || {
     echo "unexpected simctl launch result: $launch_output" >&2

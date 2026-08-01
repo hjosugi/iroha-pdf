@@ -5,7 +5,6 @@ import {
   FlatList,
   Platform,
   Pressable,
-  Settings,
   StyleSheet,
   Text,
   TextInput,
@@ -17,8 +16,7 @@ import type { Note, WorkspaceDocument } from '@iroha-pdf/core';
 import { BrandMark } from '@/components/BrandMark';
 import { createNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
 import { importPdfFromSystem } from '@/lib/files';
-import { parseStoreCaptureScenario } from '@/lib/store-capture';
-import { markStoreCaptureReady } from '@/lib/store-capture-native';
+import { markStoreCaptureReady, readStoreCaptureScenario } from '@/lib/store-capture-native';
 
 const STORE_CAPTURE_ENABLED = process.env.EXPO_PUBLIC_STORE_SCREENSHOTS === '1';
 let consumedNativeStoreScenario = false;
@@ -33,7 +31,7 @@ export default function LibraryRoute() {
 
 function nativeStoreCaptureScenario() {
   if (!STORE_CAPTURE_ENABLED || Platform.OS !== 'ios' || consumedNativeStoreScenario) return null;
-  const scenario = parseStoreCaptureScenario(Settings.get('IrohaStoreScenario'));
+  const scenario = readStoreCaptureScenario();
   if (scenario) consumedNativeStoreScenario = true;
   return scenario;
 }
