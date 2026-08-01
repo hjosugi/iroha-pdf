@@ -52,6 +52,17 @@ jobs:
         working-directory: apps/mobile
         env:
           EXPO_NO_DOCTOR: '1'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/Android/Sdk/ndk
+            ~/Android/Sdk/cmake
+          key: store-android-${{ runner.os }}-${{ hashFiles('apps/mobile/package.json') }}
+          restore-keys: |
+            android-${{ runner.os }}-
+            store-android-${{ runner.os }}-
       - name: Build the installable release APK
         run: ./gradlew assembleRelease --no-daemon
         working-directory: apps/mobile/android
