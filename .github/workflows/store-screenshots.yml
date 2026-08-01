@@ -109,7 +109,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
-      - name: Select the Swift 6.2 toolchain required by Expo SDK 57
+      - name: Select a Swift 6.2-or-newer toolchain required by Expo SDK 57
         run: |
           sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
           xcodebuild -version
