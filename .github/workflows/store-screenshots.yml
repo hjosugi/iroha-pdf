@@ -93,10 +93,15 @@ jobs:
 
   ios:
     name: iPhone and iPad screenshots
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
+      - name: Select the Swift 6.2 toolchain required by Expo SDK 57
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          swift --version
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -137,8 +142,8 @@ jobs:
           runtime="$(xcrun simctl list runtimes --json | jq -r '
             [.runtimes[] | select(.isAvailable and (.name | startswith("iOS ")))]
             | sort_by(.version) | last | .identifier')"
-          phone_type="$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name == "iPhone 16 Pro Max") | .identifier')"
-          ipad_type="$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name == "iPad Pro 13-inch (M4)") | .identifier')"
+          phone_type="$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name == "iPhone 17 Pro Max") | .identifier')"
+          ipad_type="$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name == "iPad Pro 13-inch (M5)") | .identifier')"
           [[ -n "$runtime" && "$runtime" != null ]] || { xcrun simctl list runtimes; exit 1; }
           [[ -n "$phone_type" ]] || { xcrun simctl list devicetypes; exit 1; }
           [[ -n "$ipad_type" ]] || { xcrun simctl list devicetypes; exit 1; }
@@ -203,8 +208,8 @@ jobs:
               syntheticFixture: "apps/mobile/assets/store/iroha-demo.pdf",
               devices: [
                 { platform: "Android", model: "Pixel 6 AVD", canvas: "1080x1920", systemImage: "API 36 Google APIs x86_64" },
-                { platform: "iOS", model: "iPhone 16 Pro Max Simulator", canvas: "1320x2868" },
-                { platform: "iPadOS", model: "iPad Pro 13-inch (M4) Simulator", canvas: "2064x2752" }
+                { platform: "iOS", model: "iPhone 17 Pro Max Simulator", canvas: "1320x2868" },
+                { platform: "iPadOS", model: "iPad Pro 13-inch (M5) Simulator", canvas: "2064x2752" }
               ]
             }' > release/store/screenshots/evidence.json
       - uses: actions/setup-node@v5
