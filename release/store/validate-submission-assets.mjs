@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 
-const root = new URL('../../', import.meta.url);
+import { assert, pngDimensions, read } from '../lib/assets.mjs';
+
 const scenarios = ['01-library', '02-annotate', '03-tools', '04-drive'];
 const screenshotSets = [
   { directory: 'android-phone', width: 1080, height: 1920, store: 'play' },
@@ -9,17 +9,10 @@ const screenshotSets = [
   { directory: 'ios-ipad-13', width: 2064, height: 2752, store: 'apple' },
 ];
 
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
-
 function characters(value) {
   return [...value].length;
 }
 
-async function read(relativePath) {
-  return readFile(new URL(relativePath, root));
-}
 
 async function json(relativePath) {
   return JSON.parse(await read(relativePath));
@@ -73,10 +66,7 @@ for (const set of screenshotSets) {
   for (const scenario of scenarios) {
     const relativePath = `release/store/screenshots/${set.directory}/${scenario}.png`;
     const bytes = await read(relativePath);
-    const signature = bytes.subarray(0, 8).toString('hex');
-    assert(signature === '89504e470d0a1a0a', `${relativePath} is not a PNG`);
-    const width = bytes.readUInt32BE(16);
-    const height = bytes.readUInt32BE(20);
+    const [width, height] = pngDimensions(bytes, relativePath);
     const bitDepth = bytes[24];
     const colorType = bytes[25];
     assert(width === set.width && height === set.height, `${relativePath} must be ${set.width}x${set.height}, got ${width}x${height}`);
