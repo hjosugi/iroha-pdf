@@ -31,9 +31,10 @@ Japanese screenshot set only after the app itself ships Japanese localization.
 
 ## Reproduce the screenshots
 
-`Store screenshots` is a manually dispatched workflow because native simulator
-builds are expensive and a screenshot changes only when a release-facing screen
-changes. It builds installable native release configurations with
+The `CI` workflow exposes a `store_screenshots` dispatch mode because native
+simulator builds are expensive and a screenshot changes only when a
+release-facing screen changes. That mode calls the reusable `Store screenshots`
+workflow and builds installable native release configurations with
 `EXPO_PUBLIC_STORE_SCREENSHOTS=1`. That flag exposes an unlinked seed route which
 loads `apps/mobile/assets/store/iroha-demo.pdf`, creates fixed local records, and
 then redirects to the ordinary production screen. Without the flag the route
@@ -47,8 +48,8 @@ to an opaque 24-bit RGB PNG; transparency is rejected by both store workflows.
 Run and retrieve it from a pushed branch:
 
 ```sh
-gh workflow run store-screenshots.yml --ref "$(git branch --show-current)"
-gh run list --workflow store-screenshots.yml --branch "$(git branch --show-current)" --limit 1
+gh workflow run ci.yml --ref "$(git branch --show-current)" -f store_screenshots=true
+gh run list --workflow ci.yml --branch "$(git branch --show-current)" --limit 1
 gh run download RUN_ID --name store-submission-screenshots --dir /tmp/iroha-store-screenshots
 ```
 
