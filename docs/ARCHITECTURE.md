@@ -76,6 +76,8 @@
 
 ## Sync model
 
+以下は同期プロトコルの目標モデルです。共有型、Drive RESTクライアント、appData用repository、Changes API取得処理は実装済みですが、production OAuth、永続オフラインキュー、モバイル/デスクトップ間の連続同期、PDF競合解決UIは未完成です。現在のモバイル画面が行うのはapp-visible PDFの一覧と端末へのダウンロードまでです。
+
 同期対象はPDF binary、annotation operations、notes、tabs、document metadataです。
 
 - PDF binary: Drive file ID + versionで管理。競合時は自動上書きしない。

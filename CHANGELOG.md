@@ -16,6 +16,20 @@
 
 ### Fixed
 
+- Mobile library, viewer, notes, tools, Drive, and recovery screens now use
+  bounded tablet layouts, safe areas, at least 44-pixel primary targets, and
+  screen-reader roles, names, hints, and selected/disabled states. Empty,
+  loading, missing-document, retry, and irreversible-action states are explicit.
+- Document and note deletion now removes the private local copy and related
+  database/recovery records without touching the provider original. Annotation
+  add/delete/undo/redo updates the screen only after SQLite accepts the change.
+- Google Drive no longer presents a usable-looking connect action when OAuth is
+  absent, and connected users can refresh, sign out, or revoke access. A
+  downloaded PDF opens immediately.
+- Mobile and desktop user-facing UI now share the typed Japanese/English message
+  catalogue. Desktop tabs use valid independent controls, narrow windows retain
+  the history/note panel, toolbars scroll instead of clipping, keyboard focus is
+  visible, and the print dialog supports Escape and restores focus.
 - iOS prebuild now gives Google Sign-In's transitive Swift dependencies module
   maps and the native screenshot build selects the Swift 6.2 toolchain required
   by Expo SDK 57.

@@ -1,5 +1,11 @@
 # Google Drive integration
 
+## Current implementation status
+
+実装済みなのは、最小権限scopeを使うRESTクライアント、ページング、ダウンロード、再開可能アップロードのクライアント処理、appData repository、Changes API処理、およびモバイルのサインイン・一覧・ダウンロード画面です。
+
+一般ユーザー向け機能としては未完成です。Google Cloud / OAuth client、production consent screen、署名証明書との紐付け、実アカウント試験は未実施です。モバイル画面にはログアウトとGoogle権限取り消しを実装しましたが、本番アカウントでの検証は未完了です。モバイル画面からのアップロード、継続的な端末間同期、オフラインキュー、競合解決UI、Drive上のデータ削除は未完成です。以下のFile sync、Changes API、Conflict rulesは完成済みUIの説明ではなく、実装を完了させるためのプロトコル設計です。
+
 ## 権限
 
 使用するscopeは次の2つです。

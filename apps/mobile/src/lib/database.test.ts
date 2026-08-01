@@ -265,6 +265,46 @@ describe('saveDocument', () => {
   });
 });
 
+describe('deletion', () => {
+  it('deletes a document, its annotations, and annotation recovery copies without deleting linked notes', async () => {
+    await database.saveDocument(documentFixture());
+    await database.saveAnnotation(annotationFixture());
+    await database.saveNote(noteFixture({ linkedDocumentId: 'doc-1' }));
+    seedJournalEntry({
+      id: 'journal-delete-ann',
+      entityType: 'annotation',
+      entityId: 'ann-1',
+      attemptedPayload: JSON.stringify(annotationFixture()),
+      status: 'failed',
+      createdAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    await database.deleteDocument('doc-1');
+
+    expect(await database.listDocuments()).toEqual([]);
+    expect(await database.listAnnotations('doc-1')).toEqual([]);
+    expect(await database.listRecoveryCopies()).toEqual([]);
+    expect(await database.getNote('note-1')).toMatchObject({ linkedDocumentId: undefined });
+  });
+
+  it('deletes a note and any recovery copy for that note', async () => {
+    await database.saveNote(noteFixture());
+    seedJournalEntry({
+      id: 'journal-delete-note',
+      entityType: 'note',
+      entityId: 'note-1',
+      attemptedPayload: JSON.stringify(noteFixture({ body: 'interrupted' })),
+      status: 'failed',
+      createdAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    await database.deleteNote('note-1');
+
+    expect(await database.getNote('note-1')).toBeNull();
+    expect(await database.listRecoveryCopies()).toEqual([]);
+  });
+});
+
 describe('listDocuments', () => {
   it('puts the most recently opened document first', async () => {
     await database.saveDocument(documentFixture({ id: 'doc-1', modifiedAt: '2026-01-01T00:00:00.000Z' }));

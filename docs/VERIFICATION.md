@@ -2,6 +2,13 @@
 
 For **v0.4.0**, commit `0bb56eaafa94dee26f0f6c685acdfb29308c7338`.
 
+This is a release snapshot, not a claim that every later `main` change is covered by
+the same run. After v0.4.0, `main` commit `f14b456677e60bfff23bf305e6617ccbeb57dbf7`
+added store submission inputs. Its CI run 30712634194 passed, and native screenshot run
+30711299124 built unsigned Release apps for Android, iPhone Simulator and iPad
+Simulator. The additions do not change the physical-device and signed-artifact gaps
+listed below.
+
 The authoritative evidence is CI, not a developer machine: run
 <https://github.com/hjosugi/iroha-pdf/actions/runs/30691337190> is green on a
 clean checkout of that commit across Linux, macOS and Windows. What follows
@@ -51,7 +58,8 @@ Packaging and signing:
 
 Devices and accounts — nothing below has been run on real hardware:
 
-- Mobile development build with `react-native-pdf`; iOS has never been built.
+- Signed mobile production builds on physical hardware. Android and iOS Release
+  Simulator/Emulator builds now exist, but are not device or signing evidence.
 - Google OAuth client and consent screen; Drive download, update and resumable
   upload against the live API.
 - AirPrint and the Android Print Service.
@@ -62,10 +70,11 @@ Fixtures and cases still missing:
 
 - A 300 MB document. The largest exercised is the 41.6 MB image-heavy fixture,
   and the measured desktop ceiling stops at 249 MB.
-- Encrypted, malformed-but-repairable and AcroForm fixtures now exist, but two
-  limits they revealed are unresolved: the app cannot open a password-protected
-  PDF at all — there is no prompt — and saving an annotated repairable PDF
-  writes an incremental update that leaves the damaged xref in place.
+- Encrypted, malformed-but-repairable and AcroForm fixtures now exist. Mobile has
+  a password prompt and does not persist the password, but that path still lacks
+  physical-device evidence; desktop still refuses encrypted PDFs. Saving an
+  annotated repairable PDF writes an incremental update that leaves the damaged
+  xref in place.
 
 ## Environment note
 

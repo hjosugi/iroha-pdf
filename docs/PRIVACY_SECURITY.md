@@ -85,6 +85,11 @@ Diagnostics are off by default. Any future opt-in diagnostics must exclude docum
 
 ## Known release limitations
 
-The v0.1.0 source release is an engineering preview. Native app signing, store privacy forms, OAuth verification, malicious fixture testing, security sandboxing, and real-device evidence remain tracked in GitHub Issues. It should not be represented as a hardened production release.
+The current v0.4.0 line is an engineering preview. Encrypted, malformed-but-repairable,
+AcroForm and large synthetic fixtures are exercised where their independent tooling is
+available, but that is not a security sandbox. Native app signing, submitted store
+privacy forms, production OAuth verification, PDF-engine isolation and physical-device
+evidence remain tracked in GitHub Issues. It must not be represented as a hardened
+production release.
 
 Security reports should be submitted privately through GitHub's security advisory feature once enabled. Do not open a public issue containing credentials, private documents, or exploitable sample files.

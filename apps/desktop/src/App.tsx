@@ -69,7 +69,8 @@ export function App() {
   );
 
   if (error) {
-    return <main className="center-state">PDF engine failed: {error.message}</main>;
+    console.error('Iroha PDF: PDF engine failed to start', error);
+    return <main className="center-state"><div><strong>{t('app.engineFailed')}</strong><br />{t('app.engineFailedHelp')}</div></main>;
   }
 
   if (isLoading || !engine) {
