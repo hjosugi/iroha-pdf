@@ -67,6 +67,14 @@ export type ResumableUploadOptions = {
   onSession?: (session: ResumableUploadSession) => void;
 };
 
+type ResumableUploadInput = {
+  bytes: Uint8Array;
+  existingFileId?: string;
+  metadata: Record<string, unknown>;
+  options?: ResumableUploadOptions;
+  session?: ResumableUploadSession;
+};
+
 export type AccessTokenProvider = () => Promise<string>;
 
 export type DriveClientOptions = {
@@ -76,6 +84,14 @@ export type DriveClientOptions = {
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
+
+/**
+ * Drive returns only the fields it is asked for, so every call that produces a
+ * `DriveFile` has to ask for the same set. Naming it once keeps a field added to
+ * the type from arriving on some responses and being silently absent on others.
+ */
+const DRIVE_FILE_FIELDS = 'id,name,mimeType,modifiedTime,size,md5Checksum,version';
+const DRIVE_FILE_LIST_FIELDS = `nextPageToken,files(${DRIVE_FILE_FIELDS})`;
 
 export class GoogleDriveClient {
   private readonly getAccessToken: AccessTokenProvider;
@@ -106,7 +122,7 @@ export class GoogleDriveClient {
 
   async listPdfFiles(pageToken?: string): Promise<DriveFileList> {
     const params = new URLSearchParams({
-      fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,size,md5Checksum,version)',
+      fields: DRIVE_FILE_LIST_FIELDS,
       orderBy: 'modifiedTime desc',
       pageSize: '100',
       q: "mimeType='application/pdf' and trashed=false",
@@ -118,20 +134,13 @@ export class GoogleDriveClient {
     return response.json() as Promise<DriveFileList>;
   }
 
-  async listAllPdfFiles(): Promise<DriveFile[]> {
-    const files: DriveFile[] = [];
-    let pageToken: string | undefined;
-    do {
-      const page = await this.listPdfFiles(pageToken);
-      files.push(...page.files);
-      pageToken = page.nextPageToken;
-    } while (pageToken);
-    return files;
+  listAllPdfFiles(): Promise<DriveFile[]> {
+    return collectAllPages((pageToken) => this.listPdfFiles(pageToken));
   }
 
   async listAppDataFiles(name?: string, pageToken?: string): Promise<DriveFileList> {
     const params = new URLSearchParams({
-      fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,size,md5Checksum,version)',
+      fields: DRIVE_FILE_LIST_FIELDS,
       pageSize: '100',
       spaces: 'appDataFolder',
     });
@@ -145,19 +154,16 @@ export class GoogleDriveClient {
     return response.json() as Promise<DriveFileList>;
   }
 
-  async listAllAppDataFiles(name?: string): Promise<DriveFile[]> {
-    const files: DriveFile[] = [];
-    let pageToken: string | undefined;
-    do {
-      const page = await this.listAppDataFiles(name, pageToken);
-      files.push(...page.files);
-      pageToken = page.nextPageToken;
-    } while (pageToken);
-    return files;
+  listAllAppDataFiles(name?: string): Promise<DriveFile[]> {
+    return collectAllPages((pageToken) => this.listAppDataFiles(name, pageToken));
+  }
+
+  private mediaUrl(fileId: string): string {
+    return `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`;
   }
 
   async download(fileId: string): Promise<Uint8Array> {
-    const response = await this.request(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`);
+    const response = await this.request(this.mediaUrl(fileId));
     return new Uint8Array(await response.arrayBuffer());
   }
 
@@ -167,43 +173,14 @@ export class GoogleDriveClient {
     options: { signal?: AbortSignal; onProgress?: (progress: DownloadProgress) => void } = {},
   ): Promise<DriveFile> {
     const file = await this.getMetadata(fileId);
-    const response = await this.request(
-      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`,
-      { signal: options.signal },
-    );
-    const totalHeader = response.headers.get('Content-Length');
-    const total = totalHeader ? Number(totalHeader) : undefined;
-    const reader = response.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let loaded = 0;
-    if (reader) {
-      while (true) {
-        const result = await reader.read();
-        if (result.done) break;
-        chunks.push(result.value);
-        loaded += result.value.byteLength;
-        options.onProgress?.({ loaded, total });
-      }
-    } else {
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      chunks.push(bytes);
-      loaded = bytes.byteLength;
-      options.onProgress?.({ loaded, total });
-    }
-    const bytes = new Uint8Array(loaded);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    await cache.put(file, bytes);
+    const response = await this.request(this.mediaUrl(fileId), { signal: options.signal });
+    await cache.put(file, await readBodyWithProgress(response, options.onProgress));
     return file;
   }
 
   async getMetadata(fileId: string): Promise<DriveFile> {
-    const fields = 'id,name,mimeType,modifiedTime,size,md5Checksum,version';
     const response = await this.request(
-      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}`,
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(DRIVE_FILE_FIELDS)}`,
     );
     return response.json() as Promise<DriveFile>;
   }
@@ -252,63 +229,87 @@ export class GoogleDriveClient {
     });
   }
 
-  private async resumableUpload(input: {
-    bytes: Uint8Array;
-    existingFileId?: string;
-    metadata: Record<string, unknown>;
-    options?: ResumableUploadOptions;
-    session?: ResumableUploadSession;
-  }): Promise<DriveFile> {
+  /** Opens an upload session, which is the URL every chunk is then PUT to. */
+  private async beginResumableSession(
+    input: ResumableUploadInput,
+    mimeType: string,
+  ): Promise<ResumableUploadSession> {
+    const idPath = input.existingFileId ? `/${encodeURIComponent(input.existingFileId)}` : '';
+    const response = await this.request(
+      `${DRIVE_UPLOAD_API}/files${idPath}?uploadType=resumable&fields=${DRIVE_FILE_FIELDS}`,
+      {
+        method: input.existingFileId ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Length': String(input.bytes.byteLength),
+          'X-Upload-Content-Type': mimeType,
+        },
+        body: JSON.stringify(input.metadata),
+        signal: input.options?.signal,
+      },
+    );
+    const location = response.headers.get('Location');
+    if (!location) throw new Error('Google Drive did not return a resumable upload URL');
+    return {
+      uploadUrl: location,
+      offset: 0,
+      totalBytes: input.bytes.byteLength,
+      mimeType,
+      name: String(input.metadata.name ?? ''),
+      existingFileId: input.existingFileId,
+    };
+  }
+
+  /**
+   * Backs off, then asks Drive how much of the upload it actually holds. Reports
+   * `file` when the upload turned out to have completed, and `resynced` when the
+   * session was moved on so the next range can be sent. Neither is set when even
+   * the status probe was unavailable: the caller then resends the same
+   * idempotent byte range, and Drive reports its accepted Range either way.
+   */
+  private async recoverChunkFailure(
+    session: ResumableUploadSession,
+    attempt: number,
+    options: ResumableUploadOptions | undefined,
+  ): Promise<{ file?: DriveFile; resynced: boolean }> {
+    await delay(options?.retryDelayMs?.(attempt) ?? retryDelay(attempt), options?.signal);
+    try {
+      const status = await this.queryResumableUpload(session, options?.signal);
+      if (status.file) return { file: status.file, resynced: true };
+      advanceUpload(session, status.offset, options);
+      return { resynced: true };
+    } catch {
+      return { resynced: false };
+    }
+  }
+
+  private async resumableUpload(input: ResumableUploadInput): Promise<DriveFile> {
+    const { bytes, options } = input;
     const mimeType = String(input.metadata.mimeType ?? 'application/octet-stream');
     let session = input.session;
     const isResuming = Boolean(session);
     if (!session) {
-      const idPath = input.existingFileId ? `/${encodeURIComponent(input.existingFileId)}` : '';
-      const response = await this.request(
-        `${DRIVE_UPLOAD_API}/files${idPath}?uploadType=resumable&fields=id,name,mimeType,modifiedTime,size,md5Checksum,version`,
-        {
-          method: input.existingFileId ? 'PATCH' : 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'X-Upload-Content-Length': String(input.bytes.byteLength),
-            'X-Upload-Content-Type': mimeType,
-          },
-          body: JSON.stringify(input.metadata),
-          signal: input.options?.signal,
-        },
-      );
-      const location = response.headers.get('Location');
-      if (!location) throw new Error('Google Drive did not return a resumable upload URL');
-      session = {
-        uploadUrl: location,
-        offset: 0,
-        totalBytes: input.bytes.byteLength,
-        mimeType,
-        name: String(input.metadata.name ?? ''),
-        existingFileId: input.existingFileId,
-      };
-      input.options?.onSession?.({ ...session });
-    } else if (session.totalBytes !== input.bytes.byteLength) {
+      session = await this.beginResumableSession(input, mimeType);
+      options?.onSession?.({ ...session });
+    } else if (session.totalBytes !== bytes.byteLength) {
       throw new Error('Resumable upload byte length does not match the saved session');
     }
 
-    const chunkSize = input.options?.chunkSize ?? 8 * 1024 * 1024;
+    const chunkSize = options?.chunkSize ?? 8 * 1024 * 1024;
     if (!Number.isInteger(chunkSize) || chunkSize <= 0) throw new Error('chunkSize must be positive');
-    const maxRetries = input.options?.maxRetries ?? 4;
+    const maxRetries = options?.maxRetries ?? 4;
     if (isResuming) {
-      const status = await this.queryResumableUpload(session, input.options?.signal);
+      const status = await this.queryResumableUpload(session, options?.signal);
       if (status.file) return status.file;
-      session.offset = status.offset;
-      input.options?.onProgress?.({ loaded: session.offset, total: session.totalBytes });
-      input.options?.onSession?.({ ...session });
+      advanceUpload(session, status.offset, options);
     }
-    if (chunkSize < input.bytes.byteLength - session.offset && chunkSize % (256 * 1024) !== 0) {
+    if (chunkSize < bytes.byteLength - session.offset && chunkSize % (256 * 1024) !== 0) {
       throw new Error('Non-final Google Drive upload chunks must be multiples of 256 KiB');
     }
-    while (session.offset < input.bytes.byteLength) {
+    while (session.offset < bytes.byteLength) {
       const start = session.offset;
-      const endExclusive = Math.min(start + chunkSize, input.bytes.byteLength);
-      const chunk = input.bytes.slice(start, endExclusive);
+      const endExclusive = Math.min(start + chunkSize, bytes.byteLength);
+      const chunk = bytes.slice(start, endExclusive);
       let attempt = 0;
       while (true) {
         let response: Response;
@@ -318,54 +319,33 @@ export class GoogleDriveClient {
             headers: {
               'Content-Length': String(chunk.byteLength),
               'Content-Type': session.mimeType,
-              'Content-Range': `bytes ${start}-${endExclusive - 1}/${input.bytes.byteLength}`,
+              'Content-Range': `bytes ${start}-${endExclusive - 1}/${bytes.byteLength}`,
             },
             body: chunk as BodyInit,
-            signal: input.options?.signal,
+            signal: options?.signal,
           });
         } catch (error) {
-          if (input.options?.signal?.aborted || attempt >= maxRetries) throw error;
+          if (options?.signal?.aborted || attempt >= maxRetries) throw error;
           attempt += 1;
-          await delay(input.options?.retryDelayMs?.(attempt) ?? retryDelay(attempt), input.options?.signal);
-          try {
-            const status = await this.queryResumableUpload(session, input.options?.signal);
-            if (status.file) return status.file;
-            session.offset = status.offset;
-            input.options?.onProgress?.({ loaded: session.offset, total: session.totalBytes });
-            input.options?.onSession?.({ ...session });
-            break;
-          } catch {
-            // A transient status-query failure is retried by resending the same
-            // idempotent byte range; Drive will report its accepted Range.
-          }
+          const recovery = await this.recoverChunkFailure(session, attempt, options);
+          if (recovery.file) return recovery.file;
+          if (recovery.resynced) break;
           continue;
         }
         if (response.status === 308) {
           const uploaded = parseUploadedOffset(response.headers.get('Range')) ?? endExclusive;
-          session.offset = Math.max(session.offset, uploaded);
-          input.options?.onProgress?.({ loaded: session.offset, total: session.totalBytes });
-          input.options?.onSession?.({ ...session });
+          advanceUpload(session, Math.max(session.offset, uploaded), options);
           break;
         }
         if (response.ok) {
-          session.offset = session.totalBytes;
-          input.options?.onProgress?.({ loaded: session.offset, total: session.totalBytes });
-          input.options?.onSession?.({ ...session });
+          advanceUpload(session, session.totalBytes, options);
           return response.json() as Promise<DriveFile>;
         }
         if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
           attempt += 1;
-          await delay(input.options?.retryDelayMs?.(attempt) ?? retryDelay(attempt), input.options?.signal);
-          try {
-            const status = await this.queryResumableUpload(session, input.options?.signal);
-            if (status.file) return status.file;
-            session.offset = status.offset;
-            input.options?.onProgress?.({ loaded: session.offset, total: session.totalBytes });
-            input.options?.onSession?.({ ...session });
-            break;
-          } catch {
-            // Retry the chunk when even the status probe is transiently unavailable.
-          }
+          const recovery = await this.recoverChunkFailure(session, attempt, options);
+          if (recovery.file) return recovery.file;
+          if (recovery.resynced) break;
           continue;
         }
         await this.throwResponseError(response);
@@ -419,7 +399,7 @@ export class GoogleDriveClient {
   async listChanges(pageToken: string, options: DriveChangesOptions = {}): Promise<DriveChangePage> {
     const params = new URLSearchParams({
       fields:
-        'changes(fileId,removed,file(id,name,mimeType,modifiedTime,size,md5Checksum,version,trashed)),newStartPageToken,nextPageToken',
+        `changes(fileId,removed,file(${DRIVE_FILE_FIELDS},trashed)),newStartPageToken,nextPageToken`,
       pageToken,
       spaces: 'drive',
     });
@@ -473,6 +453,10 @@ export type AppDataManifest = {
 
 const APP_DATA_MANIFEST = 'iroha-manifest.json';
 
+function decodeJson<T>(bytes: Uint8Array): T {
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}
+
 /** Manifest-based operation log in appDataFolder. Files are immutable and the
  * small manifest is the only mutable object, making interrupted sync recovery
  * straightforward. */
@@ -482,8 +466,7 @@ export class DriveAppDataRepository {
   async readJson<T>(name: string): Promise<{ file: DriveFile; value: T } | undefined> {
     const file = (await this.client.listAllAppDataFiles(name))[0];
     if (!file) return undefined;
-    const bytes = await this.client.download(file.id);
-    return { file, value: JSON.parse(new TextDecoder().decode(bytes)) as T };
+    return { file, value: decodeJson<T>(await this.client.download(file.id)) };
   }
 
   async writeJson(name: string, value: unknown, existingFileId?: string): Promise<DriveFile> {
@@ -538,8 +521,7 @@ export class DriveAppDataRepository {
     const bundles: AppDataOperationBundle[] = [];
     for (const entry of manifest.operationFiles) {
       if (after && entry.createdAt <= after) continue;
-      const bytes = await this.client.download(entry.fileId);
-      bundles.push(JSON.parse(new TextDecoder().decode(bytes)) as AppDataOperationBundle);
+      bundles.push(decodeJson<AppDataOperationBundle>(await this.client.download(entry.fileId)));
     }
     return bundles;
   }
@@ -636,6 +618,69 @@ export class DriveChangesSynchronizer {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
   }
+}
+
+/** Drains a `files.list` cursor: Drive keeps returning a page token until the
+ * caller has seen everything the query matches. */
+async function collectAllPages(
+  readPage: (pageToken?: string) => Promise<DriveFileList>,
+): Promise<DriveFile[]> {
+  const files: DriveFile[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await readPage(pageToken);
+    files.push(...page.files);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  return files;
+}
+
+/**
+ * Reads a response body, reporting bytes as they arrive so a slow download shows
+ * movement. Runtimes that expose no stream fall back to one buffered read.
+ */
+async function readBodyWithProgress(
+  response: Response,
+  onProgress?: (progress: DownloadProgress) => void,
+): Promise<Uint8Array> {
+  const totalHeader = response.headers.get('Content-Length');
+  const total = totalHeader ? Number(totalHeader) : undefined;
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    onProgress?.({ loaded: bytes.byteLength, total });
+    return bytes;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+  while (true) {
+    const result = await reader.read();
+    if (result.done) break;
+    chunks.push(result.value);
+    loaded += result.value.byteLength;
+    onProgress?.({ loaded, total });
+  }
+
+  const bytes = new Uint8Array(loaded);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+/** Moves an upload session on and tells the caller, which is how a caller keeps
+ * enough state on disk to resume the upload after the process dies. */
+function advanceUpload(
+  session: ResumableUploadSession,
+  offset: number,
+  options: ResumableUploadOptions | undefined,
+): void {
+  session.offset = offset;
+  options?.onProgress?.({ loaded: session.offset, total: session.totalBytes });
+  options?.onSession?.({ ...session });
 }
 
 function sharedDriveParams(options: DriveChangesOptions): URLSearchParams {

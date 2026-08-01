@@ -6,6 +6,7 @@ import {
   rgb,
   type PDFFont,
   type PDFPage,
+  type RGB,
 } from 'pdf-lib';
 
 import type { PdfAnnotation } from './types';
@@ -27,17 +28,19 @@ const PAGE_SIZES = {
   letter: [612, 792],
 } as const;
 
-function hexToRgb(color: string): { red: number; green: number; blue: number } {
-  const normalized = color.replace('#', '');
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    return { red: 0.17, green: 0.36, blue: 1 };
-  }
+/** Used when an annotation carries a colour this code cannot read, so a mark is
+ * still drawn somewhere visible rather than silently dropped. */
+const FALLBACK_ANNOTATION_COLOR = rgb(0.17, 0.36, 1);
 
-  return {
-    red: Number.parseInt(normalized.slice(0, 2), 16) / 255,
-    green: Number.parseInt(normalized.slice(2, 4), 16) / 255,
-    blue: Number.parseInt(normalized.slice(4, 6), 16) / 255,
-  };
+function annotationColor(color: string): RGB {
+  const normalized = color.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return FALLBACK_ANNOTATION_COLOR;
+
+  return rgb(
+    Number.parseInt(normalized.slice(0, 2), 16) / 255,
+    Number.parseInt(normalized.slice(2, 4), 16) / 255,
+    Number.parseInt(normalized.slice(4, 6), 16) / 255,
+  );
 }
 
 function fitInside(
@@ -89,6 +92,14 @@ export async function imagesToPdf(
   return document.save({ useObjectStreams: true });
 }
 
+/** Callers pass page numbers straight from user input, so every entry point that
+ * accepts them rejects the same way and with the same message. */
+function assertPageIndex(pageIndex: number, pageCount: number): void {
+  if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pageCount) {
+    throw new Error(`Invalid zero-based page index: ${pageIndex}`);
+  }
+}
+
 export async function reorderPdf(
   source: Uint8Array,
   pageOrder: number[],
@@ -97,11 +108,7 @@ export async function reorderPdf(
   const pageCount = input.getPageCount();
   if (pageOrder.length === 0) throw new Error('pageOrder cannot be empty');
 
-  for (const pageIndex of pageOrder) {
-    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pageCount) {
-      throw new Error(`Invalid zero-based page index: ${pageIndex}`);
-    }
-  }
+  for (const pageIndex of pageOrder) assertPageIndex(pageIndex, pageCount);
 
   const output = await PDFDocument.create();
   const copiedPages = await output.copyPages(input, pageOrder);
@@ -136,11 +143,7 @@ export async function removePdfPages(
 ): Promise<Uint8Array> {
   const input = await PDFDocument.load(source);
   const remove = new Set(pageIndices);
-  for (const pageIndex of remove) {
-    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= input.getPageCount()) {
-      throw new Error(`Invalid zero-based page index: ${pageIndex}`);
-    }
-  }
+  for (const pageIndex of remove) assertPageIndex(pageIndex, input.getPageCount());
 
   const keep = input.getPageIndices().filter((pageIndex) => !remove.has(pageIndex));
   if (keep.length === 0) throw new Error('A PDF must keep at least one page');
@@ -200,10 +203,13 @@ function pageFrame(page: PDFPage): PageFrame {
   return { width: quarterTurn ? h : w, height: quarterTurn ? w : h, rotation, point };
 }
 
-function drawAnnotation(page: PDFPage, annotation: PdfAnnotation, font: PDFFont): void {
-  const frame = pageFrame(page);
-  const color = hexToRgb(annotation.color);
-  const pdfColor = rgb(color.red, color.green, color.blue);
+function drawAnnotation(
+  page: PDFPage,
+  frame: PageFrame,
+  annotation: PdfAnnotation,
+  font: PDFFont,
+): void {
+  const pdfColor = annotationColor(annotation.color);
 
   if (annotation.kind === 'text') {
     // The stored point is the top left of the text; the baseline sits one font
@@ -292,24 +298,21 @@ function findUnencodableCharacter(font: PDFFont, text: string): string | undefin
   }
 }
 
-export async function flattenAnnotations(
-  source: Uint8Array,
-  annotations: PdfAnnotation[],
-  options: FlattenAnnotationsOptions = {},
-): Promise<Uint8Array> {
-  const document = await PDFDocument.load(source);
+async function embedTextFont(
+  document: PDFDocument,
+  textFont: Uint8Array | undefined,
+): Promise<PDFFont> {
+  if (!textFont) return document.embedFont(StandardFonts.Helvetica);
+  document.registerFontkit(fontkit);
+  return document.embedFont(textFont, { subset: true });
+}
 
-  let font: PDFFont;
-  if (options.textFont) {
-    document.registerFontkit(fontkit);
-    font = await document.embedFont(options.textFont, { subset: true });
-  } else {
-    font = await document.embedFont(StandardFonts.Helvetica);
-  }
-
-  // Fail before writing anything, and name the character. pdf-lib would
-  // otherwise throw part-way through with a message that says nothing about
-  // which annotation is at fault or what the caller should do about it.
+/**
+ * Fails before anything is written, and names the character. pdf-lib would
+ * otherwise throw part-way through with a message that says nothing about which
+ * annotation is at fault or what the caller should do about it.
+ */
+function assertAnnotationsEncodable(font: PDFFont, annotations: PdfAnnotation[]): void {
   for (const annotation of annotations) {
     if (annotation.kind !== 'text') continue;
     const character = findUnencodableCharacter(font, annotation.text);
@@ -321,10 +324,30 @@ export async function flattenAnnotations(
         'Pass options.textFont with a font covering this script.',
     );
   }
+}
 
+export async function flattenAnnotations(
+  source: Uint8Array,
+  annotations: PdfAnnotation[],
+  options: FlattenAnnotationsOptions = {},
+): Promise<Uint8Array> {
+  const document = await PDFDocument.load(source);
+  const font = await embedTextFont(document, options.textFont);
+  assertAnnotationsEncodable(font, annotations);
+
+  // A page's frame is the same for every mark on it, and reading it costs two
+  // MediaBox lookups; a heavily annotated page would otherwise pay them per mark.
+  const pageCount = document.getPageCount();
+  const frames = new Map<number, PageFrame>();
   for (const annotation of annotations) {
-    if (annotation.pageIndex >= document.getPageCount()) continue;
-    drawAnnotation(document.getPage(annotation.pageIndex), annotation, font);
+    if (annotation.pageIndex >= pageCount) continue;
+    const page = document.getPage(annotation.pageIndex);
+    let frame = frames.get(annotation.pageIndex);
+    if (!frame) {
+      frame = pageFrame(page);
+      frames.set(annotation.pageIndex, frame);
+    }
+    drawAnnotation(page, frame, annotation, font);
   }
 
   return document.save({

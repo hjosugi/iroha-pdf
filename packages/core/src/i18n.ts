@@ -273,6 +273,10 @@ export function resolveLocale(preferred: readonly string[] | undefined): Locale 
 
 export type Translate = (key: MessageKey, values?: Readonly<Record<string, string | number>>) => string;
 
+/** Hoisted so translating a string does not allocate a pattern per call; every
+ * screen runs this on each render. */
+const PLACEHOLDER = /\{(\w+)\}/g;
+
 /**
  * `{name}` placeholders are substituted from `values`. A placeholder with no
  * matching value is left as written rather than replaced with "undefined": a
@@ -282,7 +286,7 @@ export function createTranslator(locale: Locale): Translate {
   return (key, values) => {
     const template = MESSAGES[key][locale];
     if (!values) return template;
-    return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    return template.replace(PLACEHOLDER, (whole, name: string) =>
       Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : whole,
     );
   };
