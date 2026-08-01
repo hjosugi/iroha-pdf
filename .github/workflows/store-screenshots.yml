@@ -32,6 +32,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager \
             'platforms;android-36' \
@@ -43,6 +46,7 @@ jobs:
             --name iroha-store-phone \
             --package 'system-images;android-36;google_apis;x86_64' \
             --device pixel_6
+          "$ANDROID_SDK_ROOT/emulator/emulator" -list-avds | grep -Fx iroha-store-phone
       - name: Generate the native project
         run: npx expo prebuild --platform android --no-install --clean
         working-directory: apps/mobile
