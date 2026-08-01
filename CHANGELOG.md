@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.4.0 - 2026-08-01
+
+The first release that carries installable desktop applications. They are
+**unsigned**: macOS Gatekeeper refuses the first launch and Windows SmartScreen
+warns, because signing and notarization are unimplemented and
+`docs/RELEASE_GATE.md` is still blocked with every evidence row pending. Check a
+download against `SHA256SUMS`, which records what CI built — it is not a
+signature.
+
+### Added
+
+- Desktop packages are built for all three operating systems and attached to
+  the release: **AppImage, deb and rpm** on Linux, a universal **dmg** on macOS,
+  and **msi** and NSIS **exe** installers on Windows. CI previously compiled the
+  binary on each OS but never ran the bundler, so no installer had ever been
+  produced and no release carried one.
+- Packaging runs through the build graph rather than as a command in a workflow
+  file, so it declares its inputs, depends on the web build instead of letting
+  the bundler shell back out to npm, and caches like everything else.
+- A release is assembled as a draft with every package already attached and is
+  published only once that succeeds. Publishing is what creates the tag, so a
+  failed build leaves no tag, no release page and nothing downloadable.
+- The documentation is published as a static site: 15 documents and a landing
+  page, with no generator, no CDN and no JavaScript, enforced by a per-page
+  content-security policy and a link checker that runs in CI. The privacy policy
+  now has the stable URL the store checklist asks for.
+- The desktop window and the site carry a favicon, which the app had never had.
+
+### Fixed
+
+- Three defects that only appear on a runner this project had never packaged on:
+  macOS ships a BSD `sha256sum` that rejects `--check`; GNU `sha256sum` escapes
+  the digest line for a filename containing a backslash, which every Windows
+  path has; and npm is `npm.cmd` on Windows, which a directly spawned build
+  action cannot resolve without naming it per platform.
+
 ## 0.3.0 - 2026-08-01
 
 Source preview. Native signed packages are still not included; see
