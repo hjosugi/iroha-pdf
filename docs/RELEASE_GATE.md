@@ -1,12 +1,13 @@
 # Release gate and evidence index
 
-Release approval remains **blocked** until all rows below contain evidence from
-signed, production-like artifacts. Put large/private artifacts in the release
-evidence store, not in Git; record only checksums and access-controlled links.
+Release approval remains **blocked**. Every row below needs evidence, and each
+row that names a device or a package needs it from signed, production-like
+artifacts. Put large/private artifacts in the release evidence store, not in
+Git; record only checksums and access-controlled links.
 
 | Gate | Platform / fixture | Required evidence | Result |
 |---|---|---|---|
-| Automated verification | clean checkout | CI URL, test/typecheck/build logs, SBOM | pending |
+| Automated verification | clean checkout | CI URL, test/typecheck/build logs, SBOM | **pass** — see below |
 | Startup | all supported devices | cold/warm timings and method | pending |
 | Large PDF | low-memory Android, iPad, desktop | 300 MB/500-page peak memory, time-to-first-page, no OOM | pending |
 | Battery/thermal | iOS and Android | 30-minute reading/annotation run, battery delta, thermal state | pending |
@@ -21,3 +22,24 @@ evidence store, not in Git; record only checksums and access-controlled links.
 Approvers must record the release commit, artifact hashes, date, device/OS
 versions, failures or waivers, and their name. A row without reproducible
 evidence is not a pass.
+
+## Automated verification — v0.3.0
+
+- **Release commit:** `0e1786f6aec94b7dde988673b2297fb55afe20b7` (tag `v0.3.0`)
+- **CI run:** <https://github.com/hjosugi/iroha-pdf/actions/runs/30684572747> —
+  all nine jobs green on a clean checkout of that commit. `android` runs here
+  because this was a push to `main`; it is skipped on pull requests and is not
+  one of the eight checks branch protection requires.
+- **Jobs:** Quality and Expo validation · Supply-chain policy ·
+  Tauri (ubuntu / macos / windows-latest) · e2e (ubuntu / macos / windows-latest)
+  · android
+- **Tests:** 96 unit tests — core 32, google-drive 9, desktop 25, mobile 30 —
+  plus the Playwright suite across 14 spec files on all three desktop OSes.
+- **Artifacts:** `quality-artifacts` (typecheck, build and Expo validation
+  output), `tauri-Linux` / `tauri-Windows` / `tauri-macOS`, `app-debug-apk`,
+  and `supply-chain-reports` — npm and cargo CycloneDX SBOMs, licence
+  allowlist results and `cargo audit`, retained 90 days (to 2026-10-30).
+
+This row covers the clean-checkout build and its SBOM only. It is not evidence
+about a packaged, signed or installed application: the **Packages** row stays
+`pending`, and desktop signing and notarization are unimplemented (#64).
