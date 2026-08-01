@@ -1,14 +1,22 @@
 # Iroha PDF
 
-軽量・ローカルファーストのPDFワークスペースです。iOS / Android / Windows / macOS / Linuxで、PDF、注釈、メモ、タブ、印刷、Google Drive同期を同じデータモデルで扱います。
+軽量・ローカルファーストのPDFワークスペースです。iOS / AndroidとWindows / macOS / Linux向けのUIから、PDF操作、注釈、メモ、同期用データモデルを共有します。
 
-`Iroha PDF` は、ローカルファーストでモバイルとデスクトップをシームレスにつなぐオープンソースPDFワークスペースです。
+`Iroha PDF` は、モバイルとデスクトップでPDFを端末内処理するオープンソースのエンジニアリングプレビューです。一般利用向けの署名、実機、性能、OAuth、ストア審査はまだ完了していません。
 
 `abc-pdf` は既存の商用製品 ABCpdf と同名GitHubリポジトリに近いため採用せず、公開名を `Iroha PDF`、リポジトリ名を `iroha-pdf` としています。
 
+## 現在のリリース状態
+
+- 最新の公開版は`0.4.0`で、その後の改善は`Unreleased`です。デスクトップ成果物はGitHub Releaseにありますが、Windows署名とmacOS notarizationは未実装です。
+- Android / iPhone / iPadのRelease構成はSimulator / Emulatorで起動・描画確認済みです。署名済みproduction buildを物理端末へ入れた証跡ではありません。
+- App Store / Google Playの掲載文と画像はリポジトリ内で検証済みです。TestFlight、Play closed testing、ストア申告・審査は未実施です。
+- Google DriveはRESTクライアントとモバイルの一覧・ダウンロード画面までです。production OAuth、アップロード、端末間同期、競合解決はリリース未検証です。
+- 正式リリースの可否は[docs/RELEASE_GATE.md](docs/RELEASE_GATE.md)を正とします。現在は**blocked**です。
+
 ## 現在実装済み
 
-- Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 6のモバイル基盤
+- Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 7のモバイル基盤
 - Tauri 2 + React + EmbedPDF（PDFium/WASM）のデスクトップ基盤
 - PDF表示、複数タブ、ハイライト、手書き、テキスト注釈
 - PDFごとの軽量メモと自動保存
@@ -22,7 +30,9 @@
   - `drive.file` / `drive.appdata` の最小権限
   - PDF一覧、ダウンロード、作成・更新、再開可能アップロード
   - Changes APIの開始トークンと差分取得
-- Google Driveモバイル画面（OAuthクライアント設定後に利用可能）
+- Google Driveモバイル画面（OAuthクライアント設定後の一覧・ダウンロード）
+- 日本語・英語UI、スクリーンリーダー用ラベル、44px以上のモバイル操作領域
+- 端末内PDF・メモの削除、Google Driveのログアウト・権限取り消し
 - 注釈座標、PDF操作、同期マージの単体テスト
 
 ## 重要な制限
@@ -31,7 +41,10 @@
 - モバイルの安全な最適化はObject Stream再構成のみです。画像の再圧縮を行わないため、縮まないPDFもあります。
 - 高圧縮、deskew、OCR、PDF/A、フォントアウトライン化はネイティブエンジンが必要です。デスクトップはpdfcpu sidecar、モバイルは専用ネイティブモジュールとしてIssue化しています。
 - Google Drive認証にはGoogle Cloud ConsoleでiOS、Android、Web OAuthクライアントを作成し、development buildを再生成する必要があります。
+- Driveのアップロード、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。
 - モバイルPDF表示は`react-native-pdf`を使うためExpo Goでは動きません。development buildを使用してください。
+- 物理iPhone / iPad / Androidでの印刷、スタイラス、回転、メモリ、電池、クラッシュ復旧は未検証です。
+- デスクトップ配布物は未署名です。Gatekeeper / SmartScreenの警告を回避できる一般向けリリースではありません。
 
 ## 構成
 
@@ -59,8 +72,10 @@ issues/
 
 - サイト: https://hjosugi.github.io/iroha-pdf/
 - プライバシーポリシー（ストアとOAuth同意画面へ入力する安定URL）: https://hjosugi.github.io/iroha-pdf/privacy/
+- App Store / Google Play提出文、画像、再生成手順: [release/store/README.md](release/store/README.md)
+- 画面別UI/UX監査、修正内容、残る実機ゲート: [docs/UI_UX_AUDIT.md](docs/UI_UX_AUDIT.md)
 
-ローカルで生成して確認する場合は`task site`または`npm run site`を実行し、`site/dist/`を静的配信してください。リポジトリ設定でGitHub Pagesを有効化するまで上記URLは404です。詳細は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
+ローカルで生成して確認する場合は`task site`または`npm run site`を実行し、`site/dist/`を静的配信してください。公開URLと提出時の確認項目は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
 
 ## セットアップ
 
@@ -112,7 +127,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
 
 ## 実装の続き
 
-[issues/ISSUES.md](issues/ISSUES.md)はGitHub Issueへそのまま転記できる形式です。`P0`から順に進めてください。
+[issues/ISSUES.md](issues/ISSUES.md)は初期バックログと検証記録のリポジトリ内ミラーです。現在の状態と優先度は[GitHub Issues](https://github.com/hjosugi/iroha-pdf/issues)を確認し、`P0`から進めてください。
 
 ## 主要な技術判断
 

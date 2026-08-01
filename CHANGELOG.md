@@ -1,11 +1,53 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Reproducible, store-ready screenshot sets for Android phones, 6.9-inch
+  iPhones, and 13-inch iPads. A release-configured native app loads only a
+  deterministic synthetic PDF, and CI records the source commit, run, emulator,
+  dimensions, RGB encoding, and scene order with the committed images.
+- Complete English and Japanese App Store and Google Play listing copy, plus a
+  validator for every current field limit, URL, screenshot, alt text, and asset
+  provenance.
+- Google Play's mandatory 1024x500 feature graphic and separate 512x512 RGBA
+  listing icon, generated from the same font-independent SVG brand source.
+
+### Fixed
+
+- Mobile library, viewer, notes, tools, Drive, and recovery screens now use
+  bounded tablet layouts, safe areas, at least 44-pixel primary targets, and
+  screen-reader roles, names, hints, and selected/disabled states. Empty,
+  loading, missing-document, retry, and irreversible-action states are explicit.
+- Document and note deletion now removes the private local copy and related
+  database/recovery records without touching the provider original. Annotation
+  add/delete/undo/redo updates the screen only after SQLite accepts the change.
+- Google Drive no longer presents a usable-looking connect action when OAuth is
+  absent, and connected users can refresh, sign out, or revoke access. A
+  downloaded PDF opens immediately.
+- Mobile and desktop user-facing UI now share the typed Japanese/English message
+  catalogue. Desktop tabs use valid independent controls, narrow windows retain
+  the history/note panel, toolbars scroll instead of clipping, keyboard focus is
+  visible, and the print dialog supports Escape and restores focus.
+- iOS prebuild now gives Google Sign-In's transitive Swift dependencies module
+  maps and the native screenshot build selects the Swift 6.2 toolchain required
+  by Expo SDK 57.
+- Release manifests explicitly remove unused microphone, camera, Face ID,
+  Android dev-overlay, and legacy broad-storage permissions while retaining a
+  specific photo-library purpose for the image-to-PDF feature.
+- README, security, architecture, privacy, build, test, Drive, store, and
+  verification documents now distinguish the current v0.4.0/`Unreleased`
+  implementation from planned sync, signed distribution, and physical-device
+  validation.
+
 ## 0.4.0 - 2026-08-01
 
 The first release that carries installable desktop applications. They are
 **unsigned**: macOS Gatekeeper refuses the first launch and Windows SmartScreen
 warns, because signing and notarization are unimplemented and
-`docs/RELEASE_GATE.md` is still blocked with every evidence row pending. Check a
+`docs/RELEASE_GATE.md` is still blocked despite automated verification passing;
+the device-, account- and package-dependent rows remain pending. Check a
 download against `SHA256SUMS`, which records what CI built — it is not a
 signature.
 

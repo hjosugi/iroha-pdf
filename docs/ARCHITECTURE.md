@@ -63,7 +63,7 @@
 
 ## Annotation strategy
 
-編集途中はPDF本体を変更しません。注釈はSQLiteとDrive sidecarに保存し、表示時に重ねます。ユーザーがExportまたはPrintを選んだ時だけPDFへ焼き込みます。
+編集途中はPDF本体を変更しません。現在のモバイル実装は注釈をSQLiteに保存し、表示時に重ねます。Drive sidecarは同期目標モデルであり、現在の画面からは書き込みません。ユーザーがExportまたはPrintを選んだ時だけPDFへ焼き込みます。
 
 利点:
 
@@ -75,6 +75,8 @@
 座標は左上原点の正規化座標です。PDFへ焼き込む時だけ、左下原点のPDF座標へ変換します。
 
 ## Sync model
+
+以下は同期プロトコルの目標モデルです。共有型、Drive RESTクライアント、appData用repository、Changes API取得処理は実装済みですが、production OAuth、永続オフラインキュー、モバイル/デスクトップ間の連続同期、PDF競合解決UIは未完成です。現在のモバイル画面が行うのはapp-visible PDFの一覧と端末へのダウンロードまでです。
 
 同期対象はPDF binary、annotation operations、notes、tabs、document metadataです。
 

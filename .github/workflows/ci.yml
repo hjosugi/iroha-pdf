@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      store_screenshots:
+        description: Build the native screenshot set instead of the regular CI jobs
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -20,6 +26,7 @@ env:
 jobs:
   quality:
     name: Quality and Expo validation
+    if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -90,6 +97,16 @@ jobs:
       - name: Resolve public Expo config
         run: npx expo config --type public --json > expo-config.json
         working-directory: apps/mobile
+      - name: Validate iOS prebuild structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform ios --no-install --clean
+          grep --fixed-strings --line-regexp 'use_modular_headers!' ios/Podfile
+          node -e "const p=require('./ios/Podfile.properties.json'); if(p.EXPO_USE_PRECOMPILED_MODULES!=='false') process.exit(1)"
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_DOCTOR: "1"
       - name: Validate Android prebuild
         run: npx expo prebuild --platform android --no-install --clean
         working-directory: apps/mobile
@@ -117,6 +134,7 @@ jobs:
   # decide whether a commit is releasable. Renaming it silently weakens both.
   tauri:
     name: Tauri (${{ matrix.os }})
+    if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
     runs-on: ${{ matrix.os }}
     # Was 45 for a compile. Bundling adds three bundlers on Linux, WiX and NSIS
     # downloads on Windows, and a second architecture on macOS.
@@ -235,6 +253,7 @@ jobs:
 
   supply-chain:
     name: Supply-chain policy
+    if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -284,6 +303,7 @@ jobs:
           retention-days: 90
   e2e:
     name: e2e (${{ matrix.os }})
+    if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     strategy:
@@ -436,7 +456,7 @@ jobs:
   # runs on main and on demand. Caches should bring warm runs down substantially.
   android:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true)
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
@@ -476,3 +496,8 @@ jobs:
           name: app-debug-apk
           path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
+
+  store-screenshots:
+    name: Native store screenshot set
+    if: github.event_name == 'workflow_dispatch' && inputs.store_screenshots == true
+    uses: ./.github/workflows/store-screenshots.yml

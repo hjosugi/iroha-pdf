@@ -42,6 +42,12 @@ for (const [relativePath, expected] of expectedPngs) {
   const bytes = await read(relativePath);
   const actual = pngDimensions(bytes, relativePath);
   assert(actual[0] === expected[0] && actual[1] === expected[1], `${relativePath} must be ${expected.join('x')}`);
+  if (relativePath === 'release/store/play/icon-512.png') {
+    assert(bytes[24] === 8 && bytes[25] === 6, `${relativePath} must be a 32-bit RGBA PNG as Google Play requires`);
+  }
+  if (relativePath === 'release/store/play/feature-graphic.png') {
+    assert(bytes[24] === 8 && bytes[25] === 2, `${relativePath} must be an opaque 24-bit RGB PNG as Google Play requires`);
+  }
 }
 
 for (const [relativePath, minimumSize] of [

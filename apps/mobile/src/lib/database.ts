@@ -166,6 +166,22 @@ export async function markDocumentOpened(id: string, openedAt = new Date().toISO
   await db.runAsync('UPDATE documents SET last_opened_at = ? WHERE id = ?', openedAt, id);
 }
 
+export async function deleteDocument(id: string): Promise<void> {
+  await initializeDatabase();
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    // A recovery copy for an annotation must not resurrect work for a document
+    // the user explicitly removed.
+    await db.runAsync(
+      `DELETE FROM write_journal
+       WHERE entity_type = 'annotation'
+         AND entity_id IN (SELECT id FROM annotations WHERE document_id = ?)`,
+      id,
+    );
+    await db.runAsync('DELETE FROM documents WHERE id = ?', id);
+  });
+}
+
 type NoteRow = {
   id: string;
   title: string;
@@ -231,6 +247,18 @@ export async function getNote(id: string): Promise<Note | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<NoteRow>('SELECT * FROM notes WHERE id = ?', id);
   return row ? mapNote(row) : null;
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  await initializeDatabase();
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `DELETE FROM write_journal WHERE entity_type = 'note' AND entity_id = ?`,
+      id,
+    );
+    await db.runAsync('DELETE FROM notes WHERE id = ?', id);
+  });
 }
 
 export async function saveAnnotation(annotation: PdfAnnotation): Promise<void> {

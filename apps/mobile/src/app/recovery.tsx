@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   discardRecoveryCopy,
@@ -7,6 +8,8 @@ import {
   restoreRecoveryCopy,
   type RecoveryCopy,
 } from '@/lib/database';
+import { ContentColumn } from '@/components/ContentColumn';
+import { t } from '@/lib/i18n';
 
 export default function RecoveryScreen() {
   const [copies, setCopies] = useState<RecoveryCopy[]>([]);
@@ -22,57 +25,84 @@ export default function RecoveryScreen() {
       else await discardRecoveryCopy(copy.journalId);
       await refresh();
     } catch (error) {
-      Alert.alert('Recovery failed', error instanceof Error ? error.message : String(error));
+      Alert.alert(t('recovery.failed'), error instanceof Error ? error.message : String(error));
     } finally {
       setBusyId(null);
     }
   };
 
+  const confirmDiscard = (copy: RecoveryCopy) => {
+    Alert.alert(
+      t('recovery.discardTitle'),
+      t('recovery.discardBody'),
+      [
+        { text: t('action.cancel'), style: 'cancel' },
+        { text: t('recovery.discard'), style: 'destructive', onPress: () => void act(copy, 'discard') },
+      ],
+    );
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <FlatList
         data={copies}
         keyExtractor={(item) => item.journalId}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>Recovery copies</Text>
-            <Text style={styles.description}>
-              The last valid saved state was kept. Review the interrupted edit before restoring it.
-            </Text>
-          </View>
+          <ContentColumn>
+            <View style={styles.header}>
+              <Text accessibilityRole="header" style={styles.title}>{t('recovery.title')}</Text>
+              <Text style={styles.description}>
+                {t('recovery.description')}
+              </Text>
+            </View>
+          </ContentColumn>
         }
-        ListEmptyComponent={<Text style={styles.empty}>No interrupted edits need recovery.</Text>}
+        ListEmptyComponent={<ContentColumn><Text style={styles.empty}>{t('recovery.empty')}</Text></ContentColumn>}
         renderItem={({ item }) => {
           const summary = item.entityType === 'note'
             ? 'body' in item.payload
-              ? item.payload.body || '(empty note)'
-              : 'Note edit'
+              ? item.payload.body || t('recovery.emptyNote')
+              : t('recovery.noteEdit')
             : 'kind' in item.payload
-              ? `${item.payload.kind} annotation`
-              : 'Annotation edit';
+              ? `${item.payload.kind} · ${t('recovery.annotation')}`
+              : t('recovery.annotationEdit');
+          const entityLabel = t(item.entityType === 'note' ? 'recovery.note' : 'recovery.annotation');
+          const statusLabel = t(item.status === 'rolled-back'
+            ? 'recovery.rolledBack'
+            : item.status === 'diverged'
+              ? 'recovery.diverged'
+              : 'recovery.failedStatus');
           return (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{item.entityType} · {item.status}</Text>
-              <Text numberOfLines={3} style={styles.summary}>{summary}</Text>
-              <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text>
-              <View style={styles.actions}>
-                <Pressable
-                  disabled={busyId === item.journalId}
-                  style={styles.secondaryButton}
-                  onPress={() => void act(item, 'discard')}
-                >
-                  <Text>Discard</Text>
-                </Pressable>
-                <Pressable
-                  disabled={busyId === item.journalId}
-                  style={styles.primaryButton}
-                  onPress={() => void act(item, 'restore')}
-                >
-                  <Text style={styles.primaryText}>Restore copy</Text>
-                </Pressable>
+            <ContentColumn>
+              <View style={styles.card}>
+                <Text accessibilityRole="header" style={styles.cardTitle}>{entityLabel} · {statusLabel}</Text>
+                <Text numberOfLines={3} style={styles.summary}>{summary}</Text>
+                <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text>
+                <View style={styles.actions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('recovery.discardLabel')}
+                    accessibilityState={{ disabled: busyId === item.journalId }}
+                    disabled={busyId === item.journalId}
+                    style={[styles.secondaryButton, busyId === item.journalId && styles.disabled]}
+                    onPress={() => confirmDiscard(item)}
+                  >
+                    <Text>{t('recovery.discard')}</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('recovery.restoreLabel')}
+                    accessibilityState={{ disabled: busyId === item.journalId }}
+                    disabled={busyId === item.journalId}
+                    style={[styles.primaryButton, busyId === item.journalId && styles.disabled]}
+                    onPress={() => void act(item, 'restore')}
+                  >
+                    <Text style={styles.primaryText}>{t('recovery.restoreCopy')}</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            </ContentColumn>
           );
         }}
       />
@@ -92,7 +122,8 @@ const styles = StyleSheet.create({
   summary: { marginTop: 8, color: '#606875', lineHeight: 19 },
   date: { marginTop: 8, color: '#969CA6', fontSize: 11 },
   actions: { marginTop: 14, flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  secondaryButton: { borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#ECEEF2' },
-  primaryButton: { borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#2B5CFF' },
+  secondaryButton: { minHeight: 44, justifyContent: 'center', borderRadius: 9, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#ECEEF2' },
+  primaryButton: { minHeight: 44, justifyContent: 'center', borderRadius: 9, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#2B5CFF' },
   primaryText: { color: '#FFFFFF', fontWeight: '700' },
+  disabled: { opacity: 0.45 },
 });

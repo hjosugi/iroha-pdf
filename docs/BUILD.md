@@ -12,9 +12,10 @@ TypeScript and Vite. Frost operates above those package-manager boundaries: it
 prunes unaffected workspace gates, caches successful tests, and restores the
 verified profile-specific tree below `apps/desktop/dist/`.
 
-The release-facing validation scripts — EAS profiles, brand assets and the
-vendored dependency patches — are Frost `test` targets rather than bare npm
-calls, so they are pruned and cached like every other gate. They read
+The release-facing validation scripts — EAS/native policy, brand assets, store
+submission inputs and the vendored dependency patches — are Frost `test`
+targets rather than bare npm calls, so they are pruned and cached like every
+other gate. They read
 checked-in configuration and assets, so each one declares those files as
 inputs: editing `apps/mobile/app.json` reruns the brand gate and nothing else.
 
@@ -58,10 +59,17 @@ task build:desktop    # cached/restorable Vite dist tree
 task bundle:desktop   # desktop installers for this host
 task validate         # EAS, product-identity and dependency-patch validation
 task ci               # the complete fast CI quality workflow
+npm run validate:store # localized copy, screenshots and capture provenance
 ```
 
 `FROST_BIN=/absolute/path/to/frost task check` selects a binary that is not on
 the normal `PATH`.
+
+Brand regeneration additionally needs `rsvg-convert` and ImageMagick
+(`magick`, or the ImageMagick 6 `convert` command). `rsvg-convert` rasterizes
+the SVG masters; ImageMagick preserves the 32-bit alpha channel Google Play
+requires on its listing icon. These tools are not needed for ordinary tests
+because the generated assets are committed and validated directly.
 
 ## Packaging the desktop app
 
@@ -145,9 +153,10 @@ plus `SHA256SUMS` over all of them. Verify a download with
 
 **These packages are unsigned**, and the workflow says so on every release.
 Windows code signing and macOS notarization are unimplemented (issue #64), and
-`docs/RELEASE_GATE.md` is still blocked with every row pending, including the
-`Packages` row that would record signature verification. macOS refuses the first
-launch through Gatekeeper and Windows shows a SmartScreen warning; users have to
+`docs/RELEASE_GATE.md` is still blocked. Automated clean-checkout verification
+passes, but the device-, account- and package-dependent rows remain pending,
+including the `Packages` row that would record signature verification. macOS
+refuses the first launch through Gatekeeper and Windows shows a SmartScreen warning; users have to
 click through both. A matching checksum proves a download is byte-for-byte what
 CI built and nothing more — it is not a signature. The workflow also defaults to
 marking the release as a pre-release. Turn that flag off, and rewrite the notes'

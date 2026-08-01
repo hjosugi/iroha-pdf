@@ -1,20 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import {
+  ActivityIndicator,
   Alert,
   AppState,
   StyleSheet,
+  Text,
   TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { Note } from '@iroha-pdf/core';
+import { ContentColumn } from '@/components/ContentColumn';
 import { getNote, saveNote } from '@/lib/database';
+import { t } from '@/lib/i18n';
 
 export default function NoteEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const [note, setNote] = useState<Note | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const noteRef = useRef<Note | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -23,7 +29,7 @@ export default function NoteEditorScreen() {
       noteRef.current = loaded;
       setNote(loaded);
       if (loaded) navigation.setOptions({ title: loaded.title });
-    }).catch(showSaveError);
+    }).catch(showSaveError).finally(() => setLoaded(true));
   }, [id, navigation]);
 
   useEffect(() => {
@@ -53,34 +59,50 @@ export default function NoteEditorScreen() {
     }, 250);
   };
 
-  if (!note) return <SafeAreaView style={styles.container} />;
+  if (!loaded) {
+    return <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}><View accessibilityRole="progressbar" accessibilityLabel={t('note.loading')} style={styles.center}><ActivityIndicator color="#2B5CFF" /></View></SafeAreaView>;
+  }
+
+  if (!note) {
+    return <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}><View style={styles.center}><Text accessibilityRole="header" style={styles.missingTitle}>{t('note.notFound')}</Text><Text style={styles.missingBody}>{t('document.removed')}</Text></View></SafeAreaView>;
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <TextInput
-        value={note.title}
-        onChangeText={(title) => update({ title })}
-        placeholder="Title"
-        style={styles.title}
-      />
-      <TextInput
-        value={note.body}
-        onChangeText={(body) => update({ body })}
-        placeholder="Write anything…"
-        multiline
-        textAlignVertical="top"
-        style={styles.body}
-      />
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
+      <ContentColumn maxWidth={840} style={styles.editor}>
+        <TextInput
+          accessibilityLabel={t('note.titleLabel')}
+          value={note.title}
+          onChangeText={(title) => update({ title })}
+          placeholder={t('note.title')}
+          style={styles.title}
+        />
+        <TextInput
+          accessibilityLabel={t('note.bodyLabel')}
+          value={note.body}
+          onChangeText={(body) => update({ body })}
+          placeholder={t('note.write')}
+          multiline
+          textAlignVertical="top"
+          style={styles.body}
+        />
+        <Text accessibilityLiveRegion="polite" style={styles.saved}>{t('autosave.saved')}</Text>
+      </ContentColumn>
     </SafeAreaView>
   );
 }
 
 function showSaveError(error: unknown): void {
-  Alert.alert('Note could not be saved', error instanceof Error ? error.message : String(error));
+  Alert.alert(t('note.saveFailed'), error instanceof Error ? error.message : String(error));
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18, backgroundColor: '#FFFDF7' },
+  container: { flex: 1, paddingHorizontal: 18, backgroundColor: '#FFFDF7' },
+  editor: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
+  missingTitle: { color: '#1D211E', fontSize: 20, fontWeight: '800' },
+  missingBody: { color: '#777D75', textAlign: 'center' },
   title: { color: '#1D211E', fontSize: 27, fontWeight: '800', paddingVertical: 12 },
   body: { flex: 1, color: '#30342F', fontSize: 16, lineHeight: 26, paddingTop: 10 },
+  saved: { paddingVertical: 12, color: '#858A83', fontSize: 12 },
 });

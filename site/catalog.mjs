@@ -14,7 +14,7 @@ export const DEFAULT_BASE_URL = 'https://hjosugi.github.io/iroha-pdf';
 
 export const HERO = {
   eyebrow: 'Local-first PDF workspace',
-  lead: '軽量・ローカルファーストのPDFワークスペース。iOS / Android / Windows / macOS / Linuxで、PDF、注釈、メモ、タブ、印刷、Google Drive同期を同じデータモデルで扱います。',
+  lead: '軽量・ローカルファーストのPDFワークスペース。iOS / AndroidとWindows / macOS / Linux向けUIから、PDF操作、注釈、メモ、同期用データモデルを共有します。現在は署名・実機・OAuth検証前のエンジニアリングプレビューです。',
   leadEnglish:
     'Documents, notes and annotations stay on the device. Google Drive is optional, least-privilege, and travels directly between the app and Google — there is no Iroha PDF server in the middle.',
 };
@@ -23,7 +23,7 @@ export const FACTS = [
   {
     term: 'ローカルファースト',
     termEnglish: 'Local-first',
-    detail: 'ローカルのPDFはローカルで開きます。オフラインで動作することはE2Eテストで強制しています。',
+    detail: 'デスクトップのローカルPDF表示はオフラインE2Eで検証しています。モバイルの物理端末ゲートは未完了です。',
   },
   {
     term: 'テレメトリなし',
@@ -125,6 +125,12 @@ export const SECTIONS = [
         slug: 'test-plan',
         label: 'Test plan',
         summary: '自動テストの範囲、E2Eが実際に見ている挙動、モバイルビルドの実測。',
+      },
+      {
+        source: 'docs/UI_UX_AUDIT.md',
+        slug: 'ui-ux-audit',
+        label: 'UI / UX audit',
+        summary: '通常画面を入口から終了まで見直した結果、修正内容、まだ物理端末で確認すべき項目。',
       },
       {
         source: 'docs/RELEASE_GATE.md',
