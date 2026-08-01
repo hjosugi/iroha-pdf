@@ -38,7 +38,20 @@
       "./plugins/with-modular-ios-headers",
       "expo-router",
       "expo-document-picker",
-      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Iroha PDF to choose images that you want to assemble into a PDF.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-sqlite",
       [
         "expo-splash-screen",

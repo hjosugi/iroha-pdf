@@ -32,4 +32,19 @@ assert.ok(
   "iOS prebuild must make Google Sign-In's Swift dependencies modular",
 );
 
+const pluginOptions = new Map(
+  app.expo.plugins
+    .filter((plugin) => Array.isArray(plugin))
+    .map(([name, options]) => [name, options]),
+);
+const imagePicker = pluginOptions.get("expo-image-picker");
+assert.equal(imagePicker?.cameraPermission, false, "image import must not request camera access");
+assert.equal(imagePicker?.microphonePermission, false, "image import must not request microphone access");
+assert.match(imagePicker?.photosPermission ?? "", /choose images/i, "image import needs a specific photo-library purpose");
+assert.equal(
+  pluginOptions.get("expo-secure-store")?.faceIDPermission,
+  false,
+  "token storage must not claim unused Face ID access",
+);
+
 console.log("EAS profiles, native permission policy, iOS pods, signing, and submit policies are valid.");
