@@ -17,6 +17,10 @@ else
 fi
 
 cleanup() {
+  adb shell am broadcast \
+    -a com.android.systemui.demo \
+    -e command exit >/dev/null 2>&1 || true
+  adb shell settings delete global sysui_demo_allowed >/dev/null 2>&1 || true
   adb shell settings delete global policy_control >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -26,9 +30,16 @@ adb shell wm size 1080x1920
 adb shell settings put global window_animation_scale 0
 adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
-# Store assets should show the app, not an emulator's changing clock and
-# navigation affordance. The app still receives the full 9:16 canvas.
-adb shell settings put global policy_control "immersive.full=$package"
+# Android's documented demo mode keeps all four captures visually deterministic
+# without hiding the system bars that users see around the release app.
+demo_broadcast=(adb shell am broadcast -a com.android.systemui.demo)
+adb shell settings put global sysui_demo_allowed 1
+"${demo_broadcast[@]}" -e command enter >/dev/null
+"${demo_broadcast[@]}" -e command clock -e hhmm 0941 >/dev/null
+"${demo_broadcast[@]}" -e command battery -e level 100 -e plugged false >/dev/null
+"${demo_broadcast[@]}" -e command network -e wifi show -e level 4 >/dev/null
+"${demo_broadcast[@]}" -e command network -e mobile show -e datatype none -e level 4 >/dev/null
+"${demo_broadcast[@]}" -e command notifications -e visible false >/dev/null
 
 scenarios=(library viewer tools drive)
 names=(01-library 02-annotate 03-tools 04-drive)

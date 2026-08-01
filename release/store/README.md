@@ -45,6 +45,11 @@ directly with a validated `IrohaStoreScenario` process argument, which avoids th
 system confirmation shown when automation opens a custom URL scheme. The launch
 argument is ignored unless the screenshot build flag is present.
 
+Android's status bar is fixed at 9:41 with the documented
+[System UI demo protocol](https://android.googlesource.com/platform/frameworks/base/+/android16-qpr2-release/packages/SystemUI/docs/demo_mode.md),
+and iOS uses `simctl status_bar`, so a changing runner clock cannot alter the
+committed images.
+
 The Android job captures a 1080x1920 Pixel 6 AVD. The macOS 26 job uses Xcode
 26.6 (with a Swift 6.2-or-newer toolchain, required by Expo SDK 57) and captures the accepted native
 canvases from an iPhone 17 Pro Max Simulator (1320x2868) and an iPad Pro 13-inch
