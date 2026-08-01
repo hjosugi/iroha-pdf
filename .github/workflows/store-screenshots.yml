@@ -64,7 +64,9 @@ jobs:
             android-${{ runner.os }}-
             store-android-${{ runner.os }}-
       - name: Build the installable release APK
-        run: ./gradlew assembleRelease --no-daemon
+        # This APK is installed only on the x86_64 capture AVD. Limiting native
+        # compilation avoids building unused physical-device ABI slices.
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
         working-directory: apps/mobile/android
       - name: Wait for Android and install the app
         shell: bash
@@ -129,6 +131,8 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/iroha-derived" \
+            ARCHS="$(uname -m)" \
+            ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO \
             build
           app="$(find "$RUNNER_TEMP/iroha-derived/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
