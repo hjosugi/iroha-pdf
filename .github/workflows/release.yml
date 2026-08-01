@@ -375,11 +375,30 @@ jobs:
       - name: Build and bundle the desktop app through Frost
         run: task bundle:desktop
 
+      # Windows builds under a Frost platform overlay, because npm is named
+      # `npm.cmd` there; asking for an overlay puts its name in ${config}, so
+      # the packages land one directory deeper. Resolved here rather than
+      # hardcoded twice: a wrong path fails the upload loudly, but a wrong
+      # guess about which host is which would not.
+      - name: Locate the staged packages
+        id: staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$(find apps/desktop/bundle -type d -name release -print -quit)"
+          if [[ -z "$dir" ]]; then
+            echo "::error::the bundle step staged nothing under apps/desktop/bundle"
+            exit 1
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          printf 'staged in %s:\n' "$dir"
+          ls -1 "$dir"
+
       - name: Retain the bundles
         uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ runner.os }}
-          path: apps/desktop/bundle/release/
+          path: ${{ steps.staged.outputs.dir }}/
           if-no-files-found: error
           retention-days: 14
 
