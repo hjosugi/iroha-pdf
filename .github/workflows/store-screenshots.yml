@@ -43,10 +43,6 @@ jobs:
             --name iroha-store-phone \
             --package 'system-images;android-36;google_apis;x86_64' \
             --device pixel_6
-          nohup emulator @iroha-store-phone \
-            -no-window -noaudio -no-boot-anim -no-snapshot \
-            -gpu swiftshader_indirect -camera-back none -camera-front none \
-            -memory 4096 > "$RUNNER_TEMP/android-emulator.log" 2>&1 &
       - name: Generate the native project
         run: npx expo prebuild --platform android --no-install --clean
         working-directory: apps/mobile
@@ -72,9 +68,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          adb wait-for-device
+          # Start after Gradle releases its memory. Running a 4 GB AVD beside a
+          # cold native build can let the hosted runner's OOM killer remove the
+          # emulator, after which an unbounded `adb wait-for-device` hangs.
+          adb start-server
+          nohup emulator @iroha-store-phone \
+            -no-window -noaudio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect -camera-back none -camera-front none \
+            -memory 3072 > "$RUNNER_TEMP/android-emulator.log" 2>&1 &
+          emulator_pid=$!
           for _ in $(seq 1 180); do
-            [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]] && break
+            if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then
+              break
+            fi
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/android-emulator.log"
+              exit 1
+            fi
             sleep 2
           done
           [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == 1 ]] || {
