@@ -3,9 +3,9 @@ import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import {
   Alert,
   FlatList,
-  NativeModules,
   Platform,
   Pressable,
+  Settings,
   StyleSheet,
   Text,
   TextInput,
@@ -32,8 +32,7 @@ export default function LibraryRoute() {
 
 function nativeStoreCaptureScenario() {
   if (!STORE_CAPTURE_ENABLED || Platform.OS !== 'ios' || consumedNativeStoreScenario) return null;
-  const settings = (NativeModules.SettingsManager as { settings?: Record<string, unknown> } | undefined)?.settings;
-  const scenario = parseStoreCaptureScenario(settings?.IrohaStoreScenario);
+  const scenario = parseStoreCaptureScenario(Settings.get('IrohaStoreScenario'));
   if (scenario) consumedNativeStoreScenario = true;
   return scenario;
 }
