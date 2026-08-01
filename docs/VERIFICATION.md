@@ -1,43 +1,71 @@
 # Verification report
 
-Verified on 2026-07-12 in the provided Linux build environment.
+For **v0.3.0**, commit `0e1786f6aec94b7dde988673b2297fb55afe20b7`.
 
-## Passed
+The authoritative evidence is CI, not a developer machine: run
+<https://github.com/hjosugi/iroha-pdf/actions/runs/30684572747> is green on a
+clean checkout of that commit across Linux, macOS and Windows. What follows
+records what that proves and, more importantly, what it does not.
 
-- `npm install`
-- `npm run typecheck`
-- `npm test`: 2 test files, 6 tests passed
-- `npm run build:desktop`: Vite production build passed
-- `npx expo-doctor`: 20/20 checks passed
-- `npx expo config --type public`: SDK 57 config resolved
-- `npx expo export --platform android`: Android Hermes production bundle generated
-- `npm ls --all`: dependency tree resolved; only optional native accelerators were absent
-- `cargo check --locked`: Tauri Rust code and locked dependency graph passed
+## Passed in CI
 
-## Source ZIP reproducibility
+- `npm ci` from the committed lockfile.
+- Typecheck across all four workspaces.
+- 96 unit tests — core 32, google-drive 9, desktop 25, mobile 30.
+- Playwright end-to-end suite, 14 spec files, run on ubuntu, macOS and Windows.
+  Cross-renderer checks use poppler and Ghostscript where they are installed and
+  skip themselves where they are not, which is Windows.
+- Desktop production build (Vite).
+- `cargo build --release --locked` on all three desktop OSes.
+- Expo: `expo config --type public` and `expo prebuild --platform android`, plus
+  an Android debug APK.
+- Supply chain: npm and cargo CycloneDX SBOMs, licence allowlists, `cargo audit`,
+  and dependency-patch verification. `npm audit --omit=optional
+  --audit-level=moderate` reports **0 vulnerabilities**; the `uuid` advisory
+  reached through Expo's `xcode` tooling that the v0.1.0 report tracked is gone.
 
-The repository was exported with `git archive` under an `iroha-pdf-v0.1.0/` top-level directory. The ZIP was extracted into a separate clean directory with no existing `node_modules`; `npm ci`, type checking, all 6 tests, desktop production build, Expo Doctor 20/20, and the Android production bundle all passed from that extracted copy.
+## Fixed since the v0.1.0 report
 
-## Build observations
+- The desktop build no longer fetches its PDF engine from `cdn.jsdelivr.net` at
+  runtime. Opening a local PDF with no network hung on `Opening PDF…` forever;
+  the engine is now bundled, and `apps/desktop/e2e/offline.spec.ts` fails the
+  build if any off-origin request reappears.
+- Annotating in Japanese no longer throws `WinAnsi cannot encode`, and
+  annotations no longer drift to another corner on a page carrying `/Rotate`.
+- `apps/mobile` has tests at all. It previously had none, so the SQLite schema,
+  the write journal and crash recovery were entirely unverified.
 
-- Desktop includes PDFium WASM around 4.6 MB before gzip and large JavaScript worker chunks. Lazy loading and code splitting are tracked in performance issues.
-- Vite warns that Node `crypto` is externalized from an EmbedPDF model bundle. The browser path uses `globalThis.crypto.randomUUID`; runtime desktop smoke testing is still required.
-- Tauri reached the final native Linux link step with Rust 1.95.0 after the missing desktop icon was added. Packaging did not complete because the environment's `libwebkit2gtk-4.1.so` requires `libjxl.so.0.12`, which is absent. This is a host system-library issue; the TypeScript/Vite build and Rust source compilation passed before linking.
-- iOS/Android native compile and device tests were not run because Xcode/Android SDK/devices and signing credentials are unavailable.
+## Not proven by any of the above
 
-## Dependency audit
+Packaging and signing:
 
-`npm audit --audit-level=high` exited successfully with no high or critical findings. It reported 13 moderate dependency paths that all lead to the same `uuid` advisory through Expo's `xcode` build-time dependency. npm only offers a breaking Expo downgrade as an automated fix, so it was not applied.
+- **No packaged desktop application has been built.** CI compiles the native
+  binary on all three OSes but does not run `tauri build`, so no `.AppImage`,
+  `.deb`, `.dmg`, `.msi` or NSIS installer exists, and none has ever been
+  installed or uninstalled. Releases carry no binaries.
+- Windows signing and macOS notarization are unimplemented (#64).
 
-The affected API is UUID v3/v5/v6 with a caller-provided buffer. Iroha PDF does not call that API; the dependency is used by Expo configuration/build tooling rather than PDF runtime processing. Keep the finding visible and re-run on every lockfile update. Do not force an incompatible `uuid` override through `xcode`.
+Devices and accounts — nothing below has been run on real hardware:
 
-## Still requires real environment evidence
+- Mobile development build with `react-native-pdf`; iOS has never been built.
+- Google OAuth client and consent screen; Drive download, update and resumable
+  upload against the live API.
+- AirPrint and the Android Print Service.
+- Startup timings, battery and thermal behaviour, memory profiling.
+- Rotation and stylus behaviour on an iPad or an Android tablet.
 
-- mobile development build with `react-native-pdf`
-- Google OAuth client setup and consent screen
-- Drive download/update/resumable upload
-- AirPrint and Android Print Service
-- Tauri package build on a clean Windows/macOS/Linux CI image (this Linux host is missing `libjxl.so.0.12`)
-- Windows signing, macOS notarization
-- 300 MB and malformed PDF fixtures
-- memory and battery profiling
+Fixtures and cases still missing:
+
+- A 300 MB document. The largest exercised is the 41.6 MB image-heavy fixture,
+  and the measured desktop ceiling stops at 249 MB.
+- Encrypted, malformed-but-repairable and AcroForm fixtures now exist, but two
+  limits they revealed are unresolved: the app cannot open a password-protected
+  PDF at all — there is no prompt — and saving an annotated repairable PDF
+  writes an incremental update that leaves the damaged xref in place.
+
+## Environment note
+
+`npx expo-doctor` cannot complete in the sandboxed environment used for this
+report: one check fetches the Expo config schema over the network and the proxy
+refuses it. This is a limitation of the environment, not a project finding —
+CI's `expo config --type public` passes.
