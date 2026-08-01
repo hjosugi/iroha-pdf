@@ -100,6 +100,15 @@ tasks:
     cmds:
       - '{{.FROST_BIN}} build {{.TARGET}} --profile release --no-tui'
 
+  # Plain Node on purpose: the documentation site has no dependencies, so this
+  # works in a fresh checkout with neither `task install` nor Frost. The cached
+  # CI gate is the `iroha-pdf-site-build` Frost target, which `task check` runs.
+  site:
+    desc: Build the GitHub Pages documentation site into site/dist and check it
+    cmds:
+      - node site/build.mjs --out site/dist
+      - node site/verify.mjs site/dist
+
   validate:
     desc: Validate release-facing EAS, brand, and dependency-patch policy
     preconditions:

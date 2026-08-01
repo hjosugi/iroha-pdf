@@ -47,9 +47,20 @@ docs/
   GOOGLE_DRIVE.md
   REPOSITORY_RESEARCH.md
   TEST_PLAN.md
+site/
+  build.mjs        docs/をGitHub Pagesへ公開する依存なしの生成器
 issues/
   ISSUES.md
 ```
+
+## ドキュメント
+
+`docs/`はGitHub Pagesへ公開しています。`main`へのpushごとに[.github/workflows/pages.yml](.github/workflows/pages.yml)が再生成します。
+
+- サイト: https://hjosugi.github.io/iroha-pdf/
+- プライバシーポリシー（ストアとOAuth同意画面へ入力する安定URL）: https://hjosugi.github.io/iroha-pdf/privacy/
+
+ローカルで生成して確認する場合は`task site`または`npm run site`を実行し、`site/dist/`を静的配信してください。リポジトリ設定でGitHub Pagesを有効化するまで上記URLは404です。詳細は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
 
 ## セットアップ
 

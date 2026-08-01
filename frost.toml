@@ -16,6 +16,9 @@ kind = "test"
 tool = "node"
 args = ["release/branding/validate-assets.mjs"]
 inputs = [
+  # The desktop shell inlines the mark as a data URI, so it is brand surface and
+  # editing it must rerun this gate.
+  "apps/desktop/index.html",
   "apps/desktop/src-tauri/icons/128x128.png",
   "apps/desktop/src-tauri/icons/128x128@2x.png",
   "apps/desktop/src-tauri/icons/32x32.png",
@@ -27,6 +30,33 @@ inputs = [
   "assets/branding/*",
   "release/branding/validate-assets.mjs",
   "release/store/screenshots/desktop/*.png",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+# Builds the GitHub Pages documentation site into a temporary directory and
+# refuses a broken internal link, a dangling anchor, an off-origin subresource,
+# or a missing /privacy/ page. Its inputs are the documents it publishes, so
+# editing one reruns this and nothing else. `site/dist/` is deliberately absent:
+# the gate builds its own copy and never reads a checked-out output tree.
+[target.iroha-pdf-site-build]
+kind = "test"
+tool = "node"
+args = ["site/verify.mjs"]
+inputs = [
+  "CHANGELOG.md",
+  "SECURITY.md",
+  "THIRD_PARTY_NOTICES.md",
+  "apps/mobile/assets/images/icon.png",
+  "assets/branding/iroha-icon.svg",
+  "docs/*.md",
+  "package.json",
+  "site/assets/site.css",
+  "site/build.mjs",
+  "site/catalog.mjs",
+  "site/markdown.mjs",
+  "site/verify.mjs",
 ]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]

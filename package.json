@@ -14,6 +14,8 @@
     "build:desktop": "npm run build --workspace @iroha-pdf/desktop",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "site": "node site/build.mjs --out site/dist",
+    "validate:site": "node site/verify.mjs",
     "validate:eas": "node release/mobile/validate-eas-config.mjs",
     "brand:generate": "bash scripts/generate-brand-assets.sh",
     "validate:brand": "node release/branding/validate-assets.mjs",
