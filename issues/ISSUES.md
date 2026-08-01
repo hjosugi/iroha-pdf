@@ -814,7 +814,7 @@ Labels: `platform:desktop`, `type:test`, `priority:P1`
 
 Playwright + Chromiumで14 spec / 68件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*` / `plugin:dialog|*`のinvokeプロトコルをin-memory filesystemで再実装するため、**アプリ側のコードは本物のまま**desktop保存経路を検証できる。
 
-実Tauriランタイム版を`apps/desktop/e2e-tauri/run.mjs`に追加（`npm run e2e:tauri`）。tauri-driver + WebKitWebDriverで実バイナリを起動し、17項目を検証:
+実Tauriランタイム版を`apps/desktop/e2e-tauri/run.mjs`に追加（`npm run e2e:tauri`）。tauri-driver + WebKitWebDriverで実バイナリを起動し、~~17項目~~ **22項目**（2026-08-01の実行で数え直した。pdftotextが無い環境では末尾2件がskipされて20件）を検証:
 
 - 本番と同じWebKitGTK webviewでpdfiumが描画する（Chromiumのみだった穴を解消）
 - capability拒否がRust側で実際に効く（`/etc/passwd`読み取り、スコープ外書き込み、`fs.remove`をすべて拒否）
@@ -858,10 +858,11 @@ Expo prebuild validationはQuality jobのstepとして通っている。android�
 
 未実装:
 
-- 実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証
+- ~~実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証~~ **検証済み（2026-08-01）**: Ubuntu 24.04 + `xvfb-run -a` + `webkit2gtk-driver` 2.52.3 + `tauri-driver` 2.0.6で22項目すべてPASS。アプリ側の変更は不要だった。`e2e-tauri (ubuntu)` jobとして`ci.yml`に追加。ただし**`task bundle:desktop`のバイナリでは動かない**: harnessが使う`import.meta.env.DEV`のopen seamはproduction bundleから消え、`IROHA_E2E_SCOPE`は`#[cfg(debug_assertions)]`なのでreleaseバイナリに存在しない。必要なのはdebugバイナリ + Vite dev serverで、そのビルドは新targetの`desktop-app-linux-debug`（`task build:desktop:debug`）
 - ~~Tauri jobは`cargo build --release`まで~~ **訂正（2026-08-01）**: Tauri jobは`task bundle:desktop`でFrostのターゲットを実行し3 OS分のbundleを生成してartifactに上げる（`ci.yml:207-231`）。releaseワークフローも同じ経路で成果物を添付する。#059に残るのは署名のみ
 - iOSビルドはmacOS runnerでも未実施（#058のEASが前提）
-- e2eはPlaywright + Chromiumのみ。WebKitGTK実バイナリはローカル`e2e:tauri`だけ
+- 新設した`e2e-tauri`は`scripts/github/protect-main.sh`の必須checkに**入れていない**。CI上で一度もgreenになっていないjobを初日からmerge gateにはしない。実績がついたら昇格する
+- WebKitGTK実バイナリのCI実行はLinuxのみ。macOSはWKWebView、WindowsはEdgeのdriverが要るので、このjobのコピーでは済まない
 
 Acceptance: PR必須checkとして動き、artifact retentionを設定する。
 

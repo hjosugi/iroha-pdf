@@ -324,6 +324,113 @@ jobs:
             apps/desktop/test-results/
           retention-days: 14
 
+  # The `e2e` job above substitutes the Tauri runtime: it is the real application
+  # code, but the plugins beneath it are `apps/desktop/e2e/tauri-stub.ts` and the
+  # engine renders in Chromium. This job substitutes nothing. It compiles the Rust
+  # binary, drives it through tauri-driver and a real WebKitGTK webview, and reads
+  # the bytes it leaves on disk — so what it proves is what only the real runtime
+  # can: that the capability actually refuses `/etc/passwd`, that pdfium renders
+  # under WebKit and not just Chromium, and that a save rewrites the file and keeps
+  # the pristine original beside it. Twenty-two checks, all of them assertions.
+  #
+  # Not on the required list in scripts/github/protect-main.sh, deliberately: a job
+  # that has never been green on this runner should not be able to block a merge on
+  # its first day. Promote it once it has a record.
+  #
+  # Linux only. macOS would need a WKWebView driver and Windows an Edge one, and
+  # neither is a copy of this job.
+  e2e-tauri:
+    name: Real-runtime e2e (ubuntu)
+    runs-on: ubuntu-latest
+    # Cold, the debug compile of the Tauri dependency tree dominates: 2m 24s on the
+    # machine this was verified on, and a shared runner is slower.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          # Keyed apart from the `tauri` job's cache of the same workspace: that one
+          # holds a release build, this one a debug build, and sharing a key would
+          # have each evict the other's artifacts every run.
+          key: debug
+      - uses: go-task/setup-task@v2.1.0
+        with:
+          version: 3.52.0
+      # Byte-identical to the block in the `quality` and `tauri` jobs above; see the
+      # note there. Raise the version in all of them together.
+      - name: Install checksummed FrostBuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Linux)
+              asset=frostbuild-v0.8.0-x86_64-unknown-linux-musl.tar.gz
+              sha=7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795 ;;
+            macOS)
+              asset=frostbuild-v0.8.0-aarch64-apple-darwin.tar.gz
+              sha=834b3d841e78e5a46851fb84202d49a6faaa5c0cc64d9b9e0cee0fd314d01bf6 ;;
+            Windows)
+              asset=frostbuild-v0.8.0-x86_64-pc-windows-msvc.zip
+              sha=358e95577aa865b679cf35f31405ae9ffe2f4acc7b586f65cf5a253bd1394b31 ;;
+            *)
+              echo "::error::no pinned FrostBuild release for $RUNNER_OS"
+              exit 1 ;;
+          esac
+          mkdir -p "$RUNNER_TEMP/frost"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/$asset" \
+            "https://github.com/hjosugi/frost-build/releases/download/v0.8.0/$asset"
+          case "$RUNNER_OS" in
+            macOS) actual="$(shasum --algorithm 256 < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+            *)     actual="$(sha256sum < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+          esac
+          if [[ "$actual" != "$sha" ]]; then
+            echo "::error::$asset has sha256 $actual; the pin expects $sha"
+            exit 1
+          fi
+          case "$asset" in
+            *.zip)
+              unzip -q -j "$RUNNER_TEMP/$asset" -d "$RUNNER_TEMP/frost" ;;
+            *)
+              tar --extract --gzip --file "$RUNNER_TEMP/$asset" \
+                --directory "$RUNNER_TEMP/frost" --strip-components=1 ;;
+          esac
+          echo "$RUNNER_TEMP/frost" >> "$GITHUB_PATH"
+      # The first line is the `tauri` job's list, because this compiles the same
+      # crate. The second is what running it needs and bundling does not:
+      # WebKitWebDriver is the native driver tauri-driver drives, xvfb is the
+      # display the webview opens its window on, and pdftotext is how the last two
+      # checks read the saved file back (they skip themselves without it).
+      - name: Install Linux build and real-runtime dependencies
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+          webkit2gtk-driver xvfb poppler-utils
+      # Pinned like every other tool here. tauri-driver is the WebDriver shim that
+      # starts the application and forwards to WebKitWebDriver; 2.x is the series
+      # that speaks to Tauri 2.
+      - name: Install pinned tauri-driver
+        run: cargo install tauri-driver --version 2.0.6 --locked
+      - name: Install locked dependencies
+        run: npm ci
+      # Not `task bundle:desktop`: that produces the release packages, and the
+      # harness cannot drive one — the seam it opens files through is compiled out
+      # of a production frontend and the scope it needs is `debug_assertions`-only.
+      # See the target's comment in frost.toml.
+      - name: Build the debug binary through Frost
+        run: task build:desktop:debug
+      # `run.mjs` starts the Vite dev server the debug binary loads, builds the
+      # fixture if this checkout has not got one, and exits non-zero on the first
+      # failed check.
+      - name: Run the real-runtime e2e under Xvfb
+        run: xvfb-run -a npm run e2e:tauri
+
   # Not on pull_request: a cold build measured 42m 51s locally, most of it fetching the
   # 2 GB NDK and compiling native code. Gating every PR on that is not worth it, so this
   # runs on main and on demand. Caches should bring warm runs down substantially.
