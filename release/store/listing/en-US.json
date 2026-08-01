@@ -1,0 +1,28 @@
+{
+  "locale": "en-US",
+  "appStore": {
+    "name": "Iroha PDF",
+    "subtitle": "Private PDF tools and notes",
+    "promotionalText": "Open, annotate, reorganize, export, and print PDFs while keeping documents on your device. Connect only the Google Drive files you choose.",
+    "description": "Iroha PDF is a local-first workspace for reading and working with PDFs on your phone or tablet. Your documents stay on your device unless you explicitly share a copy or connect Google Drive.\n\nREAD AND ANNOTATE\n• Open PDFs from Files and supported document providers\n• Highlight, draw, and add text annotations\n• Undo and redo annotation changes\n• Export an edited copy or open the system print dialog\n\nORGANIZE PDF PAGES\n• Turn selected images into an A4 PDF\n• Merge multiple PDFs\n• Reorder, duplicate, extract, remove, or rotate pages\n• Optimize PDF structure without rasterizing pages\n\nKEEP CONTEXT CLOSE\n• Write notes alongside your document library\n• Search PDFs and notes from one local workspace\n• Recover interrupted note and annotation writes\n\nOPTIONAL GOOGLE DRIVE ACCESS\nGoogle Drive is optional. When connected, Iroha PDF requests only the limited drive.file and appDataFolder scopes. It does not receive general access to every file in your Drive.\n\nPRIVACY BY DEFAULT\nIroha PDF contains no advertising, tracking, or analytics SDK. PDF and note processing happens on your device. Optional Drive transfers go directly between the app and Google when you request them.\n\nSome document features depend on the PDF itself. Password-protected files require their password, and structural optimization may not reduce every file.",
+    "keywords": "pdf,annotate,highlight,merge,reorder,rotate,notes,offline,local,print",
+    "supportUrl": "https://hjosugi.github.io/iroha-pdf/",
+    "marketingUrl": "https://hjosugi.github.io/iroha-pdf/",
+    "privacyPolicyUrl": "https://hjosugi.github.io/iroha-pdf/privacy/",
+    "primaryCategory": "Productivity",
+    "secondaryCategory": "Utilities"
+  },
+  "googlePlay": {
+    "name": "Iroha PDF",
+    "shortDescription": "Private PDF annotation, page tools, notes, and optional Drive access",
+    "fullDescription": "Iroha PDF is a local-first PDF workspace for phones and tablets. Open, annotate, reorganize, export, and print documents without sending their contents to an Iroha PDF server.\n\nWork with PDFs\n• Open PDFs from Files and supported providers\n• Highlight, draw, and add text\n• Undo and redo annotations\n• Export an edited copy or print through the system dialog\n\nOrganize pages\n• Create an A4 PDF from selected images\n• Merge multiple PDFs\n• Reorder, duplicate, extract, remove, and rotate pages\n• Optimize PDF structure without turning pages into images\n\nKeep useful context nearby\n• Write and search notes alongside your PDFs\n• Keep an offline document library\n• Recover interrupted note and annotation writes\n\nOptional Google Drive connection\nGoogle Drive is not required. If you connect it, Iroha PDF requests the limited drive.file and appDataFolder scopes. This allows the app to work with files you choose without receiving general access to every file in your Drive.\n\nPrivacy by default\nIroha PDF has no advertising, tracking, or analytics SDK. PDF and note processing happens on your device. Data leaves the device only when you choose a system sharing or printing action, or request an optional Google Drive transfer.\n\nThe app keeps originals separate when creating processed output. Password-protected documents require their password. Structural optimization preserves page content but may not make every PDF smaller.",
+    "privacyPolicyUrl": "https://hjosugi.github.io/iroha-pdf/privacy/",
+    "category": "Productivity"
+  },
+  "screenshotAltText": {
+    "01-library": "Iroha PDF local-first library with two synthetic PDFs, notes, search, and document actions.",
+    "02-annotate": "A synthetic project PDF open in Iroha PDF with highlight, ink, text, export, and print tools.",
+    "03-tools": "On-device PDF tools for images, page reordering, merging, extraction, rotation, and optimization.",
+    "04-drive": "Google Drive connection screen explaining the limited file and app-data permissions before sign-in."
+  }
+}

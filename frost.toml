@@ -48,6 +48,31 @@ env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false
 
+# The store listing is a release input, so screenshots, localized copy, fixture
+# provenance, and the generator that makes the screenshots reproducible form a
+# separate test boundary. Keeping it separate from the brand icon gate makes a
+# stale description or a translucent simulator capture fail for the right
+# reason instead of being hidden inside an icon count.
+[target.iroha-pdf-store-validate]
+kind = "test"
+tool = "node"
+args = ["release/store/validate-submission-assets.mjs"]
+inputs = [
+  ".github/workflows/store-screenshots.yml",
+  "apps/mobile/assets/store/iroha-demo.pdf",
+  "apps/mobile/src/app/store-preview.tsx",
+  "release/store/capture-android.sh",
+  "release/store/capture-ios.sh",
+  "release/store/fixtures/generate.mjs",
+  "release/store/listing/*.json",
+  "release/store/screenshots/**/*.json",
+  "release/store/screenshots/**/*.png",
+  "release/store/validate-submission-assets.mjs",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
 # Builds the GitHub Pages documentation site into a temporary directory and
 # refuses a broken internal link, a dangling anchor, an off-origin subresource,
 # or a missing /privacy/ page. Its inputs are the documents it publishes, so

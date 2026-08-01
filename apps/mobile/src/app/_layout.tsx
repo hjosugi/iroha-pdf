@@ -29,6 +29,7 @@ export default function RootLayout() {
         <Stack.Screen name="tools" options={{ title: 'PDF tools' }} />
         <Stack.Screen name="drive" options={{ title: 'Google Drive' }} />
         <Stack.Screen name="recovery" options={{ title: 'Recovery copies' }} />
+        <Stack.Screen name="store-preview" options={{ headerShown: false }} />
       </Stack>
     </SafeAreaProvider>
   );

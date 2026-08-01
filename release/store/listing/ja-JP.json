@@ -1,0 +1,28 @@
+{
+  "locale": "ja-JP",
+  "appStore": {
+    "name": "Iroha PDF",
+    "subtitle": "端末内で使えるPDF編集とノート",
+    "promotionalText": "PDFを開く、注釈する、ページを整理する、書き出す、印刷する。文書は端末内で処理し、必要なファイルだけGoogle Driveと連携できます。",
+    "description": "Iroha PDFは、スマートフォンやタブレットでPDFを読み、編集するためのローカルファーストなワークスペースです。共有やGoogle Driveへの接続を自分で選ばない限り、文書は端末内に留まります。\n\nPDFを読む・注釈する\n・ファイルアプリなどの対応プロバイダーからPDFを開く\n・ハイライト、手書き、テキスト注釈を追加\n・注釈の取り消しとやり直し\n・編集済みコピーの書き出し、システム印刷画面の表示\n\nPDFのページを整理\n・選んだ画像からA4 PDFを作成\n・複数のPDFを結合\n・ページの並べ替え、複製、抽出、削除、回転\n・ページを画像化せずにPDF構造を最適化\n\n文書とメモをまとめて管理\n・文書ライブラリと一緒にノートを保存\n・PDFとノートを1か所から検索\n・中断されたノートや注釈の書き込みを復旧\n\n任意のGoogle Drive連携\nGoogle Driveは接続しなくても使えます。接続時に要求するのは、限定されたdrive.fileとappDataFolderスコープだけです。Drive内のすべてのファイルへ一括アクセスする権限は取得しません。\n\nプライバシーを標準に\n広告、トラッキング、解析SDKは含みません。PDFとノートの処理は端末内で行います。任意のDrive転送は、ユーザーが操作したときだけアプリとGoogleの間で直接行われます。\n\n機能の結果はPDFの構造により異なる場合があります。パスワード付きPDFを開くにはパスワードが必要です。構造最適化ですべてのファイルが小さくなるとは限りません。",
+    "keywords": "PDF注釈,PDF結合,ページ並替,ページ回転,ノート管理,オフライン,PDF印刷",
+    "supportUrl": "https://hjosugi.github.io/iroha-pdf/",
+    "marketingUrl": "https://hjosugi.github.io/iroha-pdf/",
+    "privacyPolicyUrl": "https://hjosugi.github.io/iroha-pdf/privacy/",
+    "primaryCategory": "仕事効率化",
+    "secondaryCategory": "ユーティリティ"
+  },
+  "googlePlay": {
+    "name": "Iroha PDF",
+    "shortDescription": "PDFの注釈・ページ編集・ノートを端末内で。必要な時だけDriveに接続",
+    "fullDescription": "Iroha PDFは、スマートフォンやタブレット向けのローカルファーストなPDFワークスペースです。PDFを開く、注釈する、ページを整理する、書き出す、印刷する操作を、Iroha PDFのサーバーへ文書内容を送らずに行えます。\n\nPDFを読む・注釈する\n・ファイルアプリなどの対応プロバイダーからPDFを開く\n・ハイライト、手書き、テキスト注釈を追加\n・注釈の取り消しとやり直し\n・編集済みコピーを書き出す、システム印刷画面を開く\n\nページを整理する\n・選んだ画像からA4 PDFを作成\n・複数のPDFを結合\n・ページの並べ替え、複製、抽出、削除、回転\n・ページを画像化せずにPDF構造を最適化\n\n文書とメモをまとめて管理\n・PDFと一緒にノートを保存、検索\n・オフラインの文書ライブラリを利用\n・中断されたノートや注釈の書き込みを復旧\n\n任意のGoogle Drive連携\nGoogle Driveは必須ではありません。接続時に要求するのは、限定されたdrive.fileとappDataFolderスコープだけです。ユーザーが選んだファイルを扱いながら、Drive内のすべてのファイルへ一括アクセスする権限は取得しません。\n\nプライバシーを標準に\n広告、トラッキング、解析SDKは含みません。PDFとノートの処理は端末内で行います。データが端末外へ出るのは、共有や印刷を選んだ場合、または任意のGoogle Drive転送を操作した場合だけです。\n\n処理後のファイルは元の文書とは別に作成します。パスワード付き文書を開くにはパスワードが必要です。構造最適化ではページ内容を保ちますが、すべてのPDFが小さくなるとは限りません。",
+    "privacyPolicyUrl": "https://hjosugi.github.io/iroha-pdf/privacy/",
+    "category": "仕事効率化"
+  },
+  "screenshotAltText": {
+    "01-library": "合成PDF2件とノート、検索、文書操作を表示したIroha PDFのローカルファーストなライブラリ。",
+    "02-annotate": "合成したプロジェクトPDFを開き、ハイライト、手書き、文字、書き出し、印刷の各ツールを表示。",
+    "03-tools": "画像、並べ替え、結合、抽出、回転、最適化を端末内で行うPDFツール画面。",
+    "04-drive": "ログイン前に、Google Driveのファイルとアプリデータへ限定した権限を説明する接続画面。"
+  }
+}
