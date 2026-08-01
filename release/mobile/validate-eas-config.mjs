@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 
 const config = JSON.parse(await readFile(new URL("../../apps/mobile/eas.json", import.meta.url), "utf8"));
 const app = JSON.parse(await readFile(new URL("../../apps/mobile/app.json", import.meta.url), "utf8"));
+const iosPodPlugin = await readFile(
+  new URL("../../apps/mobile/plugins/with-modular-ios-headers.js", import.meta.url),
+  "utf8",
+);
 const expected = {
   development: { distribution: "internal", environment: "development" },
   preview: { distribution: "internal", environment: "preview" },
@@ -32,6 +36,11 @@ assert.ok(blocked.has("android.permission.WRITE_EXTERNAL_STORAGE"), "document-pr
 assert.ok(
   app.expo.plugins.includes("./plugins/with-modular-ios-headers"),
   "iOS prebuild must make Google Sign-In's Swift dependencies modular",
+);
+assert.match(
+  iosPodPlugin,
+  /EXPO_USE_PRECOMPILED_MODULES\s*=\s*['"]false['"]/,
+  "iOS builds must source-build Expo modules to prevent incompatible XCFramework ABIs",
 );
 
 const pluginOptions = new Map(

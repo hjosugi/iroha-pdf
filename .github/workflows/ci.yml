@@ -103,6 +103,7 @@ jobs:
           set -euo pipefail
           npx expo prebuild --platform ios --no-install --clean
           grep --fixed-strings --line-regexp 'use_modular_headers!' ios/Podfile
+          node -e "const p=require('./ios/Podfile.properties.json'); if(p.EXPO_USE_PRECOMPILED_MODULES!=='false') process.exit(1)"
         working-directory: apps/mobile
         env:
           EXPO_NO_DOCTOR: "1"

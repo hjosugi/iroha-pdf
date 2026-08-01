@@ -1,4 +1,4 @@
-const { withPodfile } = require('@expo/config-plugins');
+const { withPodfile, withPodfileProperties } = require('@expo/config-plugins');
 
 /**
  * Google Sign-In pulls AppCheckCore, a Swift pod whose GoogleUtilities and
@@ -8,6 +8,15 @@ const { withPodfile } = require('@expo/config-plugins');
  * generated ios/ directory, which is deliberately ignored by this repository.
  */
 module.exports = function withModularIosHeaders(config) {
+  config = withPodfileProperties(config, (propertiesConfig) => {
+    // Expo SDK 57 enables precompiled iOS modules by default. Keep all Expo
+    // modules on the same source-built ABI until the upstream XCFramework set
+    // is runtime-compatible; a mixed ExpoImage/ExpoModulesCore set can build
+    // successfully and still terminate in dyld before the first screen.
+    propertiesConfig.modResults.EXPO_USE_PRECOMPILED_MODULES = 'false';
+    return propertiesConfig;
+  });
+
   return withPodfile(config, (podfileConfig) => {
     const marker = 'use_modular_headers!';
     if (podfileConfig.modResults.contents.includes(marker)) return podfileConfig;
