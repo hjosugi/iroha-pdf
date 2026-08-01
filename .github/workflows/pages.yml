@@ -36,6 +36,8 @@ jobs:
       contents: read
       pages: write
     timeout-minutes: 10
+    outputs:
+      pages: ${{ steps.pages.outcome }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -46,16 +48,24 @@ jobs:
       # links and sitemap.xml are right even if the repository or owner is
       # renamed. Skipped on pull requests: it requires Pages to be enabled, and
       # a fork's PR must still be able to prove the site builds.
-      # `enablement` turns Pages on for the repository if it is not on already,
-      # rather than failing and waiting for someone to find the setting. This is
-      # what the action's own error message points at when Pages is off, and it
-      # is why this job asks for `pages: write` — the rest of it only reads.
+      # Pages cannot be switched on from here. `enablement: true` asks the API
+      # to create the site and it answers "Resource not accessible by
+      # integration": creating one needs admin, and a workflow token stops at
+      # write. So this step is allowed to fail, and the rest of the job — which
+      # is the part that actually checks anything — carries on without it.
       - name: Configure Pages
         id: pages
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
+
+      - name: Say so if Pages is off
+        if: github.event_name != 'pull_request' && steps.pages.outcome == 'failure'
+        run: |
+          echo "::warning::GitHub Pages is not enabled for this repository, so the" \
+            "site was built and checked but not deployed. Enable it at" \
+            "Settings -> Pages -> Build and deployment -> Source -> GitHub Actions." \
+            "Nothing else needs changing; the next push to main will deploy."
 
       # No dependencies to install: the generator is plain Node with no imports
       # outside this repository, which is also why nothing here runs `npm ci`.
@@ -77,7 +87,7 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && needs.build.outputs.pages == 'success'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
