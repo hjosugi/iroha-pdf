@@ -63,7 +63,7 @@
 
 ## Annotation strategy
 
-編集途中はPDF本体を変更しません。注釈はSQLiteとDrive sidecarに保存し、表示時に重ねます。ユーザーがExportまたはPrintを選んだ時だけPDFへ焼き込みます。
+編集途中はPDF本体を変更しません。現在のモバイル実装は注釈をSQLiteに保存し、表示時に重ねます。Drive sidecarは同期目標モデルであり、現在の画面からは書き込みません。ユーザーがExportまたはPrintを選んだ時だけPDFへ焼き込みます。
 
 利点:
 

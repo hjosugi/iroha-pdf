@@ -1,6 +1,8 @@
 # Security policy
 
-Iroha PDF v0.1.0 is an engineering preview and does not yet have a supported production release line.
+The latest public version is Iroha PDF v0.4.0. It and the changes currently
+listed as `Unreleased` are engineering previews: there is not yet a signed,
+notarized, physical-device-verified production release line.
 
 Please report vulnerabilities privately through GitHub Security Advisories. Do not attach confidential PDFs, credentials, OAuth tokens, or signing material to public issues. Include a minimal synthetic reproducer whenever possible.
 

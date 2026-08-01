@@ -23,6 +23,27 @@ Approvers must record the release commit, artifact hashes, date, device/OS
 versions, failures or waivers, and their name. A row without reproducible
 evidence is not a pass.
 
+## Automated verification — Unreleased audit (2026-08-02)
+
+- **Implementation and screenshot source:**
+  `8860f71804c5377e2c750bdc612f0361cb782889`
+- **Clean-checkout CI:**
+  <https://github.com/hjosugi/iroha-pdf/actions/runs/30719401503> — all eight
+  pull-request jobs passed: quality/Expo, supply chain, three Tauri package builds
+  and 69 Playwright tests on each of Linux, macOS and Windows.
+- **Unit tests:** 114 total — core 39, google-drive 9, desktop 25, mobile 41.
+- **Native rendering:**
+  <https://github.com/hjosugi/iroha-pdf/actions/runs/30719408179> — unsigned
+  Release builds installed and captured four scenes each on Android phone,
+  iPhone and iPad simulators; the assembled 12-image set passed the store asset
+  validator and was reviewed at full size.
+- **Documentation/store gates:** 18 site pages from 16 documents link-checked;
+  two localized listing records and 12 mobile screenshots validated.
+
+This is sufficient evidence for the automated row only. Simulator/emulator
+screenshots are not evidence for Startup, Battery/thermal, Rotation/stylus,
+Print, Packages, Store privacy or any other production/device row.
+
 ## Automated verification — v0.3.0
 
 The evidence below is the v0.3.0 run. v0.4.0 (`0bb56ea`) passed the same nine

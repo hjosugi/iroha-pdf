@@ -153,9 +153,10 @@ plus `SHA256SUMS` over all of them. Verify a download with
 
 **These packages are unsigned**, and the workflow says so on every release.
 Windows code signing and macOS notarization are unimplemented (issue #64), and
-`docs/RELEASE_GATE.md` is still blocked with every row pending, including the
-`Packages` row that would record signature verification. macOS refuses the first
-launch through Gatekeeper and Windows shows a SmartScreen warning; users have to
+`docs/RELEASE_GATE.md` is still blocked. Automated clean-checkout verification
+passes, but the device-, account- and package-dependent rows remain pending,
+including the `Packages` row that would record signature verification. macOS
+refuses the first launch through Gatekeeper and Windows shows a SmartScreen warning; users have to
 click through both. A matching checksum proves a download is byte-for-byte what
 CI built and nothing more — it is not a signature. The workflow also defaults to
 marking the release as a pre-release. Turn that flag off, and rewrite the notes'

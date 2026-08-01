@@ -11,8 +11,9 @@ name: Release
 #
 # The desktop packages published here are UNSIGNED. Windows code signing and
 # macOS notarization are unimplemented (issue #64) and docs/RELEASE_GATE.md is
-# still blocked with every evidence row pending, including the `Packages` row
-# that would record signature verification. That used to be the reason this
+# still blocked. Automated clean-checkout verification passes, but the `Packages`
+# row that would record signature verification and the other device/account rows
+# remain pending. That used to be the reason this
 # workflow attached nothing at all. The project now ships the executables
 # regardless, so the caveat moves rather than disappears: the release notes
 # state that the packages are unsigned, describe the Gatekeeper and SmartScreen
@@ -226,8 +227,9 @@ jobs:
           Windows code signing and macOS notarization are unimplemented
           ([#64](https://github.com/hjosugi/iroha-pdf/issues/64)), and the `Packages`
           row of `docs/RELEASE_GATE.md` — signature verification, install and
-          uninstall evidence — is still pending along with every other row. Nothing
-          attached here has been through that gate. Expect this:
+          uninstall evidence — is still pending, as are the device- and
+          account-dependent rows. Automated verification passing does not put
+          anything attached here through those gates. Expect this:
 
           - **macOS** refuses the first launch: *"Iroha PDF" cannot be opened because
             the developer cannot be verified.* Gatekeeper is doing its job. Open the

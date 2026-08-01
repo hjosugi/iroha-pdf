@@ -4,26 +4,32 @@ Iroha PDF is designed as a local-first application. PDF content, annotations, an
 
 ## Data flow
 
-- Imported PDFs are copied into the app's private document directory. The original is never overwritten by the starter implementation.
+- Mobile imports copy PDFs into the app's private document directory and do not
+  overwrite the provider original. Desktop writes back to the selected path only
+  when the user explicitly chooses Save; Save As and mobile export create a new copy.
 - Annotations and notes are stored in local SQLite on mobile. Desktop linked notes currently use local application storage.
 - Export and print create a new flattened PDF copy in a temporary/output location.
 - Basic PDF tools run on-device and do not upload documents to an Iroha PDF service.
-- Google Drive support uses user-owned storage. The client requests `drive.file` and `drive.appdata`, not unrestricted access to all Drive files.
+- The current Google Drive mobile flow lists app-visible files and downloads the
+  PDF the user selects. It requests `drive.file` and `drive.appdata`, not unrestricted
+  access to all Drive files, but the current UI does not upload or synchronize app data.
 
-Iroha PDF has no developer-operated content service. When Drive is enabled,
-document bytes and synchronization metadata travel directly between the app and
-Google over HTTPS. Local-only use does not transmit document content off-device.
+Iroha PDF has no developer-operated content service. In the current Drive flow,
+file-list metadata and the selected downloaded PDF travel directly between the app
+and Google over HTTPS. Synchronization metadata would do so only after the planned
+sync flow is implemented and enabled. Local-only use does not transmit document
+content off-device.
 
 ## Data inventory and retention
 
 | Data | Location | Retention | User control |
 |---|---|---|---|
 | Imported PDF copies | App-private files | Until the user deletes the local copy or app | Import, export, delete app data |
-| Notes and annotations | Mobile SQLite / desktop local storage | Until the linked content or app data is deleted | Edit or delete locally |
+| Notes and annotations | Mobile SQLite / desktop local storage | Notes remain until deleted; mobile annotations are removed with their local PDF record | Edit or delete locally |
 | Recovery journal | Mobile SQLite | Applied records may be pruned; unresolved copies remain until reviewed | Review/delete recovery copies |
 | OAuth tokens | Keychain/Keystore or OS credential vault | Until sign-out, revocation, or app removal | Sign out and revoke access |
 | Drive PDFs | User's Google Drive | Controlled by the user's Drive retention | Delete from Drive explicitly |
-| Drive sync metadata | Drive `appDataFolder` | Until access/data is removed | Disconnect and remove app data |
+| Planned Drive sync metadata | Drive `appDataFolder` | Not written by the current UI; future data remains until removed | Disconnect and remove app data |
 | Export/print copies | User-selected output or temporary directory | Platform/user controlled; temporary copies should be cleaned after use | Delete from Files/OS storage |
 
 No advertising ID, precise location, contacts, browsing history, analytics, or
@@ -85,8 +91,9 @@ Diagnostics are off by default. Any future opt-in diagnostics must exclude docum
 
 ## Known release limitations
 
-The current v0.4.0 line is an engineering preview. Encrypted, malformed-but-repairable,
-AcroForm and large synthetic fixtures are exercised where their independent tooling is
+The current v0.4.0 line and the changes listed as `Unreleased` are engineering
+previews. Encrypted, malformed-but-repairable, AcroForm and large synthetic
+fixtures are exercised where their independent tooling is
 available, but that is not a security sandbox. Native app signing, submitted store
 privacy forms, production OAuth verification, PDF-engine isolation and physical-device
 evidence remain tracked in GitHub Issues. It must not be represented as a hardened

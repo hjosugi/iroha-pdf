@@ -36,13 +36,18 @@
 - Release manifests explicitly remove unused microphone, camera, Face ID,
   Android dev-overlay, and legacy broad-storage permissions while retaining a
   specific photo-library purpose for the image-to-PDF feature.
+- README, security, architecture, privacy, build, test, Drive, store, and
+  verification documents now distinguish the current v0.4.0/`Unreleased`
+  implementation from planned sync, signed distribution, and physical-device
+  validation.
 
 ## 0.4.0 - 2026-08-01
 
 The first release that carries installable desktop applications. They are
 **unsigned**: macOS Gatekeeper refuses the first launch and Windows SmartScreen
 warns, because signing and notarization are unimplemented and
-`docs/RELEASE_GATE.md` is still blocked with every evidence row pending. Check a
+`docs/RELEASE_GATE.md` is still blocked despite automated verification passing;
+the device-, account- and package-dependent rows remain pending. Check a
 download against `SHA256SUMS`, which records what CI built — it is not a
 signature.
 

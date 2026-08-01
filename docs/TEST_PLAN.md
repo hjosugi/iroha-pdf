@@ -81,8 +81,10 @@ shows its launcher and keeps the process alive even when no bundle ever arrives,
 separates installed from working.
 
 Looking at the screen is what found issue 074 — every screen overlapped the status bar,
-because `SafeAreaView` from `react-native` is an iOS-only no-op on Android. Neither
-typecheck nor the build says a word about that.
+because `SafeAreaView` from `react-native` is an iOS-only no-op on Android. The mobile
+screens now use `react-native-safe-area-context`, and the release-configured Android
+screenshots are the visual regression evidence. This remains a useful example of why
+typecheck and a successful build are not enough.
 
 **iOS now builds in CI for Simulator.** On 2026-08-01 the store-screenshot workflow
 built one unsigned Release configuration with Xcode 26.6 and ran it on an iPhone 17
