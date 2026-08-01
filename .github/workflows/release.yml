@@ -333,9 +333,14 @@ jobs:
           # "digest  path" line GNU reads, so probing for the name picks a tool
           # that cannot do the job. Compared as strings so no --check dialect
           # is involved at all.
+          # Read from stdin, not by name. GNU sha256sum escapes a filename
+          # containing a backslash and marks the line by prefixing the digest
+          # with one, and every Windows path has backslashes — the digest then
+          # compares unequal to an identical pin. With stdin there is no
+          # filename in the output to escape.
           case "$RUNNER_OS" in
-            macOS) actual="$(shasum --algorithm 256 "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
-            *)     actual="$(sha256sum "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+            macOS) actual="$(shasum --algorithm 256 < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
+            *)     actual="$(sha256sum < "$RUNNER_TEMP/$asset" | cut -d' ' -f1)" ;;
           esac
           if [[ "$actual" != "$sha" ]]; then
             echo "::error::$asset has sha256 $actual; the pin expects $sha"
