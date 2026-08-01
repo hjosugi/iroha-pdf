@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.3.0 - 2026-08-01
+
+Source preview. Native signed packages are still not included; see
+`docs/RELEASE_GATE.md`, which remains blocked, and the open signing and
+device-verification issues.
+
+### Fixed
+
+- Annotating in Japanese no longer breaks export and print. `flattenAnnotations`
+  embedded Helvetica unconditionally, and Helvetica is WinAnsi, so pdf-lib threw
+  `WinAnsi cannot encode "こ"` as soon as a text annotation held Japanese — the
+  app's primary locale. Mobile export and mobile print both route through the
+  same call, so both failed, naming neither the annotation at fault nor anything
+  the user could do. A Japanese face now ships with the app and is embedded as a
+  subset; text the chosen font cannot encode is now rejected before anything is
+  written, naming the character.
+- Annotations stay where they were put on a rotated page. Coordinates were
+  mapped through the unrotated MediaBox, so on a page carrying `/Rotate` a mark
+  placed at the displayed top-left was flattened to whichever corner the
+  rotation carried it to — top-right at 90°, bottom-right at 180°, bottom-left
+  at 270° — and text was drawn sideways on every quarter turn.
+- Autosave says so when it cannot write. A full quota was caught and discarded,
+  so the editor looked like it was drafting when nothing was being stored.
+- The mobile write journal no longer hides its own failure. When the lock or
+  full disk that refused a write also refused the bookkeeping, the entry stayed
+  `pending` and the Recovery screen offered nothing for the rest of the session,
+  while the caller told the user the edit was gone.
+
+### Added
+
+- Releases are cut by a workflow that checks the version against every manifest
+  and the changelog heading, refuses a commit whose required CI checks did not
+  pass, and creates the tag and the GitHub release together, so a failed check
+  cannot leave a dangling tag.
+- `apps/mobile` has tests. It previously had none — no script, no files, no
+  gate — leaving the SQLite schema, the write journal and crash recovery
+  unprotected. They run `database.ts` against `node:sqlite`, the same engine, so
+  WAL, foreign keys, upserts, ordering and `SQLITE_BUSY` are exercised rather
+  than recorded against a double.
+- Desktop print-dialog coverage for page range, current page and the
+  include-annotations toggle, and encrypted, malformed-but-repairable and
+  AcroForm fixtures with tests. Two limits are recorded rather than papered
+  over: the app cannot open a password-protected PDF, and saving an annotated
+  repairable PDF leaves the damaged xref in place.
+
 ## 0.2.0 - 2026-07-31
 
 Source preview. Native signed packages are still not included; see
