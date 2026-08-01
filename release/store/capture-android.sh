@@ -33,6 +33,26 @@ adb shell settings put global policy_control "immersive.full=$package"
 scenarios=(library viewer tools drive)
 names=(01-library 02-annotate 03-tools 04-drive)
 
+wait_for_viewer() {
+  local probe="${RUNNER_TEMP:-/tmp}/iroha-store-viewer-probe.png"
+  local entropy=0
+  for _ in $(seq 1 30); do
+    sleep 2
+    adb exec-out screencap -p > "$probe"
+    entropy="$("${image_convert[@]}" "$probe" \
+      -crop 880x1300+100+300 +repage \
+      -colorspace gray -format '%[entropy]' info:)"
+    if awk -v value="$entropy" 'BEGIN { exit !(value >= 0.13) }'; then
+      rm -f "$probe"
+      printf 'viewer render is ready (entropy %s)\n' "$entropy"
+      return 0
+    fi
+  done
+  rm -f "$probe"
+  echo "viewer did not render within 60 seconds (last entropy $entropy)" >&2
+  return 1
+}
+
 for index in "${!scenarios[@]}"; do
   scenario="${scenarios[$index]}"
   name="${names[$index]}"
@@ -44,7 +64,7 @@ for index in "${!scenarios[@]}"; do
     -a android.intent.action.VIEW \
     -d "iroha-pdf:///store-preview?screen=$scenario" \
     "$package" >/dev/null
-  if [[ "$scenario" == viewer ]]; then sleep 12; else sleep 5; fi
+  if [[ "$scenario" == viewer ]]; then wait_for_viewer; else sleep 5; fi
   adb exec-out screencap -p > "$raw"
   "${image_convert[@]}" "$raw" -alpha off -strip -define png:color-type=2 "$final"
   rm -f "$raw"
