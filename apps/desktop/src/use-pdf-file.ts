@@ -20,6 +20,7 @@ import {
   recordSave,
   registerOpenedFile,
   subscribe,
+  type AnnotationKind,
   type DocumentFile,
 } from './document-store';
 import { clearDraft, saveDraft } from './draft-store';
@@ -27,22 +28,26 @@ import { clearDraft, saveDraft } from './draft-store';
 /** A pen stroke emits a burst of updates; exporting on each one would be wasteful. */
 const DRAFT_DEBOUNCE_MS = 800;
 
-const SUBTYPE_LABELS: Partial<Record<PdfAnnotationSubtype, string>> = {
-  [PdfAnnotationSubtype.HIGHLIGHT]: 'Highlight',
-  [PdfAnnotationSubtype.INK]: 'Pen stroke',
-  [PdfAnnotationSubtype.FREETEXT]: 'Text',
-  [PdfAnnotationSubtype.SQUARE]: 'Shape',
-  [PdfAnnotationSubtype.CIRCLE]: 'Ellipse',
-  [PdfAnnotationSubtype.UNDERLINE]: 'Underline',
-  [PdfAnnotationSubtype.STRIKEOUT]: 'Strikeout',
-  [PdfAnnotationSubtype.SQUIGGLY]: 'Squiggly',
-  [PdfAnnotationSubtype.TEXT]: 'Sticky note',
-  [PdfAnnotationSubtype.STAMP]: 'Stamp',
-  [PdfAnnotationSubtype.LINE]: 'Line',
+/**
+ * The plugin's numeric subtypes, as the identifiers the history stores. The name
+ * shown for each lives in the message catalogue — see `AnnotationKind`.
+ */
+const SUBTYPE_KINDS: Partial<Record<PdfAnnotationSubtype, AnnotationKind>> = {
+  [PdfAnnotationSubtype.HIGHLIGHT]: 'highlight',
+  [PdfAnnotationSubtype.INK]: 'ink',
+  [PdfAnnotationSubtype.FREETEXT]: 'freetext',
+  [PdfAnnotationSubtype.SQUARE]: 'square',
+  [PdfAnnotationSubtype.CIRCLE]: 'circle',
+  [PdfAnnotationSubtype.UNDERLINE]: 'underline',
+  [PdfAnnotationSubtype.STRIKEOUT]: 'strikeout',
+  [PdfAnnotationSubtype.SQUIGGLY]: 'squiggly',
+  [PdfAnnotationSubtype.TEXT]: 'stickyNote',
+  [PdfAnnotationSubtype.STAMP]: 'stamp',
+  [PdfAnnotationSubtype.LINE]: 'line',
 };
 
-function labelFor(subtype: PdfAnnotationSubtype): string {
-  return SUBTYPE_LABELS[subtype] ?? 'Annotation';
+function kindFor(subtype: PdfAnnotationSubtype): AnnotationKind {
+  return SUBTYPE_KINDS[subtype] ?? 'other';
 }
 
 export function useDocumentFile(documentId: string): DocumentFile {
@@ -138,7 +143,7 @@ export function useEditTimeline(documentId: string): void {
       recordEdit(documentId, {
         at: Date.now(),
         kind: event.type,
-        label: labelFor(event.annotation.type),
+        annotation: kindFor(event.annotation.type),
         pageIndex: event.pageIndex,
       });
 
@@ -180,7 +185,7 @@ export function useRecoverDraft(documentId: string) {
       recordEdit(documentId, {
         at: Date.now(),
         kind: 'create',
-        label: labelFor(item.annotation.type),
+        annotation: kindFor(item.annotation.type),
         pageIndex: item.annotation.pageIndex,
       });
     }

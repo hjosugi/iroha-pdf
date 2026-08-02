@@ -188,6 +188,23 @@ const MESSAGES = {
   'history.removed': { ja: '削除', en: 'Removed' },
   'history.page': { ja: '{page}ページ', en: 'page {page}' },
 
+  // What kind of mark an edit was. The history keeps the identifier and looks
+  // the name up at render time, so a timeline written before the reader
+  // switched language still reads in the language they are using now.
+  'annotation.highlight': { ja: 'マーカー', en: 'Highlight' },
+  'annotation.ink': { ja: 'ペンの線', en: 'Pen stroke' },
+  'annotation.freetext': { ja: 'テキスト', en: 'Text' },
+  'annotation.square': { ja: '図形', en: 'Shape' },
+  'annotation.circle': { ja: '楕円', en: 'Ellipse' },
+  'annotation.underline': { ja: '下線', en: 'Underline' },
+  'annotation.strikeout': { ja: '取り消し線', en: 'Strikeout' },
+  'annotation.squiggly': { ja: '波線', en: 'Squiggly' },
+  'annotation.stickyNote': { ja: '付箋', en: 'Sticky note' },
+  'annotation.stamp': { ja: 'スタンプ', en: 'Stamp' },
+  'annotation.line': { ja: '直線', en: 'Line' },
+  /** Anything the annotation plugin reports that this list does not name. */
+  'annotation.other': { ja: '注釈', en: 'Annotation' },
+
   'drive.openHint': { ja: '任意のGoogle Drive接続画面を開きます', en: 'Open the optional Google Drive connection screen' },
   'drive.intro': { ja: 'Google Driveから任意で取り込めます。Iroha PDFが要求するのはdrive.fileとappDataFolder権限だけで、Drive内のすべてのファイルを閲覧することはできません。', en: 'Optional import from Google Drive. Iroha PDF requests only drive.file and appDataFolder access; it cannot browse every file in your Drive.' },
   'drive.unavailable': { ja: 'このビルドでは利用できません', en: 'Not available in this build' },
