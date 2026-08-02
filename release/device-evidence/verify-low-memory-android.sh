@@ -73,9 +73,23 @@ assert_alive
 adb shell dumpsys meminfo "$package" > "$output_dir/meminfo-open.txt"
 adb exec-out screencap -p > "$output_dir/large-pdf-open.png"
 
-adb shell am send-trim-memory "$package" RUNNING_CRITICAL
+adb shell am send-trim-memory "$package" RUNNING_CRITICAL \
+  > "$output_dir/running-critical-trim.txt"
 adb shell input keyevent KEYCODE_HOME
-adb shell am send-trim-memory "$package" BACKGROUND
+# HOME returns before ActivityManager has necessarily moved the process out of
+# the foreground. BACKGROUND is correctly rejected while that transition is in
+# flight, so retry the command itself instead of sleeping for an assumed delay.
+: > "$output_dir/background-trim.txt"
+background_trimmed=false
+for _ in $(seq 1 30); do
+  if adb shell am send-trim-memory "$package" BACKGROUND \
+    >> "$output_dir/background-trim.txt" 2>&1; then
+    background_trimmed=true
+    break
+  fi
+  sleep 1
+done
+[[ "$background_trimmed" == true ]] || fail 'application did not enter the background within 30 seconds'
 sleep 5
 adb shell am start -W "$package/.MainActivity" > "$output_dir/resume.txt"
 wait_for_page_count trim-and-resume
