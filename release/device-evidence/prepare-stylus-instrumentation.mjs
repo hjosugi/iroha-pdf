@@ -45,7 +45,6 @@ import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.SystemClock;
-import android.util.Base64;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.MotionEvent;
@@ -281,13 +280,12 @@ public final class StylusInputTest {
       "stylus evidence hierarchy is missing the visible pressure state",
       hierarchyXml.contains("Pressure enabled") || hierarchyXml.contains("筆圧を反映中")
     );
-    String encodedHierarchy = Base64.encodeToString(hierarchy.toByteArray(), Base64.NO_WRAP);
-    device.executeShellCommand(
-      "echo '" + encodedHierarchy
-        + "' | base64 -d > /data/local/tmp/iroha-stylus-window.xml"
-    );
-    // Capture after the hierarchy itself has proved the target activity and
-    // pressure status are still visible.
+    // Capture after the in-memory hierarchy itself has proved the target
+    // activity and pressure status are still visible. The workflow relaunches
+    // the activity and obtains the retained XML with uiautomator after the
+    // instrumentation runner exits; Android 16 returns to Launcher as the
+    // instrumentation Activity is torn down, so a post-run dump without an
+    // explicit relaunch is not valid application evidence.
     device.executeShellCommand(
       "screencap -p /data/local/tmp/iroha-stylus-pressure.png"
     );
