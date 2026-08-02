@@ -29,8 +29,20 @@ const testPath = resolve(
   root,
   'apps/mobile/android/app/src/androidTest/java/app/irohapdf/mobile/StylusInputTest.java',
 );
+const testManifestPath = resolve(
+  root,
+  'apps/mobile/android/app/src/androidTest/AndroidManifest.xml',
+);
 mkdirSync(dirname(testPath), { recursive: true });
+mkdirSync(dirname(testManifestPath), { recursive: true });
 writeFileSync(buildPath, build);
+writeFileSync(testManifestPath, `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Only the generated instrumentation APK is debuggable. The release app
+       under test remains non-debuggable; this lets CI retrieve the private
+       screenshot and accessibility tree with adb run-as. -->
+  <application android:debuggable="true" />
+</manifest>
+`);
 writeFileSync(testPath, `package app.irohapdf.mobile;
 
 import static org.junit.Assert.assertNotNull;
@@ -202,9 +214,10 @@ public final class StylusInputTest {
   }
 
   private static String describeAnnotations(Context context) {
-    if (!context.getDatabasePath("iroha-pdf.db").exists()) return "database is missing";
+    File databaseFile = expoDatabaseFile(context);
+    if (!databaseFile.exists()) return "database is missing at " + databaseFile;
     try (SQLiteDatabase database = SQLiteDatabase.openDatabase(
-      context.getDatabasePath("iroha-pdf.db").getPath(), null, SQLiteDatabase.OPEN_READONLY
+      databaseFile.getPath(), null, SQLiteDatabase.OPEN_READONLY
     ); Cursor cursor = database.rawQuery(
       "SELECT payload FROM annotations WHERE document_id = ? ORDER BY updated_at DESC LIMIT 3",
       new String[] { DOCUMENT_ID }
@@ -218,10 +231,11 @@ public final class StylusInputTest {
   }
 
   private static String waitForPressurePayload(Context context) throws Exception {
+    File databaseFile = expoDatabaseFile(context);
     for (int attempt = 0; attempt < 60; attempt++) {
-      if (context.getDatabasePath("iroha-pdf.db").exists()) {
+      if (databaseFile.exists()) {
         try (SQLiteDatabase database = SQLiteDatabase.openDatabase(
-          context.getDatabasePath("iroha-pdf.db").getPath(), null, SQLiteDatabase.OPEN_READONLY
+          databaseFile.getPath(), null, SQLiteDatabase.OPEN_READONLY
         ); Cursor cursor = database.rawQuery(
           "SELECT payload FROM annotations WHERE document_id = ? AND payload LIKE '%\\\"pressures\\\":%' ORDER BY updated_at DESC LIMIT 1",
           new String[] { DOCUMENT_ID }
@@ -234,13 +248,21 @@ public final class StylusInputTest {
     return null;
   }
 
+  private static File expoDatabaseFile(Context context) {
+    // expo-sqlite's Android defaultDatabaseDirectory is
+    // context.filesDir/SQLite, not Context#getDatabasePath().
+    return new File(new File(context.getFilesDir(), "SQLite"), "iroha-pdf.db");
+  }
+
   private static void captureEvidence(UiDevice device, Context context) {
     try {
       File directory = new File(context.getFilesDir(), "device-evidence");
       if (!directory.exists() && !directory.mkdirs()) {
         throw new IllegalStateException("could not create stylus evidence directory");
       }
-      device.takeScreenshot(new File(directory, "stylus-pressure.png"));
+      if (!device.takeScreenshot(new File(directory, "stylus-pressure.png"))) {
+        throw new IllegalStateException("could not capture stylus evidence screenshot");
+      }
       device.dumpWindowHierarchy(new File(directory, "stylus-window.xml"));
     } catch (Exception error) {
       System.err.println("Could not capture in-app stylus evidence: " + error);
