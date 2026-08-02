@@ -26,6 +26,18 @@ fail() {
   exit 1
 }
 
+capture_logcat_required() {
+  local attempt_log="$output_dir/logcat-attempt.txt"
+  for _ in $(seq 1 10); do
+    if adb logcat -d > "$attempt_log" 2>/dev/null; then
+      mv "$attempt_log" "$output_dir/logcat.txt"
+      return 0
+    fi
+    sleep 1
+  done
+  fail 'could not retrieve a complete logcat after 10 attempts'
+}
+
 assert_alive() {
   local pid
   pid="$(adb shell pidof "$package" 2>/dev/null | tr -d '\r')"
@@ -119,7 +131,7 @@ adb shell am start -W -a android.intent.action.VIEW \
 wait_for_page_count cold-reopen
 assert_alive
 adb shell dumpsys meminfo "$package" > "$output_dir/meminfo-reopen.txt"
-adb logcat -d > "$output_dir/logcat.txt"
+capture_logcat_required
 if grep -Eq "FATAL EXCEPTION|ANR in $package|Process $package .*died" "$output_dir/logcat.txt"; then
   fail 'crash, process death, or ANR found in logcat'
 fi
