@@ -123,7 +123,11 @@ jobs:
           grep --fixed-strings --line-regexp \
             'includeBuild(irohaReactNativeSource) {' "$settings"
           grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:react-native") using project(":packages:react-native:ReactAndroid")' "$settings"
+          grep --fixed-strings --line-regexp \
             '    substitute module("com.facebook.react:react-android") using project(":packages:react-native:ReactAndroid")' "$settings"
+          grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:hermes-engine") using project(":packages:react-native:ReactAndroid:hermes-engine")' "$settings"
           grep --fixed-strings --line-regexp \
             '    substitute module("com.facebook.react:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")' "$settings"
           grep --fixed-strings --line-regexp \
@@ -608,6 +612,12 @@ jobs:
           grep --extended-regexp --quiet \
             'project .*packages:react-native:ReactAndroid' \
             artifacts/device-evidence/react-android-dependency.txt
+          if grep --extended-regexp --quiet \
+            'com\.facebook\.react:react-native.*-> com\.facebook\.react:react-android' \
+            artifacts/device-evidence/react-android-dependency.txt; then
+            echo 'legacy react-native dependency escaped to the published react-android AAR' >&2
+            exit 1
+          fi
           apps/mobile/android/gradlew -p apps/mobile/android \
             :app:dependencyInsight \
             --dependency hermes-android \

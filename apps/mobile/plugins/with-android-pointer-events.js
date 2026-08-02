@@ -12,7 +12,9 @@ def irohaReactNativeSource = new File(
 ).getParentFile()
 includeBuild(irohaReactNativeSource) {
   dependencySubstitution {
+    substitute module("com.facebook.react:react-native") using project(":packages:react-native:ReactAndroid")
     substitute module("com.facebook.react:react-android") using project(":packages:react-native:ReactAndroid")
+    substitute module("com.facebook.react:hermes-engine") using project(":packages:react-native:ReactAndroid:hermes-engine")
     substitute module("com.facebook.react:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")
     substitute module("com.facebook.hermes:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")
   }
@@ -29,8 +31,10 @@ includeBuild(irohaReactNativeSource) {
  * project after generation. React Android must also be included as a Gradle
  * composite build: otherwise Gradle consumes the precompiled react-android AAR
  * and the reviewed PointerEvent.kt pressure patch never reaches the APK. Hermes
- * must come from the same composite build as well; mixing source ReactAndroid
- * with the published Hermes AAR duplicates HermesMemoryDumper at D8 time.
+ * must come from the same composite build as well. Legacy `react-native` and
+ * `hermes-engine` Maven coordinates also need direct substitutions: otherwise
+ * the React plugin rewrites them to published AARs after composite resolution,
+ * mixing those AARs with source ReactAndroid and duplicating classes at D8 time.
  */
 module.exports = function withAndroidPointerEvents(config) {
   const withApplication = withMainApplication(config, (applicationConfig) => {
