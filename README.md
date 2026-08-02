@@ -1,5 +1,7 @@
 # Iroha PDF
 
+日本語 | [English](README.en.md)
+
 軽量・ローカルファーストのPDFワークスペースです。iOS / AndroidとWindows / macOS / Linux向けのUIから、PDF操作、注釈、メモ、同期用データモデルを共有します。
 
 `Iroha PDF` は、モバイルとデスクトップでPDFを端末内処理するオープンソースのエンジニアリングプレビューです。一般利用向けの署名、実機、性能、OAuth、ストア審査はまだ完了していません。
@@ -8,7 +10,7 @@
 
 ## 現在のリリース状態
 
-- 最新の公開版は`0.4.0`で、その後の改善は`Unreleased`です。デスクトップ成果物はGitHub Releaseにありますが、Windows署名とmacOS notarizationは未実装です。
+- 最新のpre-releaseは`0.4.0`、GitHubがlatest stableとして示す版は`0.1.0`で、その後の改善は`Unreleased`です。デスクトップ成果物はGitHub Releaseにありますが、Windows署名とmacOS notarizationは未実装です。
 - Android / iPhone / iPadのRelease構成はSimulator / Emulatorで起動・描画確認済みです。署名済みproduction buildを物理端末へ入れた証跡ではありません。
 - App Store / Google Playの掲載文と画像はリポジトリ内で検証済みです。TestFlight、Play closed testing、ストア申告・審査は未実施です。
 - Google DriveはRESTクライアントとモバイルの一覧・ダウンロード画面までです。production OAuth、アップロード、端末間同期、競合解決はリリース未検証です。
@@ -16,7 +18,7 @@
 
 ## 現在実装済み
 
-- Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 6のモバイル基盤
+- Expo SDK 57 / React Native 0.86.2 / React 19.2のモバイル基盤。Expo互換のmobile・共有packageはTypeScript 6.0.3、desktopとroot toolingはTypeScript 7.0.2
 - Tauri 2 + React + EmbedPDF（PDFium/WASM）のデスクトップ基盤
 - PDF表示、複数タブ、ハイライト、筆圧対応スタイラス手書き、テキスト注釈
 - PDFごとの軽量メモと自動保存
@@ -31,7 +33,7 @@
   - PDF一覧、ダウンロード、作成・更新、再開可能アップロード
   - Changes APIの開始トークンと差分取得
 - Google Driveモバイル画面（OAuthクライアント設定後の一覧・ダウンロード）
-- 日本語・英語UI、スクリーンリーダー用ラベル、44pt以上のモバイル操作領域
+- 日本語・英語UI、スクリーンリーダー用ラベル、React Nativeのlogical unitで44以上のモバイル操作領域
 - PDFページごとの実寸に正規化する注釈座標、混在サイズ・回転時の再計算、編集時100%表示への安全な復帰
 - 300 MiB・500ページPDFを1.5 GiB Android AVDでopen / trim / resume / cold reopenする証跡ゲート
 - 端末内PDF・メモの削除、Google Driveのログアウト・権限取り消し

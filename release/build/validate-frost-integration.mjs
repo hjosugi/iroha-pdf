@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, '../..');
 const workflow = readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8');
 const desktopPackage = JSON.parse(readFileSync(resolve(root, 'apps/desktop/package.json'), 'utf8'));
 const performanceSuite = readFileSync(resolve(root, 'apps/desktop/e2e/performance.spec.ts'), 'utf8');
+const realRuntimeHarness = readFileSync(resolve(root, 'apps/desktop/e2e-tauri/run.mjs'), 'utf8');
 
 assert.doesNotMatch(
   workflow,
@@ -26,6 +27,16 @@ assert.match(
   performanceSuite,
   /\.\.\/dist\/debug/,
   'bundle-policy tests must inspect the same profile-specific Frost output',
+);
+assert.match(
+  realRuntimeHarness,
+  /function decodeJsonScriptValue[\s\S]*typeof value === 'string' \? JSON\.parse\(value\) : value/,
+  'the real-runtime harness must accept both Chromium string and WebKitGTK object script results',
+);
+assert.match(
+  realRuntimeHarness,
+  /decodeJsonScriptValue\([\s\S]*'opened PDF state'/,
+  'the WebKitGTK PDF-open loop must use the cross-driver decoder',
 );
 
 process.stdout.write('CI and Playwright consume the profile-specific Frost web output.\n');

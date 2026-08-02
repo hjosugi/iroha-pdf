@@ -29,20 +29,8 @@ const testPath = resolve(
   root,
   'apps/mobile/android/app/src/androidTest/java/app/irohapdf/mobile/StylusInputTest.java',
 );
-const testManifestPath = resolve(
-  root,
-  'apps/mobile/android/app/src/androidTest/AndroidManifest.xml',
-);
 mkdirSync(dirname(testPath), { recursive: true });
-mkdirSync(dirname(testManifestPath), { recursive: true });
 writeFileSync(buildPath, build);
-writeFileSync(testManifestPath, `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <!-- Only the generated instrumentation APK is debuggable. The release app
-       under test remains non-debuggable; this lets CI retrieve the private
-       screenshot and accessibility tree with adb run-as. -->
-  <application android:debuggable="true" />
-</manifest>
-`);
 writeFileSync(testPath, `package app.irohapdf.mobile;
 
 import static org.junit.Assert.assertNotNull;
@@ -57,9 +45,11 @@ import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.SystemClock;
+import android.util.Base64;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -81,7 +71,6 @@ public final class StylusInputTest {
   public void pressureCrossesNativePointerBridgeAndPersists() throws Exception {
     Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
     Context target = instrumentation.getTargetContext();
-    Context testContext = instrumentation.getContext();
     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("iroha-pdf:///viewer/" + DOCUMENT_ID));
     intent.setClassName(target, "app.irohapdf.mobile.MainActivity");
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -132,7 +121,7 @@ public final class StylusInputTest {
       // Capture while the target activity is unquestionably still foreground.
       // AndroidJUnitRunner may close it while unwinding an assertion failure,
       // which would otherwise leave a technically valid launcher screenshot.
-      captureEvidence(device, testContext);
+      captureEvidence(device);
       evidenceCaptured = true;
 
       String payload = waitForPressurePayload(target);
@@ -161,7 +150,7 @@ public final class StylusInputTest {
         waitForTextOrDescription(device, "Pressure enabled", "筆圧を反映中", 30_000)
       );
     } finally {
-      if (!evidenceCaptured) captureEvidence(device, testContext);
+      if (!evidenceCaptured) captureEvidence(device);
     }
   }
 
@@ -268,17 +257,22 @@ public final class StylusInputTest {
     return new File(new File(context.getFilesDir(), "SQLite"), "iroha-pdf.db");
   }
 
-  private static void captureEvidence(UiDevice device, Context context) {
+  private static void captureEvidence(UiDevice device) {
     try {
-      File directory = new File(context.getFilesDir(), "device-evidence");
-      System.out.println("Capturing stylus evidence in " + directory);
-      if (!directory.exists() && !directory.mkdirs()) {
-        throw new IllegalStateException("could not create stylus evidence directory");
-      }
-      if (!device.takeScreenshot(new File(directory, "stylus-pressure.png"))) {
-        throw new IllegalStateException("could not capture stylus evidence screenshot");
-      }
-      device.dumpWindowHierarchy(new File(directory, "stylus-window.xml"));
+      // Execute screencap as Android's shell user while the target activity is
+      // still foreground. Pulling a private instrumentation path after the test
+      // is unreliable under scoped storage and previously produced a launcher
+      // fallback that was valid PNG bytes but invalid product evidence.
+      device.executeShellCommand(
+        "screencap -p /data/local/tmp/iroha-stylus-pressure.png"
+      );
+      ByteArrayOutputStream hierarchy = new ByteArrayOutputStream();
+      device.dumpWindowHierarchy(hierarchy);
+      String encodedHierarchy = Base64.encodeToString(hierarchy.toByteArray(), Base64.NO_WRAP);
+      device.executeShellCommand(
+        "echo '" + encodedHierarchy
+          + "' | base64 -d > /data/local/tmp/iroha-stylus-window.xml"
+      );
     } catch (Exception error) {
       System.out.println("Could not capture in-app stylus evidence: " + error);
     }

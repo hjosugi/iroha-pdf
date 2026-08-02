@@ -90,6 +90,7 @@ args = ["release/build/validate-frost-integration.mjs"]
 inputs = [
   ".github/workflows/ci.yml",
   "apps/desktop/package.json",
+  "apps/desktop/e2e-tauri/run.mjs",
   "apps/desktop/e2e/performance.spec.ts",
   "frost.toml",
   "release/build/validate-frost-integration.mjs",
@@ -135,6 +136,7 @@ tool = "node"
 args = ["site/verify.mjs"]
 inputs = [
   "CHANGELOG.md",
+  "README.en.md",
   "SECURITY.md",
   "THIRD_PARTY_NOTICES.md",
   "apps/mobile/assets/images/icon.png",
