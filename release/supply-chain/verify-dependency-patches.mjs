@@ -118,4 +118,17 @@ assert.match(
   "the reviewed React Native 0.86.2 pressure bridge patch must be committed",
 );
 
+const androidPointerPlugin = await readFile(
+  path.join(
+    repositoryRoot,
+    "apps/mobile/plugins/with-android-pointer-events.js",
+  ),
+  "utf8",
+);
+assert.match(
+  androidPointerPlugin,
+  /includeBuild\(irohaReactNativeSource\)/,
+  "Android prebuild must compile the patched React Native source instead of the prebuilt AAR",
+);
+
 console.log("Dependency patch verification passed.");

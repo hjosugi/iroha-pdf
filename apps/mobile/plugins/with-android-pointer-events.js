@@ -1,7 +1,17 @@
-const { withMainApplication } = require('@expo/config-plugins');
+const { withMainApplication, withSettingsGradle } = require('@expo/config-plugins');
 
 const featureFlagsImport = 'import com.facebook.react.config.ReactFeatureFlags';
 const featureFlagsAssignment = '    ReactFeatureFlags.dispatchPointerEvents = true';
+const sourceBuildMarker = '// Iroha: build the patched React Native Android bridge from source';
+const sourceBuildBlock = `${sourceBuildMarker}
+def irohaReactNativeSource = new File(
+  providers.exec {
+    workingDir(rootDir)
+    commandLine("node", "--print", "require.resolve('react-native/package.json')")
+  }.standardOutput.asText.get().trim()
+).getParentFile()
+includeBuild(irohaReactNativeSource)
+`;
 
 /**
  * React Native 0.86 still guards Android's W3C pointer-event dispatcher with
@@ -10,10 +20,12 @@ const featureFlagsAssignment = '    ReactFeatureFlags.dispatchPointerEvents = tr
  *
  * Keep the setting in Expo prebuild so local, EAS, CI, and evidence APKs all
  * produce the same MainApplication instead of patching the ignored android/
- * project after generation.
+ * project after generation. React Android must also be included as a Gradle
+ * composite build: otherwise Gradle consumes the precompiled react-android AAR
+ * and the reviewed PointerEvent.kt pressure patch never reaches the APK.
  */
 module.exports = function withAndroidPointerEvents(config) {
-  return withMainApplication(config, (applicationConfig) => {
+  const withApplication = withMainApplication(config, (applicationConfig) => {
     if (applicationConfig.modResults.language !== 'kt') {
       throw new Error('with-android-pointer-events.js requires Expo\'s Kotlin MainApplication');
     }
@@ -37,5 +49,18 @@ module.exports = function withAndroidPointerEvents(config) {
 
     applicationConfig.modResults.contents = contents;
     return applicationConfig;
+  });
+
+  return withSettingsGradle(withApplication, (settingsConfig) => {
+    if (settingsConfig.modResults.language !== 'groovy') {
+      throw new Error('with-android-pointer-events.js requires Expo\'s Groovy settings.gradle');
+    }
+
+    let contents = settingsConfig.modResults.contents;
+    if (!contents.includes(sourceBuildMarker)) {
+      contents = `${contents.trimEnd()}\n\n${sourceBuildBlock}`;
+    }
+    settingsConfig.modResults.contents = contents;
+    return settingsConfig;
   });
 };

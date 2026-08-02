@@ -89,6 +89,7 @@ public final class StylusInputTest {
     assertNotNull(activity);
 
     UiDevice device = UiDevice.getInstance(instrumentation);
+    boolean evidenceCaptured = false;
     try {
       UiObject2 pen = waitForDescription(device, "Pen annotation tool", "ペン注釈ツール", 60_000);
       assertNotNull("pen tool did not appear", pen);
@@ -128,6 +129,12 @@ public final class StylusInputTest {
       }
       dispatchStylus(instrumentation, downTime, downTime + 160L, MotionEvent.ACTION_UP, endX, endY, 0f);
 
+      // Capture while the target activity is unquestionably still foreground.
+      // AndroidJUnitRunner may close it while unwinding an assertion failure,
+      // which would otherwise leave a technically valid launcher screenshot.
+      captureEvidence(device, testContext);
+      evidenceCaptured = true;
+
       String payload = waitForPressurePayload(target);
       assertNotNull(
         "no pressure-aware ink annotation reached SQLite; " + describeAnnotations(target),
@@ -136,8 +143,14 @@ public final class StylusInputTest {
       JSONArray pressures = new JSONObject(payload).getJSONArray("pressures");
       System.out.println("Persisted stylus payload: " + payload);
       assertTrue("too few pressure samples", pressures.length() >= 8);
-      assertTrue("low pressure sample missing", pressures.getDouble(0) < 0.3);
-      assertTrue("high pressure sample missing", pressures.getDouble(pressures.length() - 1) > 0.8);
+      assertTrue(
+        "low pressure sample missing; payload=" + payload,
+        pressures.getDouble(0) < 0.3
+      );
+      assertTrue(
+        "high pressure sample missing; payload=" + payload,
+        pressures.getDouble(pressures.length() - 1) > 0.8
+      );
       System.out.println(
         "Persisted stylus pressures: samples=" + pressures.length()
           + " first=" + pressures.getDouble(0)
@@ -148,7 +161,7 @@ public final class StylusInputTest {
         waitForTextOrDescription(device, "Pressure enabled", "筆圧を反映中", 30_000)
       );
     } finally {
-      captureEvidence(device, testContext);
+      if (!evidenceCaptured) captureEvidence(device, testContext);
     }
   }
 

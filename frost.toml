@@ -178,6 +178,7 @@ tool = "node"
 args = ["release/supply-chain/verify-dependency-patches.mjs"]
 inputs = [
   "apps/desktop/src-tauri/vendor/glib-0.18.5-patched/src/variant_iter.rs",
+  "apps/mobile/plugins/with-android-pointer-events.js",
   "package-lock.json",
   "package.json",
   "patches/*.patch",

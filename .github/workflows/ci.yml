@@ -115,10 +115,13 @@ jobs:
           set -euo pipefail
           npx expo prebuild --platform android --no-install --clean
           application=android/app/src/main/java/app/irohapdf/mobile/MainApplication.kt
+          settings=android/settings.gradle
           grep --fixed-strings --line-regexp \
             'import com.facebook.react.config.ReactFeatureFlags' "$application"
           grep --fixed-strings --line-regexp \
             '    ReactFeatureFlags.dispatchPointerEvents = true' "$application"
+          grep --fixed-strings --line-regexp \
+            'includeBuild(irohaReactNativeSource)' "$settings"
         working-directory: apps/mobile
         env:
           EXPO_NO_DOCTOR: "1"
