@@ -441,9 +441,10 @@ export default function PdfViewerScreen() {
             setLoadError(null);
             markStoreCaptureReady('viewer');
           }}
-          onPageChanged={(currentPage, pages) => {
+          onPageChanged={(currentPage, pages, size) => {
             setPage(currentPage);
             setPageCount(pages);
+            if (size) setPdfPageSize(size);
           }}
           onScaleChanged={setPdfScale}
           onError={(error) => {

@@ -1,0 +1,48 @@
+diff --git a/node_modules/react-native-pdf/index.d.ts b/node_modules/react-native-pdf/index.d.ts
+index fda3f32..aeb27ca 100644
+--- a/node_modules/react-native-pdf/index.d.ts
++++ b/node_modules/react-native-pdf/index.d.ts
+@@ -61 +61 @@ export interface PdfProps {
+-    onPageChanged?: (page: number, numberOfPages: number) => void,
++    onPageChanged?: (page: number, numberOfPages: number, size?: {height: number, width: number}) => void,
+diff --git a/node_modules/react-native-pdf/index.js b/node_modules/react-native-pdf/index.js
+index 411f538..0a81e84 100644
+--- a/node_modules/react-native-pdf/index.js
++++ b/node_modules/react-native-pdf/index.js
+@@ -412 +412,6 @@ export default class Pdf extends Component {
+-                this.props.onPageChanged && this.props.onPageChanged(Number(message[1]), Number(message[2]));
++                const width = Number(message[3]);
++                const height = Number(message[4]);
++                const size = Number.isFinite(width) && Number.isFinite(height)
++                    ? { width, height }
++                    : undefined;
++                this.props.onPageChanged && this.props.onPageChanged(Number(message[1]), Number(message[2]), size);
+diff --git a/node_modules/react-native-pdf/PdfView.js b/node_modules/react-native-pdf/PdfView.js
+index b2449c5..6654cf4 100644
+--- a/node_modules/react-native-pdf/PdfView.js
++++ b/node_modules/react-native-pdf/PdfView.js
+@@ -313 +313 @@ export default class PdfView extends Component {
+-            this.props.onPageChanged(page, numberOfPages);
++            this.props.onPageChanged(page, numberOfPages, this.state.pdfPageSize);
+diff --git a/node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java b/node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java
+index 60fb225..f5bd876 100644
+--- a/node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java
++++ b/node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java
+@@ -108,0 +109,2 @@ public class PdfView extends PDFView implements OnPageChangeListener,OnLoadCompl
++        SizeF pageSize = getPageSize(page - 1);
++
+@@ -110 +112 @@ public class PdfView extends PDFView implements OnPageChangeListener,OnLoadCompl
+-        event.putString("message", "pageChanged|"+page+"|"+numberOfPages);
++        event.putString("message", "pageChanged|"+page+"|"+numberOfPages+"|"+pageSize.getWidth()+"|"+pageSize.getHeight());
+diff --git a/node_modules/react-native-pdf/ios/RNPDFPdf/RNPDFPdfView.mm b/node_modules/react-native-pdf/ios/RNPDFPdf/RNPDFPdfView.mm
+index 151905d..7bd6150 100644
+--- a/node_modules/react-native-pdf/ios/RNPDFPdf/RNPDFPdfView.mm
++++ b/node_modules/react-native-pdf/ios/RNPDFPdf/RNPDFPdfView.mm
+@@ -626 +626 @@ RCT_CUSTOM_VIEW_PROPERTY(enableAnnotationRendering, BOOL, RNPDFPdfView) {
+-        PDFPage *page = [_pdfDocument pageAtIndex:_pdfDocument.pageCount-1];
++        PDFPage *page = [_pdfDocument pageAtIndex:0];
+@@ -728,0 +729 @@ RCT_CUSTOM_VIEW_PROPERTY(enableAnnotationRendering, BOOL, RNPDFPdfView) {
++        CGSize pageSize = [_pdfView rowSizeForPage:currentPage];
+@@ -730 +731 @@ RCT_CUSTOM_VIEW_PROPERTY(enableAnnotationRendering, BOOL, RNPDFPdfView) {
+-        [self notifyOnChangeWithMessage:[[NSString alloc] initWithString:[NSString stringWithFormat:@"pageChanged|%lu|%lu", page+1, numberOfPages]]];
++        [self notifyOnChangeWithMessage:[[NSString alloc] initWithString:[NSString stringWithFormat:@"pageChanged|%lu|%lu|%f|%f", page+1, numberOfPages, pageSize.width, pageSize.height]]];

@@ -63,6 +63,12 @@ dependency patches, CSS/native design-token enforcement, and the deterministic
 large-PDF generator check. CI then builds `desktop-web` separately because it is
 a command target with a restorable output tree rather than a test.
 
+`npm ci` also applies `patches/react-native-pdf+7.0.4.patch`. That reviewed patch
+adds the current page dimensions to the native page-change event on Android and
+iOS, which keeps annotation geometry correct for mixed-size documents. The
+dependency-patch gate checks the installed bridge and both native implementations;
+an upstream version bump must refresh or remove the patch deliberately.
+
 Brand regeneration additionally needs `rsvg-convert` and ImageMagick. Those
 tools are not needed for ordinary validation because the generated assets are
 committed and checked directly.

@@ -29,7 +29,8 @@
 - Expo SDK 57 / React Native 0.86
 - Expo Router
 - `react-native-pdf`で単一ページ表示
-- React Native SVGの注釈オーバーレイ（rendererが返すページ実寸へfit）
+- React Native SVGの注釈オーバーレイ（固定した`react-native-pdf` patchが
+  ページ変更ごとに返す実寸へfitし、混在サイズPDFでも再計算）
 - React Native pointer eventでpen/touch/mouseを分離し、penの各点のpressureを保持
 - `expo-sqlite`で文書、メモ、注釈を保存
 - `expo-document-picker`でFilesアプリと端末Document Providerから取り込み

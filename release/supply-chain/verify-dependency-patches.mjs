@@ -65,4 +65,35 @@ assert.match(
   "the vendored glib output pointer must be passed mutably",
 );
 
+const reactNativePdfBridge = await readFile(
+  path.join(repositoryRoot, "node_modules/react-native-pdf/index.js"),
+  "utf8",
+);
+assert.match(
+  reactNativePdfBridge,
+  /onPageChanged\(Number\(message\[1\]\), Number\(message\[2\]\), size\)/,
+  "react-native-pdf must forward each native page size to JavaScript",
+);
+const reactNativePdfAndroid = await readFile(
+  path.join(
+    repositoryRoot,
+    "node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java",
+  ),
+  "utf8",
+);
+assert.match(
+  reactNativePdfAndroid,
+  /pageChanged\|"\+page\+"\|"\+numberOfPages\+"\|"\+pageSize\.getWidth\(\)\+"\|"\+pageSize\.getHeight\(\)/,
+  "react-native-pdf Android must report the current page dimensions",
+);
+const reactNativePdfIos = await readFile(
+  path.join(repositoryRoot, "node_modules/react-native-pdf/ios/RNPDFPdf/RNPDFPdfView.mm"),
+  "utf8",
+);
+assert.match(
+  reactNativePdfIos,
+  /pageChanged\|%lu\|%lu\|%f\|%f/,
+  "react-native-pdf iOS must report the current page dimensions",
+);
+
 console.log("Dependency patch verification passed.");

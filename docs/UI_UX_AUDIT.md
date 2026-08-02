@@ -13,7 +13,7 @@
 | ライブラリ | PDFとメモをアプリ内から削除できなかった | 確認ダイアログ付き削除を追加。PDF削除時は端末内コピー、注釈、復旧記録を削除し、Files/Driveの原本は変更しない |
 | 空・検索状態 | データが無い状態と検索結果0件が同じ表示だった | 初回案内と検索0件を分け、次にできる操作を表示 |
 | 注釈 | SQLite保存より先に画面だけ更新する経路があり、保存失敗時に見かけと実データがずれ得た | 追加、削除、undo、redoは永続化成功後だけUIと履歴を更新 |
-| 注釈座標 | PDFの実表示領域ではなくviewer全体へ座標を正規化し、余白・回転・zoomでずれ得た | native rendererが返すページ寸法から中央配置領域を計算。編集tool選択時は100%へ戻し、zoom中は誤配置を防ぐためoverlayを読取専用にする |
+| 注釈座標 | PDFの実表示領域ではなくviewer全体へ座標を正規化し、余白・回転・zoomでずれ得た。さらにupstreamはAndroidで先頭、iOSで末尾ページの寸法しか返さず、混在サイズPDFでずれた | native bridgeを固定patchし、ページ変更ごとの実寸から中央配置領域を再計算。編集tool選択時は100%へ戻し、zoom中は誤配置を防ぐためoverlayを読取専用にする |
 | スタイラス | touchとpenを同じPanResponder経路で扱い、筆圧を保存も書き出しもしていなかった | native pointer eventのpointer ID / tool type / pressureを取得し、各点の筆圧をSQLiteへ保存。画面previewとflatten済みPDFの双方で線幅へ反映する |
 | 大容量PDF | native表示は可能でもmobile書き出しが全bytesをJS heapへ展開し、低メモリ時にOS終了し得た | 閲覧・注釈autosaveは維持し、64 MiB超のmobile書き出し/印刷は説明dialogからdesktopへ案内する。300 MiB/500ページ用のstreaming fixtureと1.5 GiB AVD gateも追加 |
 | size規則 | CSSとReact Native StyleSheetに近い余白・文字・角丸・操作高が個別値で散在した | desktop/siteはCSS custom properties、mobileは`theme.ts`の型付きtokenへ統合。raw固定値を再導入するとFrostのstyle-token gateが失敗する |

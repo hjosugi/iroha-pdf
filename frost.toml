@@ -74,6 +74,7 @@ kind = "test"
 tool = "node"
 args = ["release/device-evidence/validate-fixture-generator.mjs"]
 inputs = [
+  ".github/workflows/ci.yml",
   "release/device-evidence/generate-large-pdf.mjs",
   "release/device-evidence/prepare-stylus-instrumentation.mjs",
   "release/device-evidence/validate-fixture-generator.mjs",
@@ -154,9 +155,9 @@ env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false
 
-# Resolves the installed `xcode` and `uuid` packages as well as the vendored
-# glib patch, so the npm lockfile stands in for the module tree the way it does
-# for every other gate here.
+# Resolves the installed `xcode` and `uuid` packages, the vendored glib fix and
+# the patched React Native PDF bridge. The lockfile plus reviewed patch file
+# stand in for the installed module tree the way they do for every other gate.
 [target.iroha-pdf-dependency-patches]
 kind = "test"
 tool = "node"
@@ -165,6 +166,7 @@ inputs = [
   "apps/desktop/src-tauri/vendor/glib-0.18.5-patched/src/variant_iter.rs",
   "package-lock.json",
   "package.json",
+  "patches/*.patch",
   "release/supply-chain/verify-dependency-patches.mjs",
 ]
 env = { CI = "true" }

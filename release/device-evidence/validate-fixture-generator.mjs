@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -8,6 +9,10 @@ const temporary = mkdtempSync(join(tmpdir(), 'iroha-device-fixture-'));
 const fixture = join(temporary, 'fixture.pdf');
 
 try {
+  const workflow = readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(workflow, /-lowram -memory 1536/, 'the device gate must prevent the API 36 emulator from raising RAM to 2.5 GiB');
+  assert.match(workflow, /\$\{\{ runner\.temp \}\}\/large-500-pages\.pdf/, 'the 300 MiB fixture must stay outside the uploaded evidence directory');
+
   for (const [tool, arguments_] of [
     [process.execPath, ['--check', resolve(root, 'release/device-evidence/prepare-stylus-instrumentation.mjs')]],
     ['bash', ['-n', resolve(root, 'release/device-evidence/verify-low-memory-android.sh')]],

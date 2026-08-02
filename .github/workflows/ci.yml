@@ -573,7 +573,7 @@ jobs:
         run: >-
           node release/device-evidence/generate-large-pdf.mjs
           --pages 500 --size-mib 300
-          --output artifacts/device-evidence/large-500-pages.pdf
+          --output ${{ runner.temp }}/large-500-pages.pdf
       - name: Boot the 1.5 GiB emulator and install
         run: |
           set -euo pipefail
@@ -581,7 +581,7 @@ jobs:
           nohup "$ANDROID_SDK_ROOT/emulator/emulator" @iroha-low-memory \
             -no-window -noaudio -no-boot-anim -no-snapshot \
             -gpu swiftshader_indirect -camera-back none -camera-front none \
-            -memory 1536 > "$RUNNER_TEMP/android-low-memory-emulator.log" 2>&1 &
+            -lowram -memory 1536 > "$RUNNER_TEMP/android-low-memory-emulator.log" 2>&1 &
           emulator_pid=$!
           for _ in $(seq 1 180); do
             [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]] && break
@@ -597,7 +597,7 @@ jobs:
         run: >-
           bash release/device-evidence/verify-low-memory-android.sh
           artifacts/device-evidence
-          artifacts/device-evidence/large-500-pages.pdf
+          ${{ runner.temp }}/large-500-pages.pdf
       - name: Inject native pen pressure and verify the SQLite payload
         shell: bash
         run: |
@@ -611,13 +611,17 @@ jobs:
             | tee artifacts/device-evidence/stylus-instrumentation.txt
           grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt
           adb exec-out screencap -p > artifacts/device-evidence/stylus-pressure.png
+      - name: Collect the emulator log
+        if: always()
+        run: |
+          mkdir -p artifacts/device-evidence
+          cp "$RUNNER_TEMP/android-low-memory-emulator.log" \
+            artifacts/device-evidence/emulator.log 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: android-low-memory-evidence
-          path: |
-            artifacts/device-evidence/
-            ${{ runner.temp }}/android-low-memory-emulator.log
+          path: artifacts/device-evidence/
           if-no-files-found: error
           retention-days: 90
 
