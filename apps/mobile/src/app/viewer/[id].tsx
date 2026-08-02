@@ -486,7 +486,7 @@ export default function PdfViewerScreen() {
         {pageIsAligned ? <View
           testID="annotation-page-layer"
           accessible
-          accessibilityLabel={t('edit.annotationCanvas')}
+          accessibilityLabel={`${t('edit.annotationCanvas')}${lastInputWasPen ? `, ${t('edit.penPressure')}` : ''}`}
           collapsable={false}
           pointerEvents={tool === 'hand' || loadingProgress < 1 || Boolean(loadError) ? 'none' : 'auto'}
           style={[

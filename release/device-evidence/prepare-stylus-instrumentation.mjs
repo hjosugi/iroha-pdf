@@ -116,11 +116,6 @@ public final class StylusInputTest {
       }
       dispatchStylus(instrumentation, downTime, downTime + 160L, MotionEvent.ACTION_UP, endX, endY, 0f);
 
-      assertNotNull(
-        "native stylus input did not reach the React Native pointer bridge",
-        waitForTextOrDescription(device, "Pressure enabled", "筆圧を反映中", 30_000)
-      );
-
       String payload = waitForPressurePayload(target);
       assertNotNull(
         "no pressure-aware ink annotation reached SQLite; " + describeAnnotations(target),
@@ -130,6 +125,15 @@ public final class StylusInputTest {
       assertTrue("too few pressure samples", pressures.length() >= 8);
       assertTrue("low pressure sample missing", pressures.getDouble(0) < 0.3);
       assertTrue("high pressure sample missing", pressures.getDouble(pressures.length() - 1) > 0.8);
+      System.out.println(
+        "Persisted stylus pressures: samples=" + pressures.length()
+          + " first=" + pressures.getDouble(0)
+          + " last=" + pressures.getDouble(pressures.length() - 1)
+      );
+      assertNotNull(
+        "pressure-aware ink persisted but the visible accessibility state was not updated",
+        waitForTextOrDescription(device, "Pressure enabled", "筆圧を反映中", 30_000)
+      );
     } finally {
       captureEvidence(device, testContext);
     }
@@ -232,7 +236,7 @@ public final class StylusInputTest {
 
   private static void captureEvidence(UiDevice device, Context context) {
     try {
-      File directory = new File(context.getExternalFilesDir(null), "device-evidence");
+      File directory = new File(context.getFilesDir(), "device-evidence");
       if (!directory.exists() && !directory.mkdirs()) {
         throw new IllegalStateException("could not create stylus evidence directory");
       }

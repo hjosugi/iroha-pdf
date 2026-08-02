@@ -21,13 +21,14 @@ try {
   assert.match(harness, /send-trim-memory "\$package" RUNNING_CRITICAL/, 'the foreground critical-trim transition must remain explicit');
   assert.match(harness, /for _ in \$\(seq 1 30\); do[\s\S]*send-trim-memory "\$package" BACKGROUND/, 'background trim must wait for ActivityManager to finish the HOME transition');
   assert.match(harness, /capture_logcat_required\(\)[\s\S]*for _ in \$\(seq 1 10\); do[\s\S]*adb logcat -d[\s\S]*capture_logcat_required\s*\nif grep/, 'final crash evidence must tolerate a transient ADB transfer failure without skipping the log check');
-  assert.match(workflow, /app\.irohapdf\.mobile\.test\/files\/device-evidence[\s\S]*adb pull[^\n]*stylus-pressure\.png[\s\S]*adb pull[^\n]*stylus-window\.xml[\s\S]*instrumentation_status == 0/, 'stylus failures must retain the in-app screen and accessibility tree from the instrumentation UID before failing');
+  assert.match(workflow, /adb exec-out run-as app\.irohapdf\.mobile\.test[\s\S]*cat "files\/device-evidence\/\$remote_name"[\s\S]*instrumentation_status == 0[\s\S]*-s artifacts\/device-evidence\/stylus-pressure\.png[\s\S]*-s artifacts\/device-evidence\/stylus-window\.xml/, 'stylus failures must retain private instrumentation evidence, and successful runs must require the screen and accessibility tree');
   const stylusHarness = readFileSync(resolve(root, 'release/device-evidence/prepare-stylus-instrumentation.mjs'), 'utf8');
   assert.match(stylusHarness, /finally \{\s*captureEvidence\(device, testContext\);\s*\}/, 'the instrumentation must capture evidence before Android stops the target package');
+  assert.match(stylusHarness, /new File\(context\.getFilesDir\(\), "device-evidence"\)/, 'stylus evidence must use the instrumentation UID private directory read by adb run-as');
   assert.match(stylusHarness, /Page 1 of 500[\s\S]*240_000/, 'stylus instrumentation must wait for the real large document instead of racing the initial 1-page state');
   assert.match(stylusHarness, /annotation page did not appear before selecting the pen/, 'the stable page bounds must be measured before annotation controls alter the accessibility tree');
   assert.match(stylusHarness, /instrumentation\.sendPointerSync\(event\)/, 'stylus events must cross the Android input dispatcher instead of bypassing it through Activity dispatch');
-  assert.match(stylusHarness, /Pressure enabled[\s\S]*筆圧を反映中/, 'the device gate must distinguish pointer-bridge delivery from SQLite persistence');
+  assert.match(stylusHarness, /Persisted stylus pressures:[\s\S]*Pressure enabled[\s\S]*筆圧を反映中/, 'the device gate must report persisted pressure endpoints and then verify the accessible pointer-bridge state');
 
   for (const [tool, arguments_] of [
     [process.execPath, ['--check', resolve(root, 'release/device-evidence/prepare-stylus-instrumentation.mjs')]],

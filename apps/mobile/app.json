@@ -38,6 +38,7 @@
     },
     "plugins": [
       "./plugins/with-modular-ios-headers",
+      "./plugins/with-android-pointer-events",
       "./plugins/with-device-evidence",
       "expo-router",
       "expo-document-picker",

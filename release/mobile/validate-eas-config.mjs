@@ -7,6 +7,10 @@ const iosPodPlugin = await readFile(
   new URL("../../apps/mobile/plugins/with-modular-ios-headers.js", import.meta.url),
   "utf8",
 );
+const androidPointerPlugin = await readFile(
+  new URL("../../apps/mobile/plugins/with-android-pointer-events.js", import.meta.url),
+  "utf8",
+);
 const expected = {
   development: { distribution: "internal", environment: "development" },
   preview: { distribution: "internal", environment: "preview" },
@@ -37,6 +41,15 @@ assert.ok(
   app.expo.plugins.includes("./plugins/with-modular-ios-headers"),
   "iOS prebuild must make Google Sign-In's Swift dependencies modular",
 );
+assert.ok(
+  app.expo.plugins.includes("./plugins/with-android-pointer-events"),
+  "Android prebuild must enable the React Native pointer-event dispatcher",
+);
+assert.match(
+  androidPointerPlugin,
+  /ReactFeatureFlags\.dispatchPointerEvents\s*=\s*true/,
+  "Android stylus input requires React Native's pointer-event dispatcher",
+);
 assert.match(
   iosPodPlugin,
   /EXPO_USE_PRECOMPILED_MODULES\s*=\s*['"]false['"]/,
@@ -58,4 +71,4 @@ assert.equal(
   "token storage must not claim unused Face ID access",
 );
 
-console.log("EAS profiles, native permission policy, iOS pods, signing, and submit policies are valid.");
+console.log("EAS profiles, native pointer/permission policy, iOS pods, signing, and submit policies are valid.");

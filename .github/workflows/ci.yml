@@ -110,7 +110,15 @@ jobs:
         env:
           EXPO_NO_DOCTOR: "1"
       - name: Validate Android prebuild
-        run: npx expo prebuild --platform android --no-install --clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform android --no-install --clean
+          application=android/app/src/main/java/app/irohapdf/mobile/MainApplication.kt
+          grep --fixed-strings --line-regexp \
+            'import com.facebook.react.config.ReactFeatureFlags' "$application"
+          grep --fixed-strings --line-regexp \
+            '    ReactFeatureFlags.dispatchPointerEvents = true' "$application"
         working-directory: apps/mobile
         env:
           EXPO_NO_DOCTOR: "1"
@@ -637,15 +645,25 @@ jobs:
             | tee artifacts/device-evidence/stylus-instrumentation.txt
           instrumentation_status="${PIPESTATUS[0]}"
           set -e
-          # Instrumentation and the target app have separate Android UIDs. The
-          # test therefore writes its screen/tree to its own external-files area.
-          stylus_evidence=/sdcard/Android/data/app.irohapdf.mobile.test/files/device-evidence
-          adb pull "$stylus_evidence/stylus-pressure.png" \
-            artifacts/device-evidence/stylus-pressure.png >/dev/null 2>&1 || true
-          adb pull "$stylus_evidence/stylus-window.xml" \
-            artifacts/device-evidence/stylus-window.xml >/dev/null 2>&1 || true
+          # Instrumentation and the target app have separate Android UIDs. Read
+          # the test UID's private files with run-as: Android's scoped-storage
+          # policy can make an otherwise valid external-files path unpullable.
+          pull_stylus_evidence() {
+            local remote_name="$1"
+            local local_path="$2"
+            if adb exec-out run-as app.irohapdf.mobile.test \
+              cat "files/device-evidence/$remote_name" > "$local_path"; then
+              [[ -s "$local_path" ]] || rm -f "$local_path"
+            else
+              rm -f "$local_path"
+            fi
+          }
+          pull_stylus_evidence stylus-pressure.png artifacts/device-evidence/stylus-pressure.png
+          pull_stylus_evidence stylus-window.xml artifacts/device-evidence/stylus-window.xml
           (( instrumentation_status == 0 ))
           grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt
+          [[ -s artifacts/device-evidence/stylus-pressure.png ]]
+          [[ -s artifacts/device-evidence/stylus-window.xml ]]
       - name: Collect the emulator log
         if: always()
         run: |
