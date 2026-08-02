@@ -47,7 +47,6 @@ import android.net.Uri;
 import android.os.SystemClock;
 import android.view.InputDevice;
 import android.view.MotionEvent;
-import android.view.View;
 
 import java.io.File;
 
@@ -70,6 +69,7 @@ public final class StylusInputTest {
   public void pressureCrossesNativePointerBridgeAndPersists() throws Exception {
     Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
     Context target = instrumentation.getTargetContext();
+    Context testContext = instrumentation.getContext();
     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("iroha-pdf:///viewer/" + DOCUMENT_ID));
     intent.setClassName(target, "app.irohapdf.mobile.MainActivity");
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -93,22 +93,19 @@ public final class StylusInputTest {
         "pen options did not appear",
         waitForDescription(device, "Ink width 2.4", "ペンの太さ 2.4", 30_000)
       );
+      instrumentation.waitForIdleSync();
 
-      int[] decorLocation = new int[2];
-      View decor = activity.getWindow().getDecorView();
-      instrumentation.runOnMainSync(() -> decor.getLocationOnScreen(decorLocation));
-      float startX = bounds.left - decorLocation[0] + bounds.width() * 0.22f;
-      float startY = bounds.top - decorLocation[1] + bounds.height() * 0.35f;
-      float endX = bounds.left - decorLocation[0] + bounds.width() * 0.72f;
-      float endY = bounds.top - decorLocation[1] + bounds.height() * 0.62f;
+      float startX = bounds.left + bounds.width() * 0.22f;
+      float startY = bounds.top + bounds.height() * 0.35f;
+      float endX = bounds.left + bounds.width() * 0.72f;
+      float endY = bounds.top + bounds.height() * 0.62f;
 
       long downTime = SystemClock.uptimeMillis();
-      dispatchStylus(instrumentation, activity, downTime, downTime, MotionEvent.ACTION_DOWN, startX, startY, 0.18f);
+      dispatchStylus(instrumentation, downTime, downTime, MotionEvent.ACTION_DOWN, startX, startY, 0.18f);
       for (int step = 1; step <= 8; step++) {
         float fraction = step / 8f;
         dispatchStylus(
           instrumentation,
-          activity,
           downTime,
           downTime + step * 16L,
           MotionEvent.ACTION_MOVE,
@@ -117,17 +114,43 @@ public final class StylusInputTest {
           0.18f + 0.72f * fraction
         );
       }
-      dispatchStylus(instrumentation, activity, downTime, downTime + 160L, MotionEvent.ACTION_UP, endX, endY, 0f);
+      dispatchStylus(instrumentation, downTime, downTime + 160L, MotionEvent.ACTION_UP, endX, endY, 0f);
+
+      assertNotNull(
+        "native stylus input did not reach the React Native pointer bridge",
+        waitForTextOrDescription(device, "Pressure enabled", "筆圧を反映中", 30_000)
+      );
 
       String payload = waitForPressurePayload(target);
-      assertNotNull("no pressure-aware ink annotation reached SQLite", payload);
+      assertNotNull(
+        "no pressure-aware ink annotation reached SQLite; " + describeAnnotations(target),
+        payload
+      );
       JSONArray pressures = new JSONObject(payload).getJSONArray("pressures");
       assertTrue("too few pressure samples", pressures.length() >= 8);
       assertTrue("low pressure sample missing", pressures.getDouble(0) < 0.3);
       assertTrue("high pressure sample missing", pressures.getDouble(pressures.length() - 1) > 0.8);
     } finally {
-      captureEvidence(device, target);
+      captureEvidence(device, testContext);
     }
+  }
+
+  private static UiObject2 waitForTextOrDescription(
+    UiDevice device,
+    String english,
+    String japanese,
+    long timeout
+  ) {
+    long deadline = SystemClock.uptimeMillis() + timeout;
+    while (SystemClock.uptimeMillis() < deadline) {
+      UiObject2 object = device.findObject(By.textContains(english));
+      if (object == null) object = device.findObject(By.textContains(japanese));
+      if (object == null) object = device.findObject(By.descContains(english));
+      if (object == null) object = device.findObject(By.descContains(japanese));
+      if (object != null) return object;
+      SystemClock.sleep(250);
+    }
+    return null;
   }
 
   private static UiObject2 waitForDescription(
@@ -148,7 +171,6 @@ public final class StylusInputTest {
 
   private static void dispatchStylus(
     Instrumentation instrumentation,
-    Activity activity,
     long downTime,
     long eventTime,
     int action,
@@ -170,9 +192,25 @@ public final class StylusInputTest {
       new MotionEvent.PointerCoords[] { coordinates },
       0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_STYLUS, 0
     );
-    instrumentation.runOnMainSync(() -> activity.dispatchTouchEvent(event));
+    instrumentation.sendPointerSync(event);
     event.recycle();
     SystemClock.sleep(20);
+  }
+
+  private static String describeAnnotations(Context context) {
+    if (!context.getDatabasePath("iroha-pdf.db").exists()) return "database is missing";
+    try (SQLiteDatabase database = SQLiteDatabase.openDatabase(
+      context.getDatabasePath("iroha-pdf.db").getPath(), null, SQLiteDatabase.OPEN_READONLY
+    ); Cursor cursor = database.rawQuery(
+      "SELECT payload FROM annotations WHERE document_id = ? ORDER BY updated_at DESC LIMIT 3",
+      new String[] { DOCUMENT_ID }
+    )) {
+      StringBuilder rows = new StringBuilder("recent payloads=");
+      while (cursor.moveToNext()) rows.append(cursor.getString(0)).append("; ");
+      return rows.toString();
+    } catch (Exception error) {
+      return "could not inspect annotations: " + error;
+    }
   }
 
   private static String waitForPressurePayload(Context context) throws Exception {

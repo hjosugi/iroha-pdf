@@ -625,7 +625,9 @@ jobs:
             | tee artifacts/device-evidence/stylus-instrumentation.txt
           instrumentation_status="${PIPESTATUS[0]}"
           set -e
-          stylus_evidence=/sdcard/Android/data/app.irohapdf.mobile/files/device-evidence
+          # Instrumentation and the target app have separate Android UIDs. The
+          # test therefore writes its screen/tree to its own external-files area.
+          stylus_evidence=/sdcard/Android/data/app.irohapdf.mobile.test/files/device-evidence
           adb pull "$stylus_evidence/stylus-pressure.png" \
             artifacts/device-evidence/stylus-pressure.png >/dev/null 2>&1 || true
           adb pull "$stylus_evidence/stylus-window.xml" \
