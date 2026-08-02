@@ -14,7 +14,7 @@ assert.doesNotMatch(
 );
 assert.match(
   workflow,
-  /e2e:\n[\s\S]*?needs: quality[\s\S]*?uses: actions\/download-artifact@v4[\s\S]*?name: quality-artifacts[\s\S]*?path: apps/,
+  /e2e:\n[\s\S]*?needs: quality[\s\S]*?uses: actions\/download-artifact@v8[\s\S]*?name: quality-artifacts[\s\S]*?path: apps/,
   'E2E jobs must restore the quality job artifact beneath apps/',
 );
 assert.equal(

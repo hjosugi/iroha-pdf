@@ -109,7 +109,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends imagemagick
       - name: Capture the four Android scenes
         run: bash release/store/capture-android.sh release/store/screenshots/android-phone
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: store-screenshots-android
           path: release/store/screenshots/android-phone/
@@ -196,7 +196,7 @@ jobs:
           bash release/store/boot-ios-simulator.sh "$UDID"
           bash release/store/capture-ios.sh "$UDID" release/store/screenshots/ios-ipad-13 2064 2752 "$APP_PATH"
           xcrun simctl shutdown "$UDID"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: store-screenshots-ios
           path: |
@@ -211,11 +211,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: store-screenshots-android
           path: release/store/screenshots/android-phone
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: store-screenshots-ios
           path: release/store/screenshots
@@ -242,7 +242,7 @@ jobs:
       - run: npm ci
       - name: Validate the assembled submission set
         run: node release/store/validate-submission-assets.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: store-submission-screenshots
           path: release/store/screenshots/

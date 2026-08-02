@@ -254,7 +254,7 @@ jobs:
           cat release-notes.md
 
       - name: Retain the release notes
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: release-notes.md
@@ -403,7 +403,7 @@ jobs:
           ls -1 "$dir"
 
       - name: Retain the bundles
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bundle-${{ runner.os }}
           path: ${{ steps.staged.outputs.dir }}/
@@ -421,7 +421,7 @@ jobs:
           fetch-depth: 0
 
       - name: Collect the notes and every platform's bundles
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: staged
 
