@@ -127,7 +127,7 @@ const androidPointerPlugin = await readFile(
 );
 assert.match(
   androidPointerPlugin,
-  /includeBuild\(irohaReactNativeSource\)[\s\S]*substitute module\("com\.facebook\.react:react-android"\) using project\(":packages:react-native:ReactAndroid"\)[\s\S]*substitute module\("com\.facebook\.hermes:hermes-android"\) using project\(":packages:react-native:ReactAndroid:hermes-engine"\)/,
+  /includeBuild\(irohaReactNativeSource\)[\s\S]*substitute module\("com\.facebook\.react:react-android"\) using project\(":packages:react-native:ReactAndroid"\)[\s\S]*substitute module\("com\.facebook\.react:hermes-android"\) using project\(":packages:react-native:ReactAndroid:hermes-engine"\)[\s\S]*substitute module\("com\.facebook\.hermes:hermes-android"\) using project\(":packages:react-native:ReactAndroid:hermes-engine"\)/,
   "Android prebuild must substitute the prebuilt React Android and Hermes AARs with matching source projects",
 );
 

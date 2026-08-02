@@ -13,6 +13,7 @@ def irohaReactNativeSource = new File(
 includeBuild(irohaReactNativeSource) {
   dependencySubstitution {
     substitute module("com.facebook.react:react-android") using project(":packages:react-native:ReactAndroid")
+    substitute module("com.facebook.react:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")
     substitute module("com.facebook.hermes:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")
   }
 }

@@ -125,6 +125,8 @@ jobs:
           grep --fixed-strings --line-regexp \
             '    substitute module("com.facebook.react:react-android") using project(":packages:react-native:ReactAndroid")' "$settings"
           grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")' "$settings"
+          grep --fixed-strings --line-regexp \
             '    substitute module("com.facebook.hermes:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")' "$settings"
         working-directory: apps/mobile
         env:
