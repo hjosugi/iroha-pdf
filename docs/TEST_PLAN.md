@@ -50,6 +50,10 @@ npm run e2e:tauri:ceiling
 
 `npm run e2e` builds fixtures on first run (`apps/desktop/e2e/global-setup.ts`) into
 `apps/desktop/e2e/fixtures/`, which is gitignored. Delete that directory to rebuild them.
+It previews `apps/desktop/dist/debug`, the profile-specific tree produced by the
+preceding Frost command. This avoids accidentally testing an older unprofiled
+`dist/` tree. CI builds that tree once in the quality job and downloads the same
+artifact on Linux, macOS and Windows before starting Playwright.
 
 ### What the e2e suite covers
 

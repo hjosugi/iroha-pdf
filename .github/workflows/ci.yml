@@ -312,6 +312,7 @@ jobs:
   e2e:
     name: e2e (${{ matrix.os }})
     if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
+    needs: quality
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     strategy:
@@ -337,7 +338,15 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
         working-directory: apps/desktop
-      - run: npm run build:desktop
+      # The quality job built this tree through Frost. Reuse those exact bytes
+      # on every browser host rather than rebuilding an undeclared dist/ tree
+      # with npm and allowing a stale local preview to pass.
+      - uses: actions/download-artifact@v4
+        with:
+          name: quality-artifacts
+      - name: Confirm the Frost web output is present
+        shell: bash
+        run: test -f apps/desktop/dist/debug/index.html
       - run: npm run e2e
         env:
           # Shared runners are slower than a developer machine; only time budgets scale.
