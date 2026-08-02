@@ -127,8 +127,8 @@ const androidPointerPlugin = await readFile(
 );
 assert.match(
   androidPointerPlugin,
-  /includeBuild\(irohaReactNativeSource\)[\s\S]*substitute module\("com\.facebook\.react:react-android"\) using project\(":packages:react-native:ReactAndroid"\)/,
-  "Android prebuild must explicitly substitute the prebuilt AAR with the patched React Native project",
+  /includeBuild\(irohaReactNativeSource\)[\s\S]*substitute module\("com\.facebook\.react:react-android"\) using project\(":packages:react-native:ReactAndroid"\)[\s\S]*substitute module\("com\.facebook\.hermes:hermes-android"\) using project\(":packages:react-native:ReactAndroid:hermes-engine"\)/,
+  "Android prebuild must substitute the prebuilt React Android and Hermes AARs with matching source projects",
 );
 
 console.log("Dependency patch verification passed.");
