@@ -18,8 +18,8 @@
 
 ## 現在実装済み
 
-- Expo SDK 57 / React Native 0.86.2 / React 19.2のモバイル基盤。Expo互換のmobile・共有packageはTypeScript 6.0.3、desktopとroot toolingはTypeScript 7.0.2
-- Tauri 2 + React + EmbedPDF（PDFium/WASM）のデスクトップ基盤
+- Expo SDK 57 / React Native 0.86.2 / React 19.2.3のモバイル基盤。Expo互換のmobile・共有packageはTypeScript 6.0.3
+- Tauri 2 / React 19.2.8 / EmbedPDF（PDFium/WASM）のデスクトップ基盤。desktopとroot toolingはTypeScript 7.0.2
 - PDF表示、複数タブ、ハイライト、筆圧対応スタイラス手書き、テキスト注釈
 - PDFごとの軽量メモと自動保存
 - 注釈をPDFへ焼き込んだコピーの書き出し
@@ -34,6 +34,7 @@
   - Changes APIの開始トークンと差分取得
 - Google Driveモバイル画面（OAuthクライアント設定後の一覧・ダウンロード）
 - 日本語・英語UI、スクリーンリーダー用ラベル、React Nativeのlogical unitで44以上のモバイル操作領域
+- desktop/siteのCSS custom propertiesとmobileの型付きsize token。散在した固定sizeの再導入をFrost gateで拒否
 - PDFページごとの実寸に正規化する注釈座標、混在サイズ・回転時の再計算、編集時100%表示への安全な復帰
 - 300 MiB・500ページPDFを1.5 GiB Android AVDでopen / trim / resume / cold reopenする証跡ゲート
 - 端末内PDF・メモの削除、Google Driveのログアウト・権限取り消し
@@ -73,9 +74,10 @@ issues/
 
 ## ドキュメント
 
-`docs/`はGitHub Pagesへ公開しています。`main`へのpushごとに[.github/workflows/pages.yml](.github/workflows/pages.yml)が再生成します。
+`docs/`はGitHub Pagesへ公開しています。`main`へのpushごとに[Pages workflow](https://github.com/hjosugi/iroha-pdf/blob/main/.github/workflows/pages.yml)が再生成します。
 
 - サイト: https://hjosugi.github.io/iroha-pdf/
+- English overview: https://hjosugi.github.io/iroha-pdf/overview-en/
 - プライバシーポリシー（ストアとOAuth同意画面へ入力する安定URL）: https://hjosugi.github.io/iroha-pdf/privacy/
 - App Store / Google Play提出文、画像、再生成手順: [release/store/README.md](release/store/README.md)
 - 画面別UI/UX監査、修正内容、残る実機ゲート: [docs/UI_UX_AUDIT.md](docs/UI_UX_AUDIT.md)
@@ -136,7 +138,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
 
 ## 主要な技術判断
 
-- React Native公式は新規アプリでExpoのようなFrameworkを推奨しており、Expo SDK 57はReact Native 0.86を採用しています。
+- React Native公式は新規アプリでExpoのようなFrameworkを推奨しています。Expo SDK 57はReact Native 0.86系を採用し、このリポジトリは0.86.2へ固定しています。
 - デスクトップPDFエンジンは、MITライセンス、PDFium、注釈・印刷・export pluginを持つEmbedPDFを採用しました。
 - PedaruはGoogle Drive、SQLite、タブ、セッション設計の参考にしましたが、デスクトップ専用でPDF書き込み機能がないため移植していません。
 - BentoPDFは機能要件の参考として非常に優秀ですが、AGPL-3.0 / 商用デュアルライセンスです。このプロジェクトにはコードをコピーしていません。

@@ -1,8 +1,10 @@
 # Main branch protection
 
-Issue #62 requires pull requests and successful CI checks before `main` can
-advance. The CI workflow already runs on pull requests and retains quality and
-native build artifacts for 14 days and supply-chain evidence for 90 days.
+Issue #62 established the requirement that pull requests and successful CI
+checks protect `main`; it was closed after the live GitHub API read-back matched
+the encoded policy on 2026-08-02. The CI workflow runs on pull requests and
+retains quality and native build artifacts for 14 days and supply-chain evidence
+for 90 days.
 
 The repository policy is encoded in `scripts/github/protect-main.sh`. It:
 

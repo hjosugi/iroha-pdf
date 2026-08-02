@@ -69,6 +69,26 @@ iOS, which keeps annotation geometry correct for mixed-size documents. The
 dependency-patch gate checks the installed bridge and both native implementations;
 an upstream version bump must refresh or remove the patch deliberately.
 
+`patches/react-native+0.86.2.patch` corrects a separate Android pointer-event
+gap: upstream 0.86 reports the W3C no-pressure fallback `0.5` even when a pen's
+`MotionEvent` contains normalized pressure. The patch forwards real pen pressure;
+the Expo config plugin adds the React Native tree as a Gradle composite build and
+explicitly substitutes its `ReactAndroid` and `hermes-engine` projects for
+`react-android` and `hermes-android`. That compiles the patched Kotlin into the APK
+instead of bypassing it with the published React Android AAR, while avoiding a mixed
+source/AAR Hermes classpath. It also captures legacy `react-native` and `hermes-engine`
+coordinates before the React plugin can rewrite them back to published AARs. The
+dependency gate checks the installed source and
+the clean prebuild's generated `settings.gradle`; native instrumentation rejects a
+fixed-pressure payload. A React Native upgrade must re-audit and either refresh or
+remove this patch and the temporary source-build override.
+
+Android's React Native 0.86 pointer dispatcher is still guarded by
+`ReactFeatureFlags.dispatchPointerEvents`. The checked-in Expo config plugin
+`apps/mobile/plugins/with-android-pointer-events.js` enables it in every generated
+`MainApplication`; CI inspects the clean Android prebuild so an Expo or React
+Native template change cannot silently disable pen/touch/mouse annotation input.
+
 Brand regeneration additionally needs `rsvg-convert` and ImageMagick. Those
 tools are not needed for ordinary validation because the generated assets are
 committed and checked directly.
@@ -110,6 +130,8 @@ and requires open, critical memory trim, background/resume and cold reopen to
 succeed. The same build receives native Android instrumentation that dispatches
 `TOOL_TYPE_STYLUS` events with rising pressure through the React Native pointer
 bridge and reads SQLite back to prove that low and high samples were persisted.
+The test also requires a screen capture and accessibility tree from the running
+app, not only a successful instrumentation exit code.
 Its APK alone is not a production artifact; cleartext loopback is
 enabled only while `IROHA_DEVICE_EVIDENCE=1` so the ADB-reversed fixture server
 can be reached.
@@ -122,7 +144,9 @@ Emulator's `-lowram` option removes its host-side minimum-RAM override. The
 measured RAM, process survival and explicit `RUNNING_CRITICAL` trim are the
 evidence this gate claims.
 
-The evidence route and cleartext permission are absent from ordinary builds.
+Ordinary builds leave evidence mode disabled, so the route immediately redirects
+to the library; the cleartext permission is absent unless the CI-only prebuild
+environment enables it.
 The job stores fixture metadata, `dumpsys meminfo`, logcat, UI hierarchy,
 screenshots and instrumentation output for 90 days. A green AVD run supports the
 large-PDF and stylus implementation, but does not replace signed physical-device

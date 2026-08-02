@@ -20,8 +20,9 @@ checks page count, dimensions, decoded text operators, corrupt-input rejection,
 and reopen after reorder/extract/optimization. Renderer golden screenshots
 remain part of the device/desktop E2E gate because `pdf-lib` does not render.
 
-`e2e:tauri` drives the real Tauri runtime — a real window, the real webview, the
-real file dialogs — rather than the Playwright stub, and runs 22 checks. It needs
+`e2e:tauri` drives the real Tauri runtime — a real window, the real webview,
+real filesystem writes and real Tauri plugin calls — rather than the Playwright
+stub, and runs 22 checks. The native file dialog itself remains a manual gate. It needs
 `cargo install tauri-driver`, a `WebKitWebDriver` binary (Debian: `webkit2gtk-driver`),
 a graphical session, and a **debug** app build from
 `frost build desktop-app-linux-debug --no-tui`.
@@ -82,20 +83,24 @@ Printing is checked by capturing the blob passed to the print frame, not by driv
 native dialog — a dialog would block the run. `window.print` is neutralised on the page
 and on any frame it creates so one can never open by accident.
 
-## Mobile build status
+## Mobile build history and current evidence
 
-**Android builds.** Verified 2026-07-20 on a cold machine: SDK command-line tools,
+**Historical Android baseline.** Verified 2026-07-20 on a cold machine: SDK command-line tools,
 platform 36 and build-tools 36.0.0 installed by hand; Gradle 9.3.1 then fetched the NDK
 (2 GB) and cmake itself. `./gradlew assembleDebug` finished in **42m 51s** and produced a
 **283.1 MB** `app-debug.apk` — package `app.irohapdf.mobile`, versionName 0.1.0, all four
 ABIs, 112 native libraries. The size is a debug build carrying unstripped libraries for
 every ABI; release/AAB size is still unmeasured.
 
+That size and version are retained as dated history, not the current release result.
+The current Expo SDK 57 Release-simulator matrix and controlled low-memory evidence
+are described below and in `docs/RELEASE_GATE.md`.
+
 `ci.yml` has an `android` job that reproduces this. It is deliberately **not** run on pull
 requests — 43 minutes cold is too much to gate every change on — so it runs on `main` and
 via `workflow_dispatch`, caching `~/.gradle` and the NDK.
 
-**It also runs.** `npm run verify:emulator` installs the APK on a booted emulator, starts
+**The historical debug build also ran.** `npm run verify:emulator` installs the APK on a booted emulator, starts
 Metro, launches the app and checks seven things — all passing on
 `system-images;android-36;google_apis;x86_64`. The one that matters is the logcat line
 `Running "main" with {"rootTag":1,"fabric":true}`: this APK embeds `expo-dev-client`, which
@@ -109,10 +114,12 @@ screens now use `react-native-safe-area-context`, and the release-configured And
 screenshots are the visual regression evidence. This remains a useful example of why
 typecheck and a successful build are not enough.
 
-**iOS now builds in CI for Simulator.** On 2026-08-01 the store-screenshot workflow
+**iOS now builds in CI for Simulator.** On 2026-08-02
+[run 30731064514](https://github.com/hjosugi/iroha-pdf/actions/runs/30731064514)
 built one unsigned Release configuration with Xcode 26.6 and ran it on an iPhone 17
-Pro Max Simulator and an iPad Pro 13-inch Simulator. The committed screenshots bind
-that run and source commit in `release/store/screenshots/evidence.json`. This proves
+Pro Max Simulator and an iPad Pro 13-inch Simulator; the same run captured Android.
+The committed screenshots bind that run and source commit in
+`release/store/screenshots/evidence.json`. This proves
 native compilation, installation, launch, the seeded local database, ordinary library,
 viewer, tools and Drive pre-sign-in screens, and PDFKit load completion. It does **not**
 prove signing, App Store archive privacy manifests, physical-device input, Files/share/
@@ -140,7 +147,9 @@ on a 1.5 GiB API 36 AVD, and requires these transitions: cold open, Android
 `RUNNING_CRITICAL` trim, background/resume, process-cold reopen. It then injects
 real `TOOL_TYPE_STYLUS` MotionEvents whose pressure rises from 0.18 to 0.9 and
 queries the target SQLite database to prove the pressure array crossed the native
-pointer bridge. Logs, memory reports, UI hierarchy and screenshots are uploaded
+pointer bridge. This deliberately fails if React Native regresses to its upstream
+fixed `0.5` fallback, or if Gradle bypasses the patched source with the published
+precompiled AAR. Logs, memory reports, UI hierarchy and screenshots are uploaded
 even when the job fails.
 
 This is controlled emulator evidence, not Apple Pencil/Android hardware proof.

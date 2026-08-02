@@ -55,6 +55,12 @@ export const SECTIONS = [
     blurb: 'どう組み立てられていて、どうビルドし、何が実際に検証済みか。',
     documents: [
       {
+        source: 'README.md',
+        slug: 'overview-ja',
+        label: '日本語概要',
+        summary: '現在の機能、検証済みのリリース状態、セットアップ、既知の制限をまとめた日本語概要。',
+      },
+      {
         source: 'README.en.md',
         slug: 'overview-en',
         label: 'English overview',

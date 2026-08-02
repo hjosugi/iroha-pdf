@@ -15,9 +15,9 @@
 
 `068`〜`075`と`077`は完了済みの記録なので、closeするためだけのissueは作っていません。
 
-## モバイル棚卸し（2026-07-20 Android emulator、2026-08-01 native screenshot matrix）
+## モバイル棚卸し（2026-07-20 Android emulator、2026-08-02 native evidence）
 
-Android emulator（API 36）で手動確認した2026-07-20時点の記録に、2026-08-01のRelease構成スクリーンショットmatrixを追記しています。下の欠落一覧は発見時点の履歴も含むため、取消線と「解消済み」を現在状態として読んでください。
+Android emulator（API 36）で手動確認した2026-07-20時点の記録に、2026-08-02のRelease構成スクリーンショットmatrix、低メモリ、合成native stylusの証跡を追記しています。下の欠落一覧は発見時点の履歴も含むため、取消線と「解消済み」を現在状態として読んでください。
 
 **動作を確認できたもの:**
 
@@ -34,10 +34,10 @@ Android emulator（API 36）で手動確認した2026-07-20時点の記録に、
 1. **複数ページのPDFで2ページ目に到達できない**（#075）。実測で根本原因まで特定
 2. **intent filterが無い**。他アプリからの「共有」「アプリで開く」が不可能。document picker以外の入口が存在しない（#029 / #038と関連）
 3. **開いたファイルへの上書き保存が無い**（#076）。ただしExportは**emulatorで動作確認済み** — 注釈をflattenし、2ページとCJK・表テキストを保持した正当なPDFを生成して共有シートを開く。焼き込まれたハイライトはpopplerでも差分として検出できた（タップ位置と一致）。欠けているのはin-place saveだけで、これにはAndroid SAFのpersistable URI permissionが要る（#038）
-4. ~~注釈の属性がすべてハードコード~~ **解消済み。** 4色パレット（`TOOL_COLORS`, `viewer/[id].tsx:41`）と3段階のink幅を選択できる
-5. ~~undo / deleteが無い~~ **解消済み。** undo/redoスタック（`:115`, `:123`）と消しゴムツール（`:39`）がある
-6. ~~Highlightはタップ位置に固定矩形を置くだけ~~ **解消済み。** `PanResponder`によるドラッグ範囲指定（`:137`）。タップ配置は後方互換の経路として残る
-7. ~~unit testが無い~~ **解消済み。** 30件（`src/lib/database.test.ts` 25件、`annotation-font.test.ts` 5件）
+4. ~~注釈の属性がすべてハードコード~~ **解消済み。** 4色パレットと3段階のink幅を選択できる
+5. ~~undo / deleteが無い~~ **解消済み。** undo/redoスタックと消しゴムツールがある
+6. ~~Highlightはタップ位置に固定矩形を置くだけ~~ **解消済み。** React Native pointer eventによるドラッグ範囲指定。タップ配置は後方互換の経路として残る
+7. ~~unit testが無い~~ **解消済み。** mobile 51件を含む全workspace 127件。SQLiteは実エンジンでschema/journal/recoveryを検証する
 
 つまりmobileに残るdesktop共通の課題は**in-place saveと編集履歴の永続化**であり、色・削除・undoは解決済み。出力経路（Export → 共有シート、Print）はdesktopより自然に統合されている。なお日本語の注釈はNoto Sans JPを同梱して書き出せるようになり、回転ページでの位置ずれも解消した。
 
@@ -138,8 +138,8 @@ Labels: `type:foundation`, `priority:P0`
 | `expo prebuild --platform all` | android / ios両方の生成に成功 |
 | **Android native build** | **成功**（下記） |
 | **Android emulator起動** | **成功**（下記） |
-| **iOS native build** | **Release Simulator build成功**（GitHub Actions 30711299124、物理端末・署名は未実施） |
-| unit test | **30件**（`vitest run`、`node:sqlite`実エンジンでschema/journal/recoveryを検証） |
+| **iOS native build** | **Release Simulator build成功**（GitHub Actions 30731064514、iPhone/iPadの4画面ずつを取得。物理端末・署名は未実施） |
+| unit test | **51件**（2026-08-02現在。`vitest run`、`node:sqlite`実エンジンでschema/journal/recoveryを検証） |
 
 **Android build 実測（2026-07-20、初回・キャッシュ無し）:**
 
@@ -330,7 +330,7 @@ Labels: `platform:mobile`, `type:feature`, `priority:P0`
 - loading/error/password states
 - zoom/pan gesture
 
-Acceptance: portrait/landscape、iPad、Android tabletで表示。password PDF UIは未実装のため追加する。
+password promptは実装済みで、入力値を永続化しない。Acceptanceとして残るのはportrait/landscape、iPad、Android tabletの物理端末表示と、暗号化PDFを使うnative E2E。
 
 ## 007 [~] Add mobile annotation overlay
 
@@ -339,7 +339,7 @@ Labels: `platform:mobile`, `type:feature`, `priority:P0`
 - text, highlight, inkを実装済み。drag highlight、eraser、color、stroke、undo/redoも実装済み
 - 残りはselection highlight（react-native-pdfにテキストレイヤが無く実現手段が未確定）とmove/resize
 
-**訂正（2026-08-01）**: 以前この項に「色・太さがハードコードで選択不可」「undo / deleteのコードが0件」と記録されていたが、いずれも誤り。`viewer/[id].tsx:41`に色パレット、`:115`/`:123`にundo/redo、`:39`に消しゴム、`:137`にドラッグhighlightがある。acceptanceのうち未達なのは、zoom/rotation追従とstylus追従の実機確認。
+**訂正（2026-08-02）**: 色・太さ、undo/redo、消しゴム、ドラッグhighlightを実装済み。overlayは各ページの実寸へfitし、合成native stylusのpointer ID / pressureがSQLiteまで届くことを自動化した。acceptanceのうち未達なのは、物理端末でのzoom/rotation追従、Apple Pencil/各社stylus、傾き・hover・palm rejectionの確認。
 
 Acceptance: zoom/rotation後もannotation位置がずれず、Apple PencilとAndroid stylusで滑らかに描ける。
 
@@ -771,7 +771,7 @@ Labels: `type:accessibility`, `priority:P1`
 
 Acceptance: VoiceOver/TalkBack、dynamic type、contrast、external keyboard、focus order、reduced motionを実機検証する。
 
-**更新（2026-08-02）**: mobile主要画面へaccessibility role/label/stateと44px以上の操作領域を追加。desktopのnested interactive tabを解消し、focus-visible、Escapeで閉じるprint dialog、狭幅時にも消えないdetails panelを実装した。VoiceOver/TalkBack、dynamic type、external keyboard、reduced motionの物理端末検証が残る。
+**更新（2026-08-02）**: mobile主要画面へaccessibility role/label/stateとReact Native logical unitで44以上の操作領域を追加。desktopのnested interactive tabを解消し、focus-visible、Escapeで閉じるprint dialog、狭幅時にも消えないdetails panelを実装した。VoiceOver/TalkBack、dynamic type、external keyboard、reduced motionの物理端末検証が残る。
 
 ## 050 [~] Add Japanese and English localization
 
@@ -831,7 +831,7 @@ Acceptance: import → annotate → export → reopen → print前までをMaest
 
 Labels: `platform:desktop`, `type:test`, `priority:P1`
 
-Playwright + Chromiumで14 spec / 69件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*` / `plugin:dialog|*`のinvokeプロトコルをin-memory filesystemで再実装するため、**アプリ側のコードは本物のまま**desktop保存経路を検証できる。
+Playwright + Chromiumで14 spec / 70件。`apps/desktop/e2e/tauri-stub.ts`が`plugin:fs|*` / `plugin:dialog|*`のinvokeプロトコルをin-memory filesystemで再実装するため、**アプリ側のコードは本物のまま**desktop保存経路を検証できる。
 
 実Tauriランタイム版を`apps/desktop/e2e-tauri/run.mjs`に追加（`npm run e2e:tauri`）。tauri-driver + WebKitWebDriverで実バイナリを起動し、~~17項目~~ **22項目**（2026-08-01の実行で数え直した。pdftotextが無い環境では末尾2件がskipされて20件）を検証:
 
@@ -848,14 +848,14 @@ Playwright + Chromiumで14 spec / 69件。`apps/desktop/e2e/tauri-stub.ts`が`pl
 
 Acceptance: open → multi-tab → annotate → note → export → reopenをWindows/macOS/Linuxで実行する。
 
-## 057 [~] Add GitHub Actions CI
+## 057 [x] Add GitHub Actions CI
 
 Labels: `type:ci`, `priority:P0`
 
 - install lockfile
 - typecheck/test
 - desktop web build
-- **e2e matrix（ubuntu / windows / macOS）を追加。** 現在はPlaywright + Chromiumで14 spec / 69件。LinuxとmacOSではpoppler/ghostscript/imagemagickを入れてrendering検証まで走る。Windowsは`render.ts`の検出が失敗してrendering testが自動skipされる
+- **e2e matrix（ubuntu / windows / macOS）を追加。** 現在はPlaywright + Chromiumで14 spec / 70件。LinuxとmacOSではpoppler/ghostscript/imagemagickを入れてrendering検証まで走る。Windowsは`render.ts`の検出が失敗してrendering testが自動skipされる
 - 失敗時にplaywright-reportをartifactへ（retention 14日）
 - 遅いrunner向けに`PERF_BUDGET_SCALE=4`。時間予算のみscaleし、memory/sizeはscaleしない
 
@@ -875,15 +875,15 @@ Expo prebuild validationはQuality jobのstepとして通っている。android�
 
 リリース検証（`validate:eas` / `validate:brand` / `verify:dependency-patches`）も生のnpm実行をやめてFrostの`test` targetにした。checked-inのconfigとassetを`inputs`として宣言しているので、`apps/mobile/app.json`を触るとbrand gateだけが再実行される。変異テストで確認済み: `adaptiveIcon.backgroundColor`を書き換えると当該gateだけがrerunして失敗し、戻すとcache hitに戻る。
 
-未実装:
+追加の非必須改善と意図的な境界:
 
 - ~~実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証~~ **検証済み（2026-08-01）**: Ubuntu 24.04 + `xvfb-run -a` + `webkit2gtk-driver` 2.52.3 + `tauri-driver` 2.0.6で22項目すべてPASS。`Real-runtime e2e (ubuntu)` jobとして`ci.yml`に追加。ただしrelease packageはharnessが使う`import.meta.env.DEV` seamと`#[cfg(debug_assertions)]` scopeを持たない。必要なのはdebug binary + Vite dev serverで、`frost build desktop-app-linux-debug --no-tui`が作る
 - ~~Tauri jobは`cargo build --release`まで~~ **訂正（2026-08-02）**: Tauri jobは3 OSそれぞれの`desktop-app-*` Frost targetを直接実行し、bundleをartifactに上げる。Release workflowも同じtargetを直接呼ぶ。#059に残るのは署名のみ
 - iOSのunsigned Release Simulator buildはstore screenshot workflowで実施済み。EAS署名、物理端末、TestFlight / archiveは未実施
-- 新設した`e2e-tauri`は`scripts/github/protect-main.sh`の必須checkに**入れていない**。CI上で実績がつくまで初日からmerge gateにはしない。安定したら昇格する
+- `Real-runtime e2e (ubuntu)`は通常PRで毎回実行しているが、main保護の必須8 checkには入れていない。WebKitGTK固有の追加証跡であり、3 OS共通の必須gateとは分離する
 - WebKitGTK実バイナリのCI実行はLinuxのみ。macOSはWKWebView、WindowsはEdgeのdriverが要るので、このjobのコピーでは済まない
 
-Acceptance: PR必須checkとして動き、artifact retentionを設定する。
+Acceptanceは完了。2026-08-02にGitHub APIを読み戻し、strictな最新branch、GitHub Actions appへ固定した必須8 check、管理者適用、linear history、force-push/delete禁止、会話解決必須を確認してGitHub Issue #62をcloseした。artifact retentionはquality/native 14日、supply-chain 90日。
 
 ## 058 [~] Configure EAS development, preview, and production profiles
 

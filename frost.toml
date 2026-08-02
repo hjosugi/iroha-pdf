@@ -136,6 +136,7 @@ tool = "node"
 args = ["site/verify.mjs"]
 inputs = [
   "CHANGELOG.md",
+  "README.md",
   "README.en.md",
   "SECURITY.md",
   "THIRD_PARTY_NOTICES.md",

@@ -4,6 +4,16 @@
 
 ### Added
 
+- Native mobile pen input records pointer identity and per-point pressure, uses
+  the same variable-width mapping in the on-screen preview and flattened PDF,
+  and has Android instrumentation that injects `TOOL_TYPE_STYLUS` events and
+  reads the persisted SQLite payload back. The retained evidence includes the
+  pressure endpoints, in-app screen, and accessibility tree.
+- A controlled Android evidence gate generates a deterministic 300 MiB /
+  500-page PDF, boots a 1.5 GiB API 36 AVD, and requires cold open, critical
+  trim, background/resume, cold reopen, and process survival. Mobile export and
+  print reject inputs above 64 MiB before the JavaScript heap is exhausted;
+  native viewing and annotation autosave remain available.
 - Reproducible, store-ready screenshot sets for Android phones, 6.9-inch
   iPhones, and 13-inch iPads. A release-configured native app loads only a
   deterministic synthetic PDF, and CI records the source commit, run, emulator,
@@ -13,11 +23,36 @@
   provenance.
 - Google Play's mandatory 1024x500 feature graphic and separate 512x512 RGBA
   listing icon, generated from the same font-independent SVG brand source.
+- A full English project overview mirrors the current Japanese README and is
+  published beside it on GitHub Pages with working language navigation.
 
 ### Fixed
 
+- The Linux real-Tauri gate now accepts both WebKitGTK object results and
+  Chromium-style JSON strings, waits until the Shape tool is actually active,
+  checks WebDriver action errors, and refuses a save unless the reopened PDF
+  contains the annotation. This removes both a false harness failure and a
+  possible false pass where an unchanged document was merely rewritten.
+- Android Expo prebuild now enables React Native's guarded pointer-event
+  dispatcher before the runtime starts. Without that generated
+  `MainApplication` setting, typed `onPointer*` handlers compiled but never
+  received touch, mouse, or stylus events in an Android APK. A reviewed React
+  Native 0.86.2 patch also forwards Android's normalized `MotionEvent` pen
+  pressure instead of replacing every active pen sample with `0.5`; Android
+  prebuild compiles that patched bridge and its matching Hermes engine from
+  source rather than silently using the unmodified React Android AAR or mixing
+  it with duplicate published classes through legacy Maven coordinates.
+- Mobile annotation coordinates now use the rendered dimensions of the current
+  PDF page, including mixed-size documents. Selecting an edit tool returns to
+  100%, keeps its controls in a fixed overlay so the page does not jump, and
+  allows the full 44-logical-unit control row to scroll on narrow screens.
+- Desktop and documentation sizing now comes from CSS custom properties, while
+  React Native uses typed spacing, control, type, radius, and layout tokens. A
+  Frost validation target rejects newly scattered fixed sizes. The redundant
+  Taskfile/go-task command layer was removed; local, CI, and Release builds call
+  the pinned FrostBuild v0.8.0 graph directly.
 - Mobile library, viewer, notes, tools, Drive, and recovery screens now use
-  bounded tablet layouts, safe areas, at least 44-pixel primary targets, and
+  bounded tablet layouts, safe areas, at least 44-logical-unit primary targets, and
   screen-reader roles, names, hints, and selected/disabled states. Empty,
   loading, missing-document, retry, and irreversible-action states are explicit.
 - Document and note deletion now removes the private local copy and related

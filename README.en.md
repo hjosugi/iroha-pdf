@@ -18,8 +18,8 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 
 ## Implemented
 
-- Expo SDK 57, React Native 0.86.2, and React 19.2 mobile foundation. Expo-compatible mobile and shared packages use TypeScript 6.0.3; desktop and root tooling use TypeScript 7.0.2.
-- Tauri 2, React, and EmbedPDF (PDFium/WASM) desktop foundation.
+- Expo SDK 57, React Native 0.86.2, and React 19.2.3 mobile foundation. Expo-compatible mobile and shared packages use TypeScript 6.0.3.
+- Tauri 2, React 19.2.8, and EmbedPDF (PDFium/WASM) desktop foundation. Desktop and root tooling use TypeScript 7.0.2.
 - PDF viewing, multiple tabs, highlights, pressure-aware stylus ink, and text annotations.
 - Lightweight per-PDF notes with automatic saving.
 - Export of a copy with annotations embedded into the PDF.
@@ -34,6 +34,7 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
   - Changes API start tokens and incremental change retrieval.
 - Google Drive mobile list/download screen after OAuth client configuration.
 - Japanese and English UI, screen-reader labels, and mobile targets of at least 44 React Native logical units.
+- CSS custom properties for desktop/site sizing and typed mobile size tokens, with a Frost gate that rejects newly scattered fixed sizes.
 - Annotation coordinates normalized to each page's actual geometry, recalculation for mixed sizes and rotation, and a safe return to 100% zoom while editing.
 - An evidence gate that opens, critically trims, resumes, and cold-reopens a 300 MiB, 500-page PDF on a 1.5 GiB Android AVD.
 - Local PDF and note deletion, Google Drive logout, and permission revocation.
@@ -137,7 +138,7 @@ See [docs/GOOGLE_DRIVE.md](docs/GOOGLE_DRIVE.md) for details.
 
 ## Key technical decisions
 
-- The React Native documentation recommends a framework such as Expo for new applications; Expo SDK 57 uses React Native 0.86.
+- The React Native documentation recommends a framework such as Expo for new applications. Expo SDK 57 uses the React Native 0.86 line, and this repository pins 0.86.2.
 - EmbedPDF was selected for the desktop PDF engine because it is MIT-licensed and provides PDFium plus annotation, printing, and export plugins.
 - Pedaru informed the Google Drive, SQLite, tab, and session designs. It was not ported because it is desktop-only and does not write PDFs.
 - BentoPDF is an excellent functional reference, but it uses AGPL-3.0 or a commercial dual license. No BentoPDF code was copied into this project.

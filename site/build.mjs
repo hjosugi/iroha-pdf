@@ -178,6 +178,13 @@ function renderDocumentPage(document, markdown) {
   // A short document gets no contents list, and then it must not be laid out
   // around the gap where one would have been.
   const toc = tableOfContents(headings);
+  const sourceNote = lang === 'en'
+    ? `This page is generated from
+            <a href="${REPOSITORY_URL}/blob/main/${document.source}" rel="noopener noreferrer"><code>${escapeHtml(document.source)}</code></a>.
+            The site is rebuilt after every push to main.`
+    : `この文書のソースは
+            <a href="${REPOSITORY_URL}/blob/main/${document.source}" rel="noopener noreferrer"><code>${escapeHtml(document.source)}</code></a>
+            です。サイトはmainへのpushごとに再生成されます。`;
 
   const main = `      <nav class="crumbs" aria-label="Breadcrumb">
         <a href="../">Documentation</a>
@@ -188,9 +195,7 @@ function renderDocumentPage(document, markdown) {
 ${toc}        <article class="prose">
 ${html}
           <p class="source-note">
-            この文書のソースは
-            <a href="${REPOSITORY_URL}/blob/main/${document.source}" rel="noopener noreferrer"><code>${escapeHtml(document.source)}</code></a>
-            です。サイトはmainへのpushごとに再生成されます。
+            ${sourceNote}
           </p>
         </article>
       </div>
