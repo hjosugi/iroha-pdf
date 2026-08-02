@@ -555,7 +555,12 @@ export default function PdfViewerScreen() {
       </View>
 
       {tool === 'ink' || tool === 'highlight' || tool === 'text' ? (
-        <View style={styles.annotationOptions}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.annotationOptions}
+          contentContainerStyle={styles.annotationOptionsContent}
+        >
           {TOOL_COLORS.map((item) => (
             <Pressable
               key={item}
@@ -577,7 +582,7 @@ export default function PdfViewerScreen() {
               {t('edit.penPressure')}
             </Text>
           ) : null}
-        </View>
+        </ScrollView>
       ) : null}
 
       <View style={styles.pageBar}>
@@ -661,16 +666,20 @@ const styles = StyleSheet.create({
     right: SPACE.sm,
     bottom: CONTROL.comfortable + SPACE.md,
     left: SPACE.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: SPACE.hairline,
+    borderColor: COLOR.control,
+    backgroundColor: COLOR.surface,
+  },
+  annotationOptionsContent: {
+    minWidth: '100%',
     minHeight: CONTROL.comfortable + SPACE.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SPACE.md,
-    borderRadius: RADIUS.md,
-    borderWidth: SPACE.hairline,
-    borderColor: COLOR.control,
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.sm,
     paddingVertical: SPACE.xs,
-    backgroundColor: COLOR.surface,
   },
   colorSwatch: { width: CONTROL.swatch, height: CONTROL.swatch, borderRadius: RADIUS.pill, borderWidth: SPACE.xxs, borderColor: COLOR.surface },
   selectedSwatch: { borderColor: '#171B24', transform: [{ scale: 1.1 }] },
