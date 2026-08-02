@@ -46,6 +46,7 @@ import {
 } from '@/lib/memory-policy';
 import {
   fitPageFrame,
+  hasPressureAwareInk,
   normalizePagePoint,
   pointerPressure,
   type Size,
@@ -135,6 +136,7 @@ export default function PdfViewerScreen() {
   }, [id, navigation]);
 
   const visibleAnnotations = annotations.filter((annotation) => annotation.pageIndex === page - 1);
+  const pressureStatusVisible = lastInputWasPen || hasPressureAwareInk(visibleAnnotations);
 
   const persist = async (annotation: PdfAnnotation, recordHistory = true): Promise<boolean> => {
     try {
@@ -486,7 +488,7 @@ export default function PdfViewerScreen() {
         {pageIsAligned ? <View
           testID="annotation-page-layer"
           accessible
-          accessibilityLabel={`${t('edit.annotationCanvas')}${lastInputWasPen ? `, ${t('edit.penPressure')}` : ''}`}
+          accessibilityLabel={`${t('edit.annotationCanvas')}${pressureStatusVisible ? `, ${t('edit.penPressure')}` : ''}`}
           collapsable={false}
           pointerEvents={tool === 'hand' || loadingProgress < 1 || Boolean(loadError) ? 'none' : 'auto'}
           style={[
@@ -577,12 +579,14 @@ export default function PdfViewerScreen() {
               <Text style={styles.strokeChoiceText}>{width}</Text>
             </Pressable>
           )) : null}
-          {tool === 'ink' && lastInputWasPen ? (
-            <Text accessibilityLiveRegion="polite" testID="stylus-pressure-status" style={styles.inputStatus}>
-              {t('edit.penPressure')}
-            </Text>
-          ) : null}
         </ScrollView>
+      ) : null}
+      {tool === 'ink' && pressureStatusVisible ? (
+        <View pointerEvents="none" style={styles.inputStatusBadge}>
+          <Text accessibilityLiveRegion="polite" testID="stylus-pressure-status" style={styles.inputStatus}>
+            {t('edit.penPressure')}
+          </Text>
+        </View>
       ) : null}
 
       <View style={styles.pageBar}>
@@ -685,6 +689,18 @@ const styles = StyleSheet.create({
   selectedSwatch: { borderColor: '#171B24', transform: [{ scale: 1.1 }] },
   strokeChoice: { borderRadius: RADIUS.sm, minWidth: CONTROL.minimum, minHeight: CONTROL.minimum, alignItems: 'center', justifyContent: 'center', padding: SPACE.xs, backgroundColor: COLOR.control },
   strokeChoiceText: { color: '#505865', fontSize: TYPE.caption, fontWeight: '700' },
+  inputStatusBadge: {
+    position: 'absolute',
+    zIndex: 4,
+    right: SPACE.md,
+    bottom: CONTROL.comfortable * 2 + SPACE.xxl,
+    borderRadius: RADIUS.pill,
+    borderWidth: SPACE.hairline,
+    borderColor: COLOR.control,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.xs,
+    backgroundColor: COLOR.surface,
+  },
   inputStatus: { color: COLOR.success, fontSize: TYPE.caption, fontWeight: '700' },
   pageButton: { color: COLOR.brand, fontSize: TYPE.title, fontWeight: '500' },
   pageControl: { minWidth: CONTROL.comfortable, minHeight: CONTROL.minimum, alignItems: 'center', justifyContent: 'center' },

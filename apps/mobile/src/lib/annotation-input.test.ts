@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { fitPageFrame, normalizePagePoint, pointerPressure } from './annotation-input';
+import type { PdfAnnotation } from '@iroha-pdf/core';
+
+import {
+  fitPageFrame,
+  hasPressureAwareInk,
+  normalizePagePoint,
+  pointerPressure,
+} from './annotation-input';
 
 describe('annotation page coordinates', () => {
   it('fits a portrait page without treating viewer margins as PDF content', () => {
@@ -37,5 +44,23 @@ describe('stylus pressure', () => {
   it('does not vary line width for touch or mouse input', () => {
     expect(pointerPressure('touch', 0.9)).toBeUndefined();
     expect(pointerPressure('mouse', 0.5)).toBeUndefined();
+  });
+
+  it('restores the pressure indicator only from complete persisted samples', () => {
+    const ink = {
+      id: 'ink-1',
+      documentId: 'document-1',
+      pageIndex: 0,
+      kind: 'ink',
+      color: '#2B5CFF',
+      points: [{ x: 0.1, y: 0.2 }, { x: 0.4, y: 0.5 }],
+      strokeWidth: 2.4,
+      createdAt: '2026-08-02T00:00:00.000Z',
+      updatedAt: '2026-08-02T00:00:00.000Z',
+    } satisfies PdfAnnotation;
+
+    expect(hasPressureAwareInk([{ ...ink, pressures: [0.2, 0.9] }])).toBe(true);
+    expect(hasPressureAwareInk([{ ...ink, pressures: [0.2] }])).toBe(false);
+    expect(hasPressureAwareInk([ink])).toBe(false);
   });
 });

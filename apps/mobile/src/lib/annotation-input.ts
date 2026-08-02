@@ -1,4 +1,4 @@
-import { clampNormalized, type Point } from '@iroha-pdf/core';
+import { clampNormalized, type PdfAnnotation, type Point } from '@iroha-pdf/core';
 
 export type Size = { width: number; height: number };
 
@@ -44,4 +44,13 @@ export function pointerPressure(pointerType: string, pressure: number): number |
   if (pointerType !== 'pen') return undefined;
   if (!Number.isFinite(pressure) || pressure <= 0) return 0.5;
   return clampNormalized(pressure);
+}
+
+/** Reports pressure state from persisted ink, not only the current pointer. */
+export function hasPressureAwareInk(annotations: readonly PdfAnnotation[]): boolean {
+  return annotations.some((annotation) =>
+    annotation.kind === 'ink'
+      && annotation.pressures !== undefined
+      && annotation.pressures.length > 0
+      && annotation.pressures.length === annotation.points.length);
 }

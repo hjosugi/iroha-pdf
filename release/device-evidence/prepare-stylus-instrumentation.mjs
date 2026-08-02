@@ -46,6 +46,7 @@ import android.graphics.Rect;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.util.Base64;
+import android.util.Log;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 
@@ -66,6 +67,7 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public final class StylusInputTest {
   private static final String DOCUMENT_ID = "device-evidence-large-pdf";
+  private static final String EVIDENCE_TAG = "IrohaStylusEvidence";
 
   @Test
   public void pressureCrossesNativePointerBridgeAndPersists() throws Exception {
@@ -118,12 +120,6 @@ public final class StylusInputTest {
       }
       dispatchStylus(instrumentation, downTime, downTime + 160L, MotionEvent.ACTION_UP, endX, endY, 0f);
 
-      // Capture while the target activity is unquestionably still foreground.
-      // AndroidJUnitRunner may close it while unwinding an assertion failure,
-      // which would otherwise leave a technically valid launcher screenshot.
-      captureEvidence(device);
-      evidenceCaptured = true;
-
       String payload = waitForPressurePayload(target);
       assertNotNull(
         "no pressure-aware ink annotation reached SQLite; " + describeAnnotations(target),
@@ -140,17 +136,33 @@ public final class StylusInputTest {
         "high pressure sample missing; payload=" + payload,
         pressures.getDouble(pressures.length() - 1) > 0.8
       );
-      System.out.println(
-        "Persisted stylus pressures: samples=" + pressures.length()
-          + " first=" + pressures.getDouble(0)
-          + " last=" + pressures.getDouble(pressures.length() - 1)
+      Log.i(
+        EVIDENCE_TAG,
+        "Verified persisted stylus pressure: samples=" + pressures.length()
+          + " low<0.3 high>0.8"
+      );
+      UiObject2 pressureStatus = waitForTextOrDescription(
+        device, "Pressure enabled", "筆圧を反映中", 30_000
       );
       assertNotNull(
         "pressure-aware ink persisted but the visible accessibility state was not updated",
-        waitForTextOrDescription(device, "Pressure enabled", "筆圧を反映中", 30_000)
+        pressureStatus
       );
+      Log.i(EVIDENCE_TAG, "Verified visible pressure accessibility state");
+
+      // Capture only after persistence and visible semantics have passed.
+      // Capturing earlier can race React Native's accessibility update and
+      // return the launcher's stale root on Android 16.
+      captureEvidence(device);
+      evidenceCaptured = true;
     } finally {
-      if (!evidenceCaptured) captureEvidence(device);
+      if (!evidenceCaptured) {
+        try {
+          captureEvidence(device);
+        } catch (Throwable captureError) {
+          Log.e(EVIDENCE_TAG, "Could not retain failed stylus evidence", captureError);
+        }
+      }
     }
   }
 
@@ -257,25 +269,28 @@ public final class StylusInputTest {
     return new File(new File(context.getFilesDir(), "SQLite"), "iroha-pdf.db");
   }
 
-  private static void captureEvidence(UiDevice device) {
-    try {
-      // Execute screencap as Android's shell user while the target activity is
-      // still foreground. Pulling a private instrumentation path after the test
-      // is unreliable under scoped storage and previously produced a launcher
-      // fallback that was valid PNG bytes but invalid product evidence.
-      device.executeShellCommand(
-        "screencap -p /data/local/tmp/iroha-stylus-pressure.png"
-      );
-      ByteArrayOutputStream hierarchy = new ByteArrayOutputStream();
-      device.dumpWindowHierarchy(hierarchy);
-      String encodedHierarchy = Base64.encodeToString(hierarchy.toByteArray(), Base64.NO_WRAP);
-      device.executeShellCommand(
-        "echo '" + encodedHierarchy
-          + "' | base64 -d > /data/local/tmp/iroha-stylus-window.xml"
-      );
-    } catch (Exception error) {
-      System.out.println("Could not capture in-app stylus evidence: " + error);
-    }
+  private static void captureEvidence(UiDevice device) throws Exception {
+    ByteArrayOutputStream hierarchy = new ByteArrayOutputStream();
+    device.dumpWindowHierarchy(hierarchy);
+    String hierarchyXml = hierarchy.toString("UTF-8");
+    assertTrue(
+      "stylus evidence hierarchy is not the target application",
+      hierarchyXml.contains("package=\\\"app.irohapdf.mobile\\\"")
+    );
+    assertTrue(
+      "stylus evidence hierarchy is missing the visible pressure state",
+      hierarchyXml.contains("Pressure enabled") || hierarchyXml.contains("筆圧を反映中")
+    );
+    String encodedHierarchy = Base64.encodeToString(hierarchy.toByteArray(), Base64.NO_WRAP);
+    device.executeShellCommand(
+      "echo '" + encodedHierarchy
+        + "' | base64 -d > /data/local/tmp/iroha-stylus-window.xml"
+    );
+    // Capture after the hierarchy itself has proved the target activity and
+    // pressure status are still visible.
+    device.executeShellCommand(
+      "screencap -p /data/local/tmp/iroha-stylus-pressure.png"
+    );
   }
 }
 `);
