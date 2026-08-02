@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 output_dir="${1:?usage: verify-low-memory-android.sh OUTPUT_DIR}"
 fixture="${2:?usage: verify-low-memory-android.sh OUTPUT_DIR PDF_FIXTURE}"
@@ -12,6 +12,13 @@ cleanup() {
   [[ -n "${server_pid:-}" ]] && kill "$server_pid" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+capture_unexpected_failure() {
+  local status=$?
+  adb logcat -d > "$output_dir/logcat.txt" 2>/dev/null || true
+  exit "$status"
+}
+trap capture_unexpected_failure ERR
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -61,6 +68,16 @@ fixture_dir="$(dirname "$fixture")"
 fixture_name="$(basename "$fixture")"
 python3 -m http.server "$port" --bind 127.0.0.1 --directory "$fixture_dir" > "$output_dir/http.log" 2>&1 &
 server_pid=$!
+server_ready=false
+for _ in $(seq 1 30); do
+  if curl --fail --silent --show-error --head \
+    "http://127.0.0.1:${port}/${fixture_name}" >/dev/null; then
+    server_ready=true
+    break
+  fi
+  sleep 0.2
+done
+[[ "$server_ready" == true ]] || fail 'fixture server did not become ready'
 adb reverse "tcp:$port" "tcp:$port"
 adb logcat -c
 adb shell am force-stop "$package"
