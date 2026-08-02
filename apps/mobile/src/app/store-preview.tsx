@@ -12,6 +12,7 @@ import {
   markStoreCaptureRoute,
   readStoreCaptureScenario,
 } from '@/lib/store-capture-native';
+import { COLOR, SPACE, TYPE } from '@/lib/theme';
 
 const ENABLED = process.env.EXPO_PUBLIC_STORE_SCREENSHOTS === '1';
 const DOCUMENT_ID = 'store-fixture-project-handoff';
@@ -146,7 +147,7 @@ async function seedStoreFixture(): Promise<void> {
       color: '#16835F',
       position: { x: 0.64, y: 0.79 },
       text: 'Ready to share',
-      fontSize: 14,
+      fontSize: TYPE.body,
       createdAt: FIXED_AT,
       updatedAt: FIXED_AT,
     },
@@ -165,11 +166,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    padding: 24,
-    backgroundColor: '#F6F7F9',
+    gap: SPACE.md,
+    padding: SPACE.xxl,
+    backgroundColor: COLOR.background,
   },
   loading: { color: '#6D7480', fontWeight: '600' },
-  errorTitle: { color: '#A12A22', fontSize: 18, fontWeight: '800' },
-  errorBody: { color: '#6D3A36', lineHeight: 20, textAlign: 'center' },
+  errorTitle: { color: '#A12A22', fontSize: TYPE.heading, fontWeight: '800' },
+  errorBody: { color: '#6D3A36', lineHeight: SPACE.xl, textAlign: 'center' },
 });

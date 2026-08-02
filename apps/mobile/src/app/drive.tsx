@@ -9,6 +9,7 @@ import { GOOGLE_DRIVE_SCOPES, GoogleDriveClient, type DriveFile } from '@iroha-p
 import { alertFailure } from '@/lib/alerts';
 import { importPdfFile } from '@/lib/files';
 import { t } from '@/lib/i18n';
+import { COLOR, CONTROL, RADIUS, SPACE, TYPE } from '@/lib/theme';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 import { ContentColumn } from '@/components/ContentColumn';
 
@@ -159,29 +160,29 @@ export default function GoogleDriveScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F7F9' },
-  content: { padding: 18 },
-  hero: { borderRadius: 19, padding: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E8EE' },
-  heroTitle: { color: '#1A1F28', fontSize: 25, fontWeight: '800' },
-  heroBody: { marginTop: 8, color: '#737B87', lineHeight: 20 },
-  connect: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 18, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#2B5CFF' },
-  connectText: { color: '#FFFFFF', fontWeight: '800' },
-  configurationNotice: { marginTop: 16, borderRadius: 12, padding: 14, backgroundColor: '#FFF7DA', borderWidth: 1, borderColor: '#E9D888' },
+  container: { flex: 1, backgroundColor: COLOR.background },
+  content: { padding: SPACE.xl },
+  hero: { borderRadius: RADIUS.xl, padding: SPACE.xl, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E5E8EE' },
+  heroTitle: { color: '#1A1F28', fontSize: TYPE.title, fontWeight: '800' },
+  heroBody: { marginTop: SPACE.sm, color: '#737B87', lineHeight: SPACE.xl },
+  connect: { minHeight: CONTROL.comfortable, alignItems: 'center', justifyContent: 'center', marginTop: SPACE.xl, borderRadius: RADIUS.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md, backgroundColor: COLOR.brand },
+  connectText: { color: COLOR.surface, fontWeight: '800' },
+  configurationNotice: { marginTop: SPACE.lg, borderRadius: RADIUS.md, padding: SPACE.lg, backgroundColor: '#FFF7DA', borderWidth: SPACE.hairline, borderColor: '#E9D888' },
   noticeTitle: { color: '#3D3416', fontWeight: '800' },
-  noticeBody: { marginTop: 5, color: '#786C3F', lineHeight: 19 },
-  connectionActions: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  noticeBody: { marginTop: SPACE.xs, color: '#786C3F', lineHeight: SPACE.xl },
+  connectionActions: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACE.sm },
   flexAction: { flex: 1 },
-  disconnect: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#ECEEF2' },
+  disconnect: { minHeight: CONTROL.comfortable, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md, backgroundColor: COLOR.control },
   disconnectText: { color: '#4E5663', fontWeight: '800' },
   disabled: { opacity: 0.5 },
-  busyRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, padding: 16 },
-  busyText: { color: '#2B5CFF', fontWeight: '700' },
-  file: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, borderRadius: 15, padding: 13, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E7E9EE' },
-  badge: { width: 40, height: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF0EC' },
-  badgeText: { color: '#D65339', fontSize: 10, fontWeight: '900' },
+  busyRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: SPACE.sm, padding: SPACE.lg },
+  busyText: { color: COLOR.brand, fontWeight: '700' },
+  file: { minHeight: CONTROL.comfortable + SPACE.lg, flexDirection: 'row', alignItems: 'center', gap: SPACE.md, marginTop: SPACE.md, borderRadius: RADIUS.lg, padding: SPACE.md, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E7E9EE' },
+  badge: { width: CONTROL.minimum, height: CONTROL.minimum, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF0EC' },
+  badgeText: { color: '#D65339', fontSize: TYPE.caption, fontWeight: '900' },
   fileText: { flex: 1 },
   fileTitle: { color: '#222730', fontWeight: '700' },
-  fileMeta: { marginTop: 4, color: '#8A909A', fontSize: 11 },
-  download: { color: '#2B5CFF', fontSize: 20, fontWeight: '800' },
-  empty: { padding: 14, color: '#787F8A', lineHeight: 20 },
+  fileMeta: { marginTop: SPACE.xs, color: '#8A909A', fontSize: TYPE.caption },
+  download: { color: COLOR.brand, fontSize: SPACE.xl, fontWeight: '800' },
+  empty: { padding: SPACE.lg, color: '#787F8A', lineHeight: SPACE.xl },
 });

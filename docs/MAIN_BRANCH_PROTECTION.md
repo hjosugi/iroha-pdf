@@ -26,7 +26,7 @@ Install and authenticate the GitHub CLI, then inspect the exact target and API
 payload without changing repository settings:
 
 ```sh
-task github:protect-main
+scripts/github/protect-main.sh
 ```
 
 ## Apply and verify
@@ -35,7 +35,7 @@ Run the mutating form only after confirming that the preview targets
 `hjosugi/iroha-pdf` and branch `main`:
 
 ```sh
-task github:protect-main APPLY=1
+APPLY=1 scripts/github/protect-main.sh
 ```
 
 The command reads the settings back from GitHub and fails unless the required

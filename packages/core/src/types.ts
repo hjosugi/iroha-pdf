@@ -45,6 +45,11 @@ export type HighlightAnnotation = AnnotationBase & {
 export type InkAnnotation = AnnotationBase & {
   kind: 'ink';
   points: Point[];
+  /**
+   * Normalized pressure for each point (0..1). Older annotations omit this,
+   * which deliberately renders them at the selected base stroke width.
+   */
+  pressures?: number[];
   strokeWidth: number;
 };
 

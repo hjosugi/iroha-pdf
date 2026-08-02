@@ -16,9 +16,9 @@
 
 ## 現在実装済み
 
-- Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 7のモバイル基盤
+- Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 6のモバイル基盤
 - Tauri 2 + React + EmbedPDF（PDFium/WASM）のデスクトップ基盤
-- PDF表示、複数タブ、ハイライト、手書き、テキスト注釈
+- PDF表示、複数タブ、ハイライト、筆圧対応スタイラス手書き、テキスト注釈
 - PDFごとの軽量メモと自動保存
 - 注釈をPDFへ焼き込んだコピーの書き出し
 - 画像からPDF作成（大画像縮小、JPEG圧縮、A4配置）
@@ -31,7 +31,9 @@
   - PDF一覧、ダウンロード、作成・更新、再開可能アップロード
   - Changes APIの開始トークンと差分取得
 - Google Driveモバイル画面（OAuthクライアント設定後の一覧・ダウンロード）
-- 日本語・英語UI、スクリーンリーダー用ラベル、44px以上のモバイル操作領域
+- 日本語・英語UI、スクリーンリーダー用ラベル、44pt以上のモバイル操作領域
+- PDFページ実寸に正規化する注釈座標、回転時の再計算、編集時100%表示への安全な復帰
+- 300 MiB・500ページPDFを1.5 GiB Android AVDでopen / trim / resume / cold reopenする証跡ゲート
 - 端末内PDF・メモの削除、Google Driveのログアウト・権限取り消し
 - 注釈座標、PDF操作、同期マージの単体テスト
 
@@ -39,11 +41,12 @@
 
 - 「既存テキストの直接置換」はPDFの最低限編集には含めていません。フォント、文字配置、サブセット、Content Streamの再構築が必要で、壊れやすいためです。MVPは追記、ハイライト、手書き、メモ、ページ操作を扱います。
 - モバイルの安全な最適化はObject Stream再構成のみです。画像の再圧縮を行わないため、縮まないPDFもあります。
+- モバイルの注釈書き出し/印刷はPDF全体をJavaScriptメモリで再構成するため、64 MiBを超える入力では強制終了を避けてdesktop利用を案内します。native閲覧と注釈autosaveは継続できます。
 - 高圧縮、deskew、OCR、PDF/A、フォントアウトライン化はネイティブエンジンが必要です。デスクトップはpdfcpu sidecar、モバイルは専用ネイティブモジュールとしてIssue化しています。
 - Google Drive認証にはGoogle Cloud ConsoleでiOS、Android、Web OAuthクライアントを作成し、development buildを再生成する必要があります。
 - Driveのアップロード、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。
 - モバイルPDF表示は`react-native-pdf`を使うためExpo Goでは動きません。development buildを使用してください。
-- 物理iPhone / iPad / Androidでの印刷、スタイラス、回転、メモリ、電池、クラッシュ復旧は未検証です。
+- Androidエミュレータでは合成スタイラス入力と低メモリ試験を行いますが、物理iPhone / iPad / AndroidでのApple Pencil・各社ペン、印刷、回転、電池、OSによるprocess kill後の復旧は未検証です。
 - デスクトップ配布物は未署名です。Gatekeeper / SmartScreenの警告を回避できる一般向けリリースではありません。
 
 ## 構成
@@ -75,16 +78,16 @@ issues/
 - App Store / Google Play提出文、画像、再生成手順: [release/store/README.md](release/store/README.md)
 - 画面別UI/UX監査、修正内容、残る実機ゲート: [docs/UI_UX_AUDIT.md](docs/UI_UX_AUDIT.md)
 
-ローカルで生成して確認する場合は`task site`または`npm run site`を実行し、`site/dist/`を静的配信してください。公開URLと提出時の確認項目は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
+ローカルで生成して確認する場合は`npm run site`を実行し、`site/dist/`を静的配信してください。公開URLと提出時の確認項目は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
 
 ## セットアップ
 
-前提はNode.js 22.13以降です。標準の開発・CI入口にはgo-task、増分テスト・型検査・デスクトップWebビルドにはFrostBuildを使用します。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
+前提はNode.js 22.13以降とFrostBuild v0.8.0です。Taskfileは廃止し、ローカルとCIの増分テスト・型検査・検証・デスクトップビルドを`frost.toml`へ一本化しています。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
 
 ```bash
-task install
-task check
-task build:desktop
+npm ci
+frost test --all --no-tui
+frost build desktop-web --no-tui
 ```
 
 ツールの固定バージョン、インストール方法、npmとの責務分担は[docs/BUILD.md](docs/BUILD.md)を参照してください。

@@ -29,7 +29,8 @@
 - Expo SDK 57 / React Native 0.86
 - Expo Router
 - `react-native-pdf`で単一ページ表示
-- React Native SVGの注釈オーバーレイ
+- React Native SVGの注釈オーバーレイ（rendererが返すページ実寸へfit）
+- React Native pointer eventでpen/touch/mouseを分離し、penの各点のpressureを保持
 - `expo-sqlite`で文書、メモ、注釈を保存
 - `expo-document-picker`でFilesアプリと端末Document Providerから取り込み
 - `expo-print`でPDF URIをネイティブ印刷
@@ -85,7 +86,9 @@ localeはOS/端末の言語から起動時に1度だけ解決します。切り�
 - undo/redoと複数端末マージが容易
 - 元PDFを壊さない
 
-座標は左上原点の正規化座標です。PDFへ焼き込む時だけ、左下原点のPDF座標へ変換します。
+座標は左上原点の正規化座標です。PDFへ焼き込む時だけ、左下原点のPDF座標へ変換します。inkはpointと同数の任意`pressures`配列を持ち、旧データやtouch/mouse入力は従来どおり一定線幅です。pen入力だけはpressureを0.55〜1.45倍の線幅へ写像し、画面previewとflatten exportで同じ関数を使います。
+
+モバイルのflatten exportは`pdf-lib`が入力、parsed object graph、出力をJS heapへ同時に保持します。native rendererによる閲覧上限とは別物なので、64 MiBを超える入力はmobileでExport/Printせずdesktopへ案内します。これは「大容量PDFを開ける」という性質を失わず、書き出し中の強制終了だけを避ける境界です。
 
 ## Sync model
 

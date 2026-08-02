@@ -1,167 +1,139 @@
 # Build workflow
 
-The repository uses two complementary tools:
+FrostBuild v0.8.0 is the single build-graph and validation entry point. The
+former Taskfile wrapper was removed: local development, CI and Release now call
+the same named Frost targets directly, so there is no second command catalogue
+that can drift.
 
-- [Task](https://taskfile.dev/) v3.52.0 is the cross-platform developer and CI
-  entry point.
-- [FrostBuild](https://github.com/hjosugi/frost-build) v0.8.0 owns the
-  incremental validation graph and the desktop Vite output tree.
+npm remains authoritative for the lockfile and dependency installation. Frost
+operates above that boundary: it prunes unaffected workspace gates, caches
+successful tests, and restores the verified profile-specific desktop output.
 
-npm remains authoritative for the lockfile, dependency installation, Vitest,
-TypeScript and Vite. Frost operates above those package-manager boundaries: it
-prunes unaffected workspace gates, caches successful tests, and restores the
-verified profile-specific tree below `apps/desktop/dist/`.
+## Install
 
-The release-facing validation scripts — EAS/native policy, brand assets, store
-submission inputs and the vendored dependency patches — are Frost `test`
-targets rather than bare npm calls, so they are pruned and cached like every
-other gate. They read
-checked-in configuration and assets, so each one declares those files as
-inputs: editing `apps/mobile/app.json` reruns the brand gate and nothing else.
+Install Node.js 22.13 or newer, run `npm ci`, then install FrostBuild v0.8.0
+from its [checksummed release](https://github.com/hjosugi/frost-build/releases/tag/v0.8.0)
+and place `frost` on `PATH`. CI pins and verifies these SHA-256 digests:
 
-## Install the tools
-
-Install Task with any official method. A version-pinned Go installation is:
+| Host | Archive SHA-256 |
+|---|---|
+| Linux x86_64 musl | `7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795` |
+| macOS arm64 | `834b3d841e78e5a46851fb84202d49a6faaa5c0cc64d9b9e0cee0fd314d01bf6` |
+| Windows x86_64 MSVC | `358e95577aa865b679cf35f31405ae9ffe2f4acc7b586f65cf5a253bd1394b31` |
 
 ```bash
-go install github.com/go-task/task/v3/cmd/task@v3.52.0
+npm ci
+frost info version    # must print 0.8.0
+frost doctor
+frost info
 ```
 
-Install FrostBuild v0.8.0 from its
-[checksummed release](https://github.com/hjosugi/frost-build/releases/tag/v0.8.0)
-and place `frost` on `PATH`. No Frost binary is committed to this repository.
-
-Verify both tools:
-
-```bash
-task --version
-frost --version
-task frost:doctor
-```
-
-Every Frost task refuses a binary whose `frost info version` is not the pinned
-`0.8.0`, which is the version CI installs from that checksummed archive. Frost
-is pre-1.0 and states that a minor release may change manifest or CLI
-semantics, so a local run against a different binary would not mean the same
-thing as the CI run. Raise `FROST_VERSION` in `Taskfile.yml` and the archive
-names plus SHA-256s in `.github/workflows/ci.yml` and
-`.github/workflows/release.yml` together. Those workflows install Frost on
-Linux, macOS and Windows runners, so all three checksums move at once.
+Frost is pre-1.0, so an upgrade must change the release archive names and all
+three checksums in `.github/workflows/ci.yml` and
+`.github/workflows/release.yml` together. No Frost binary is committed here.
 
 ## Common commands
 
 ```bash
-task install          # npm ci
-task check            # every cached gate: tests, typechecks, release validation
-task test             # cached unit tests only
-task typecheck        # cached typechecks only
-task build:desktop    # cached/restorable Vite dist tree
-task bundle:desktop   # desktop installers for this host
-task validate         # EAS, product-identity and dependency-patch validation
-task ci               # the complete fast CI quality workflow
-npm run validate:store # localized copy, screenshots and capture provenance
+# Every unit test, typecheck and release-facing validator
+frost test --all --no-tui
+
+# All unit-test targets only
+frost test --no-tui \
+  iroha-pdf-core-test iroha-pdf-google-drive-test \
+  iroha-pdf-desktop-test iroha-pdf-mobile-test
+
+# All TypeScript targets only
+frost test --no-tui \
+  iroha-pdf-core-typecheck iroha-pdf-google-drive-typecheck \
+  iroha-pdf-desktop-typecheck iroha-pdf-mobile-typecheck
+
+# Cached/restorable desktop web output
+frost build desktop-web --no-tui
+
+# Debug Tauri binary used by the real-runtime Linux e2e
+frost build desktop-app-linux-debug --no-tui
+
+# Dependency-free local documentation build
+npm run site
 ```
 
-`FROST_BIN=/absolute/path/to/frost task check` selects a binary that is not on
-the normal `PATH`.
+`frost test --all` includes EAS policy, brand/store assets, documentation links,
+dependency patches, CSS/native design-token enforcement, and the deterministic
+large-PDF generator check. CI then builds `desktop-web` separately because it is
+a command target with a restorable output tree rather than a test.
 
-Brand regeneration additionally needs `rsvg-convert` and ImageMagick
-(`magick`, or the ImageMagick 6 `convert` command). `rsvg-convert` rasterizes
-the SVG masters; ImageMagick preserves the 32-bit alpha channel Google Play
-requires on its listing icon. These tools are not needed for ordinary tests
-because the generated assets are committed and validated directly.
+Brand regeneration additionally needs `rsvg-convert` and ImageMagick. Those
+tools are not needed for ordinary validation because the generated assets are
+committed and checked directly.
 
-## Packaging the desktop app
+## Desktop installers
 
-`task bundle:desktop` runs `tauri build` through Frost and leaves the finished
-installers in `apps/desktop/bundle/release/`. What it emits depends on the host,
-because `bundle.targets: "all"` in `tauri.conf.json` selects every bundler the
-host supports:
+Choose the explicit target for the host. Release workflows use exactly these
+commands:
 
-| Host | Packages |
-|---|---|
-| Linux x86_64 | `.AppImage`, `.deb`, `.rpm` |
-| macOS (arm64 runner) | `.dmg`, built for `universal-apple-darwin` |
-| Windows x86_64 | `.msi`, NSIS `-setup.exe` |
+```bash
+# Linux x86_64: AppImage, deb and rpm
+frost build desktop-app-linux --profile release --no-tui
 
-There is one Frost target per host — `desktop-app-linux`, `desktop-app-macos`,
-`desktop-app-windows` — because those three command lines genuinely differ, and
-`task bundle:desktop` picks the one for the machine you are on. Each depends on
-`desktop-web`, so the Vite tree is built and cached by the graph rather than by
-`tauri`'s own `beforeBuildCommand`, which the target overrides to nothing. Each
-declares the Rust sources, `Cargo.toml`, `Cargo.lock`, `tauri.conf.json`, the
-icons and the vendored `glib` patch as inputs, so an untouched tree is a cache
-hit. The packages are staged into `apps/desktop/bundle/${config}` by
-`release/desktop/collect-bundles.mjs`, which is also where the build fails if a
-host produced an incomplete set or a package carrying the wrong version.
+# macOS: universal Apple silicon + Intel dmg
+frost build desktop-app-macos --profile release --no-tui
 
-The `release` Frost profile is used deliberately, so these do not share a cache
-slot with the `debug`-profile tree `task build:desktop` leaves for local work.
+# Windows x86_64: msi and NSIS setup exe
+frost build desktop-app-windows --profile release --platform windows --no-tui
+```
 
-On Linux the bundlers need system packages beyond the ones a Tauri compile
-needs:
+Each target depends on `desktop-web`, overrides Tauri's `beforeBuildCommand`,
+and stages a complete, version-checked package set in
+`apps/desktop/bundle/release/` (under the Windows platform overlay on Windows).
+The release profile is intentionally separate from local debug outputs.
+
+Linux packaging additionally needs:
 
 ```bash
 sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
   librsvg2-dev patchelf xdg-utils
 ```
 
-`patchelf` rewrites the rpath of the binaries copied into the AppDir, and the
-AppImage bundler copies `/usr/bin/xdg-open` into it — without `xdg-utils` the
-bundle aborts after the `.deb` and `.rpm` are already written. `linuxdeploy` and
-the AppImage runtime are downloaded by `tauri build` itself, so that step needs
-network access.
+## Mobile device evidence
+
+The normal Android job produces a debug APK. The manually dispatched
+`Android low-memory evidence` job goes further: it builds an evidence-only
+release APK, boots a 1.5 GiB API 36 AVD, generates a real 300 MiB / 500-page PDF,
+and requires open, critical memory trim, background/resume and cold reopen to
+succeed. The same build receives native Android instrumentation that dispatches
+`TOOL_TYPE_STYLUS` events with rising pressure through the React Native pointer
+bridge and reads SQLite back to prove that low and high samples were persisted.
+Its APK alone is not a production artifact; cleartext loopback is
+enabled only while `IROHA_DEVICE_EVIDENCE=1` so the ADB-reversed fixture server
+can be reached.
+
+The evidence route and cleartext permission are absent from ordinary builds.
+The job stores fixture metadata, `dumpsys meminfo`, logcat, UI hierarchy,
+screenshots and instrumentation output for 90 days. A green AVD run supports the
+large-PDF and stylus implementation, but does not replace signed physical-device
+evidence in `RELEASE_GATE.md`.
+
+## Main protection helper
+
+Preview and then apply the encoded repository policy directly:
+
+```bash
+scripts/github/protect-main.sh
+APPLY=1 scripts/github/protect-main.sh
+```
 
 ## Cutting a release
 
-Bump every version marker — `package.json`, both app manifests,
-`apps/mobile/app.json`, `apps/desktop/src-tauri/tauri.conf.json` and
-`Cargo.toml`, plus both lockfiles — add the `## X.Y.Z - YYYY-MM-DD` heading to
-`CHANGELOG.md`, and merge that to `main`. Then run the **Release** workflow
-from the Actions tab with the same version.
+Bump every version marker, add the dated `CHANGELOG.md` section, merge to
+`main`, and dispatch the Release workflow. It verifies the protected checks on
+the exact commit, runs the three explicit Frost packaging targets, assembles
+`SHA256SUMS`, then publishes the draft. The tag is created only at publication,
+so a failed build or upload leaves no release tag.
 
-The workflow runs in three stages, and the tag is the last thing it creates:
-
-1. **verify** checks the version against every one of those files and against
-   the changelog heading, requires the checks that branch protection demands on
-   `main` to have passed on the release commit, and refuses a version that is
-   already released or tagged. Nothing exists yet, so a failure here costs
-   nothing to correct.
-2. **bundle** runs `task bundle:desktop` on `ubuntu-latest`, `macos-latest` and
-   `windows-latest` and uploads what each one produced. This job only writes
-   files; it cannot touch a tag or a release.
-3. **publish** gathers all three sets, writes a `SHA256SUMS` covering them,
-   refuses again if a release appeared in the meantime, and creates the GitHub
-   release **as a draft** with every asset attached. A draft has no tag — GitHub
-   creates `refs/tags/vX.Y.Z` only when the draft is published, which is the
-   last step. A failed build or a failed upload therefore leaves no tag and
-   nothing downloadable, and an unpublished draft is deleted on the way out.
-
-The release notes are the changelog section for that version, plus a footer
-listing the packages and the checksum command.
-
-A release carries, for each platform:
-
-| Platform | Files |
-|---|---|
-| Linux x86_64 | `.AppImage`, `.deb`, `.rpm` |
-| macOS | `.dmg`, universal — Apple silicon and Intel in one binary |
-| Windows x86_64 | `.msi`, NSIS `-setup.exe` |
-
-plus `SHA256SUMS` over all of them. Verify a download with
-`sha256sum --check --ignore-missing SHA256SUMS`.
-
-**These packages are unsigned**, and the workflow says so on every release.
-Windows code signing and macOS notarization are unimplemented (issue #64), and
-`docs/RELEASE_GATE.md` is still blocked. Automated clean-checkout verification
-passes, but the device-, account- and package-dependent rows remain pending,
-including the `Packages` row that would record signature verification. macOS
-refuses the first launch through Gatekeeper and Windows shows a SmartScreen warning; users have to
-click through both. A matching checksum proves a download is byte-for-byte what
-CI built and nothing more — it is not a signature. The workflow also defaults to
-marking the release as a pre-release. Turn that flag off, and rewrite the notes'
-signing section, once issue #64 and the gate are met.
+Desktop packages remain unsigned until issue #64 is complete. A checksum proves
+the downloaded bytes match CI; it is not code signing or notarization.
 
 Frost keeps its journal, graph and content-addressed cache below `.frost/`.
-Delete that directory only when intentionally discarding the local build cache;
-correctness does not depend on the cache being present.
+Deleting it discards local acceleration only; correctness never depends on a
+warm cache.

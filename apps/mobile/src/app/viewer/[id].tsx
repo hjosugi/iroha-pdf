@@ -4,21 +4,23 @@ import * as Print from 'expo-print';
 import { File } from 'expo-file-system';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  type PointerEvent as NativePointerEvent,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Pdf from 'react-native-pdf';
-import Svg, { Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { G, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import {
   flattenAnnotations,
+  pressureStrokeWidth,
   type PdfAnnotation,
   type Point,
   type WorkspaceDocument,
@@ -36,8 +38,20 @@ import {
 import { createOutputPdf, sharePdf } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
+import { COLOR, CONTROL, LAYOUT, LINE_HEIGHT, RADIUS, SPACE, TYPE } from '@/lib/theme';
+import {
+  bytesToWholeMiB,
+  canFlattenOnMobile,
+  MAX_MOBILE_FLATTEN_BYTES,
+} from '@/lib/memory-policy';
+import {
+  fitPageFrame,
+  normalizePagePoint,
+  pointerPressure,
+  type Size,
+} from '@/lib/annotation-input';
 
-/** Source of truth for the tool set: the toolbar renders it and `Tool` derives from it. */
+/** Source of truth for the toolbar and its derived type. */
 const TOOLS = ['hand', 'highlight', 'ink', 'text', 'eraser'] as const;
 
 type Tool = (typeof TOOLS)[number];
@@ -78,7 +92,9 @@ export default function PdfViewerScreen() {
   const [tool, setTool] = useState<Tool>('hand');
   const [color, setColor] = useState<string>('#2B5CFF');
   const [strokeWidth, setStrokeWidth] = useState(2.4);
-  const [overlaySize, setOverlaySize] = useState({ width: 1, height: 1 });
+  const [viewerSize, setViewerSize] = useState<Size>({ width: 0, height: 0 });
+  const [pdfPageSize, setPdfPageSize] = useState<Size | null>(null);
+  const [pdfScale, setPdfScale] = useState(1);
   const [pendingTextPoint, setPendingTextPoint] = useState<Point | null>(null);
   const [textValue, setTextValue] = useState('');
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -88,13 +104,23 @@ export default function PdfViewerScreen() {
   const [passwordAttempt, setPasswordAttempt] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const inkPoints = useRef<Point[]>([]);
+  const inkPressures = useRef<number[]>([]);
   const [inkPreview, setInkPreview] = useState<Point[]>([]);
+  const [inkPreviewPressures, setInkPreviewPressures] = useState<number[]>([]);
+  const activePointer = useRef<number | null>(null);
+  const [lastInputWasPen, setLastInputWasPen] = useState(false);
   const highlightStart = useRef<Point | null>(null);
   const highlightEnd = useRef<Point | null>(null);
   const [highlightPreview, setHighlightPreview] = useState<{ start: Point; end: Point } | null>(null);
   const [undoStack, setUndoStack] = useState<PdfAnnotation[]>([]);
   const [redoStack, setRedoStack] = useState<PdfAnnotation[]>([]);
   const [busyAction, setBusyAction] = useState<'export' | 'print' | null>(null);
+
+  const pageFrame = useMemo(
+    () => fitPageFrame(viewerSize, pdfPageSize ?? { width: 0, height: 0 }),
+    [pdfPageSize, viewerSize],
+  );
+  const pageIsAligned = pageFrame.width > 0 && pageFrame.height > 0 && Math.abs(pdfScale - 1) < 0.01;
 
   useEffect(() => {
     void Promise.all([getDocument(id), listAnnotations(id)]).then(async ([nextDocument, nextAnnotations]) => {
@@ -104,9 +130,8 @@ export default function PdfViewerScreen() {
         navigation.setOptions({ title: nextDocument.title });
         await markDocumentOpened(nextDocument.id);
       }
-    }).catch((error: unknown) => {
-      alertFailure(t('error.storage'), error);
-    }).finally(() => setDocumentLoaded(true));
+    }).catch((error: unknown) => alertFailure(t('error.storage'), error))
+      .finally(() => setDocumentLoaded(true));
   }, [id, navigation]);
 
   const visibleAnnotations = annotations.filter((annotation) => annotation.pageIndex === page - 1);
@@ -137,11 +162,7 @@ export default function PdfViewerScreen() {
     }
   };
 
-  /**
-   * Identity, placement and timestamps for a new mark. Every tool fills in the
-   * same six fields before its own geometry, and they must agree about which
-   * page and colour the stroke belongs to.
-   */
+  /** The identity fields every newly-created annotation must share. */
   const newMark = () => {
     const now = new Date().toISOString();
     return {
@@ -172,69 +193,6 @@ export default function PdfViewerScreen() {
     }
   };
 
-  const pointFromEvent = (x: number, y: number): Point => ({
-    x: Math.min(1, Math.max(0, x / overlaySize.width)),
-    y: Math.min(1, Math.max(0, y / overlaySize.height)),
-  });
-
-  const panResponder = useMemo(
-    () => PanResponder.create({
-      onStartShouldSetPanResponder: () => tool === 'ink' || tool === 'highlight',
-      onMoveShouldSetPanResponder: () => tool === 'ink' || tool === 'highlight',
-      onPanResponderGrant: (event) => {
-        const point = pointFromEvent(event.nativeEvent.locationX, event.nativeEvent.locationY);
-        if (tool === 'highlight') {
-          highlightStart.current = point;
-          highlightEnd.current = point;
-          setHighlightPreview({ start: point, end: point });
-        } else {
-          inkPoints.current = [point];
-          setInkPreview([point]);
-        }
-      },
-      onPanResponderMove: (event) => {
-        const point = pointFromEvent(event.nativeEvent.locationX, event.nativeEvent.locationY);
-        if (tool === 'highlight' && highlightStart.current) {
-          highlightEnd.current = point;
-          setHighlightPreview({ start: highlightStart.current, end: point });
-        } else {
-          inkPoints.current = [...inkPoints.current, point];
-          setInkPreview(inkPoints.current);
-        }
-      },
-      onPanResponderRelease: () => {
-        if (tool === 'highlight' && highlightStart.current && highlightEnd.current) {
-          const x = Math.min(highlightStart.current.x, highlightEnd.current.x);
-          const y = Math.min(highlightStart.current.y, highlightEnd.current.y);
-          const width = Math.max(0.01, Math.abs(highlightEnd.current.x - highlightStart.current.x));
-          const height = Math.max(0.01, Math.abs(highlightEnd.current.y - highlightStart.current.y));
-          void persist({
-            ...newMark(),
-            kind: 'highlight', position: { x, y }, width, height, opacity: 0.42,
-          });
-          highlightStart.current = null;
-          highlightEnd.current = null;
-          setHighlightPreview(null);
-          return;
-        }
-        if (inkPoints.current.length >= 2) {
-          void persist({
-            ...newMark(),
-            kind: 'ink',
-            points: inkPoints.current,
-            strokeWidth,
-          });
-        }
-        inkPoints.current = [];
-        setInkPreview([]);
-      },
-    }),
-    // `newMark` and `persist` are fresh closures each render, but they only
-    // read `id`, `page` and `color`, which are listed here — so a responder
-    // held across renders never writes to the wrong page or in a stale colour.
-    [color, id, overlaySize.height, overlaySize.width, page, strokeWidth, tool],
-  );
-
   const addAtPoint = (point: Point) => {
     if (tool === 'eraser') {
       const nearest = visibleAnnotations
@@ -259,6 +217,88 @@ export default function PdfViewerScreen() {
     });
   };
 
+  const pointFromPointer = (event: NativePointerEvent): Point =>
+    normalizePagePoint(event.nativeEvent.offsetX, event.nativeEvent.offsetY, pageFrame);
+
+  const clearPointerGesture = () => {
+    activePointer.current = null;
+    inkPoints.current = [];
+    inkPressures.current = [];
+    highlightStart.current = null;
+    highlightEnd.current = null;
+    setInkPreview([]);
+    setInkPreviewPressures([]);
+    setHighlightPreview(null);
+  };
+
+  const onPointerDown = (event: NativePointerEvent) => {
+    const native = event.nativeEvent;
+    if (!native.isPrimary || activePointer.current !== null || !pageIsAligned) return;
+    activePointer.current = native.pointerId;
+    setLastInputWasPen(native.pointerType === 'pen');
+    const point = pointFromPointer(event);
+    if (tool === 'highlight') {
+      highlightStart.current = point;
+      highlightEnd.current = point;
+      setHighlightPreview({ start: point, end: point });
+    } else if (tool === 'ink') {
+      const pressure = pointerPressure(native.pointerType, native.pressure);
+      inkPoints.current = [point];
+      inkPressures.current = pressure === undefined ? [] : [pressure];
+      setInkPreview([point]);
+      setInkPreviewPressures(inkPressures.current);
+    }
+  };
+
+  const onPointerMove = (event: NativePointerEvent) => {
+    const native = event.nativeEvent;
+    if (activePointer.current !== native.pointerId) return;
+    const point = pointFromPointer(event);
+    if (tool === 'highlight' && highlightStart.current) {
+      highlightEnd.current = point;
+      setHighlightPreview({ start: highlightStart.current, end: point });
+    } else if (tool === 'ink') {
+      inkPoints.current = [...inkPoints.current, point];
+      if (inkPressures.current.length > 0) {
+        inkPressures.current = [
+          ...inkPressures.current,
+          pointerPressure(native.pointerType, native.pressure) ?? inkPressures.current.at(-1) ?? 0.5,
+        ];
+      }
+      setInkPreview(inkPoints.current);
+      setInkPreviewPressures(inkPressures.current);
+    }
+  };
+
+  const onPointerUp = (event: NativePointerEvent) => {
+    if (activePointer.current !== event.nativeEvent.pointerId) return;
+    const point = pointFromPointer(event);
+    if (tool === 'highlight' && highlightStart.current) {
+      const end = highlightEnd.current ?? point;
+      const width = Math.abs(end.x - highlightStart.current.x);
+      const height = Math.abs(end.y - highlightStart.current.y);
+      if (width < 0.01 && height < 0.01) {
+        addAtPoint(point);
+      } else {
+        void persist({
+          ...newMark(), kind: 'highlight',
+          position: { x: Math.min(highlightStart.current.x, end.x), y: Math.min(highlightStart.current.y, end.y) },
+          width: Math.max(0.01, width), height: Math.max(0.01, height),
+          opacity: 0.42,
+        });
+      }
+    } else if (tool === 'ink' && inkPoints.current.length >= 2) {
+      void persist({
+        ...newMark(), kind: 'ink', points: inkPoints.current,
+        pressures: inkPressures.current.length === inkPoints.current.length ? inkPressures.current : undefined,
+        strokeWidth,
+      });
+    } else if (tool === 'text' || tool === 'eraser') {
+      addAtPoint(point);
+    }
+    clearPointerGesture();
+  };
+
   const confirmText = () => {
     if (!pendingTextPoint || !textValue.trim()) {
       setPendingTextPoint(null);
@@ -269,14 +309,21 @@ export default function PdfViewerScreen() {
       kind: 'text',
       position: pendingTextPoint,
       text: textValue.trim(),
-      fontSize: 14,
+      fontSize: TYPE.body,
     });
     setPendingTextPoint(null);
   };
 
   const createFlattenedCopy = async (): Promise<File> => {
     if (!document) throw new Error(t('document.notFound'));
-    const source = await new File(document.localUri).bytes();
+    const input = new File(document.localUri);
+    const inputSize = document.sizeBytes ?? input.size;
+    if (!canFlattenOnMobile(inputSize)) {
+      throw new Error(t('document.largeExportBody', {
+        limit: bytesToWholeMiB(MAX_MOBILE_FLATTEN_BYTES),
+      }));
+    }
+    const source = await input.bytes();
     // Loaded only when there is text to draw: the face is several megabytes and
     // highlight- or ink-only exports have no glyphs to encode.
     const textFont = annotations.some((item) => item.kind === 'text')
@@ -286,16 +333,22 @@ export default function PdfViewerScreen() {
     return createOutputPdf(`${document.title}-edited.pdf`, output);
   };
 
-  /**
-   * Both toolbar actions flatten the annotations into a copy and then hand it
-   * somewhere; the flattening is the slow part, and it is what the toolbar
-   * disables itself for.
-   */
+  const warnIfFlatteningIsUnsafe = (): boolean => {
+    const inputSize = document?.sizeBytes ?? (document ? new File(document.localUri).size : undefined);
+    if (canFlattenOnMobile(inputSize)) return false;
+    Alert.alert(t('document.largeExportTitle'), t('document.largeExportBody', {
+      limit: bytesToWholeMiB(MAX_MOBILE_FLATTEN_BYTES),
+    }));
+    return true;
+  };
+
+  /** Both toolbar actions share one guarded in-memory flatten operation. */
   const deliverFlattenedCopy = async (
     action: 'export' | 'print',
     failureTitle: string,
     deliver: (output: File) => Promise<void>,
   ) => {
+    if (warnIfFlatteningIsUnsafe()) return;
     try {
       setBusyAction(action);
       await deliver(await createFlattenedCopy());
@@ -307,14 +360,9 @@ export default function PdfViewerScreen() {
   };
 
   const exportCopy = () => deliverFlattenedCopy('export', t('error.export'), sharePdf);
-
   const print = () => deliverFlattenedCopy('print', t('print.failed'), (output) =>
     Print.printAsync({ uri: output.uri }));
 
-  /**
-   * `react-native-pdf` reads its source once per mount, so re-opening a file —
-   * after a failure, or now that a password is known — means giving it a new key.
-   */
   const reloadDocument = () => {
     setLoadingProgress(0);
     setReloadKey((value) => value + 1);
@@ -328,7 +376,7 @@ export default function PdfViewerScreen() {
   };
 
   if (!documentLoaded) {
-    return <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}><View accessibilityRole="progressbar" accessibilityLabel={t('document.loading')} style={styles.fullState}><ActivityIndicator color="#2B5CFF" /></View></SafeAreaView>;
+    return <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}><View accessibilityRole="progressbar" accessibilityLabel={t('document.loading')} style={styles.fullState}><ActivityIndicator color={COLOR.brand} /></View></SafeAreaView>;
   }
 
   if (!document) {
@@ -346,7 +394,10 @@ export default function PdfViewerScreen() {
               accessibilityState={{ selected: tool === item }}
               key={item}
               style={[styles.tool, tool === item && styles.activeTool]}
-              onPress={() => setTool(item)}
+              onPress={() => {
+                if (item !== 'hand') setPdfScale(1);
+                setTool(item);
+              }}
             >
               <Text style={[styles.toolText, tool === item && styles.activeToolText]}>{toolLabel(item)}</Text>
             </Pressable>
@@ -358,7 +409,7 @@ export default function PdfViewerScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel={t('print.open')} accessibilityState={{ disabled: busyAction !== null }} disabled={busyAction !== null} style={[styles.primaryButton, busyAction !== null && styles.disabledButton]} onPress={() => void print()}><Text style={styles.primaryText}>{t(busyAction === 'print' ? 'print.preparing' : 'print.open')}</Text></Pressable>
       </View>
 
-      <View style={styles.viewer}>
+      <View style={styles.viewer} onLayout={(event) => setViewerSize(event.nativeEvent.layout)}>
         {/*
           `singlePage` looks like the right prop for a one-page-at-a-time viewer, but it
           makes the library report a page count of 1 for every document, which left the
@@ -374,13 +425,18 @@ export default function PdfViewerScreen() {
           password={password || undefined}
           minScale={1}
           maxScale={5}
+          scale={pdfScale}
+          scrollEnabled={tool === 'hand'}
+          enableDoubleTapZoom={tool === 'hand'}
+          fitPolicy={2}
           trustAllCerts={false}
           onLoadProgress={(progress) => {
             setLoadingProgress(progress);
             setLoadError(null);
           }}
-          onLoadComplete={(pages) => {
+          onLoadComplete={(pages, _path, size) => {
             setPageCount(pages);
+            setPdfPageSize(size);
             setLoadingProgress(1);
             setLoadError(null);
             markStoreCaptureReady('viewer');
@@ -389,6 +445,7 @@ export default function PdfViewerScreen() {
             setPage(currentPage);
             setPageCount(pages);
           }}
+          onScaleChanged={setPdfScale}
           onError={(error) => {
             const message = String(error);
             if (/password|encrypted/i.test(message)) {
@@ -402,7 +459,7 @@ export default function PdfViewerScreen() {
         />
         {loadingProgress < 1 && !loadError ? (
           <View style={styles.viewerState} pointerEvents="none">
-            <ActivityIndicator color="#2B5CFF" />
+            <ActivityIndicator color={COLOR.brand} />
             <Text style={styles.viewerStateText}>
               {t('document.opening')} {Math.round(loadingProgress * 100)}%
             </Text>
@@ -425,12 +482,20 @@ export default function PdfViewerScreen() {
             </Pressable>
           </View>
         ) : null}
-        <Pressable
+        {pageIsAligned ? <View
+          testID="annotation-page-layer"
+          accessible
+          accessibilityLabel={t('edit.annotationCanvas')}
+          collapsable={false}
           pointerEvents={tool === 'hand' || loadingProgress < 1 || Boolean(loadError) ? 'none' : 'auto'}
-          style={StyleSheet.absoluteFill}
-          onLayout={(event) => setOverlaySize(event.nativeEvent.layout)}
-          onPress={(event) => addAtPoint(pointFromEvent(event.nativeEvent.locationX, event.nativeEvent.locationY))}
-          {...panResponder.panHandlers}
+          style={[
+            styles.annotationLayer,
+            { left: pageFrame.left, top: pageFrame.top, width: pageFrame.width, height: pageFrame.height },
+          ]}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={clearPointerGesture}
         >
           <Svg width="100%" height="100%" pointerEvents="none">
             {highlightPreview ? (
@@ -445,7 +510,9 @@ export default function PdfViewerScreen() {
             ) : null}
             {[...visibleAnnotations, ...(inkPreview.length > 1 ? [{
               id: 'preview', documentId: id, pageIndex: page - 1, kind: 'ink' as const,
-              color, points: inkPreview, strokeWidth,
+              color, points: inkPreview,
+              pressures: inkPreviewPressures.length === inkPreview.length ? inkPreviewPressures : undefined,
+              strokeWidth,
               createdAt: '', updatedAt: '',
             }] : [])].map((annotation) => {
               if (annotation.kind === 'highlight') {
@@ -454,10 +521,36 @@ export default function PdfViewerScreen() {
               if (annotation.kind === 'text') {
                 return <SvgText key={annotation.id} x={`${annotation.position.x * 100}%`} y={`${annotation.position.y * 100}%`} fill={annotation.color} fontSize={annotation.fontSize}>{annotation.text}</SvgText>;
               }
-              return <Polyline key={annotation.id} points={annotation.points.map((point) => `${point.x * overlaySize.width},${point.y * overlaySize.height}`).join(' ')} fill="none" stroke={annotation.color} strokeWidth={annotation.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
+              if (!annotation.pressures || annotation.pressures.length !== annotation.points.length) {
+                return <Polyline key={annotation.id} points={annotation.points.map((point) => `${point.x * pageFrame.width},${point.y * pageFrame.height}`).join(' ')} fill="none" stroke={annotation.color} strokeWidth={annotation.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
+              }
+              return (
+                <G key={annotation.id}>
+                  {annotation.points.slice(1).map((point, index) => {
+                    const previous = annotation.points[index];
+                    if (!previous) return null;
+                    return (
+                      <Polyline
+                        key={`${annotation.id}-${index}`}
+                        points={`${previous.x * pageFrame.width},${previous.y * pageFrame.height} ${point.x * pageFrame.width},${point.y * pageFrame.height}`}
+                        fill="none"
+                        stroke={annotation.color}
+                        strokeWidth={pressureStrokeWidth(annotation.strokeWidth, annotation.pressures?.[index + 1])}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    );
+                  })}
+                </G>
+              );
             })}
           </Svg>
-        </Pressable>
+        </View> : null}
+        {!pageIsAligned && loadingProgress >= 1 && !loadError ? (
+          <View pointerEvents="none" style={styles.zoomNotice}>
+            <Text style={styles.zoomNoticeText}>{t('edit.zoomReadOnly', { percent: Math.round(pdfScale * 100) })}</Text>
+          </View>
+        ) : null}
       </View>
 
       {tool === 'ink' || tool === 'highlight' || tool === 'text' ? (
@@ -468,7 +561,7 @@ export default function PdfViewerScreen() {
               accessibilityLabel={t('edit.annotationColor', { color: item })}
               accessibilityRole="button"
               accessibilityState={{ selected: color === item }}
-              hitSlop={4}
+              hitSlop={SPACE.xs}
               style={[styles.colorSwatch, { backgroundColor: item }, color === item && styles.selectedSwatch]}
               onPress={() => setColor(item)}
             />
@@ -478,6 +571,11 @@ export default function PdfViewerScreen() {
               <Text style={styles.strokeChoiceText}>{width}</Text>
             </Pressable>
           )) : null}
+          {tool === 'ink' && lastInputWasPen ? (
+            <Text accessibilityLiveRegion="polite" testID="stylus-pressure-status" style={styles.inputStatus}>
+              {t('edit.penPressure')}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -533,40 +631,44 @@ export default function PdfViewerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#E2E4E8' },
-  fullState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24, backgroundColor: '#F6F7F9' },
-  toolbar: { flexDirection: 'row', alignItems: 'center', gap: 5, padding: 8, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E3E5E9' },
+  container: { flex: 1, backgroundColor: COLOR.canvas },
+  fullState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACE.md, padding: SPACE.xxl, backgroundColor: COLOR.background },
+  toolbar: { flexDirection: 'row', alignItems: 'center', gap: SPACE.xs, padding: SPACE.sm, backgroundColor: COLOR.surface, borderBottomWidth: SPACE.hairline, borderBottomColor: COLOR.border },
   toolScroll: { flex: 1 },
-  toolRow: { gap: 5, paddingRight: 6 },
-  tool: { minHeight: 44, justifyContent: 'center', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: '#F0F1F4' },
-  compactTool: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 7, backgroundColor: '#F0F1F4' },
+  toolRow: { gap: SPACE.xs, paddingRight: SPACE.sm },
+  tool: { minHeight: CONTROL.minimum, justifyContent: 'center', borderRadius: RADIUS.sm, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm, backgroundColor: '#F0F1F4' },
+  compactTool: { minWidth: CONTROL.minimum, minHeight: CONTROL.minimum, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm, paddingHorizontal: SPACE.sm, paddingVertical: SPACE.sm, backgroundColor: '#F0F1F4' },
   activeTool: { backgroundColor: '#E7EDFF' },
-  toolText: { color: '#59606D', fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-  activeToolText: { color: '#2B5CFF' },
-  textButton: { minHeight: 44, justifyContent: 'center', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#ECEEF2' },
-  primaryButton: { minHeight: 44, justifyContent: 'center', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#2B5CFF' },
-  primaryText: { color: '#FFFFFF', fontWeight: '700' },
-  viewer: { flex: 1, margin: 8, overflow: 'hidden', borderRadius: 8, backgroundColor: '#FFFFFF' },
-  pdf: { flex: 1, backgroundColor: '#FFFFFF' },
-  viewerState: { position: 'absolute', zIndex: 2, top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24, backgroundColor: '#FFFFFF' },
-  viewerStateText: { color: '#6B7280', fontSize: 12, fontWeight: '600' },
-  viewerErrorTitle: { color: '#252A34', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  viewerErrorBody: { color: '#717986', lineHeight: 19, textAlign: 'center' },
-  pageBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28, padding: 8, backgroundColor: '#FFFFFF' },
-  annotationOptions: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 4, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#ECEEF2' },
-  colorSwatch: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: '#FFFFFF' },
+  toolText: { color: '#59606D', fontSize: TYPE.caption, fontWeight: '700', textTransform: 'capitalize' },
+  activeToolText: { color: COLOR.brand },
+  textButton: { minHeight: CONTROL.minimum, justifyContent: 'center', borderRadius: RADIUS.sm, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm, backgroundColor: COLOR.control },
+  primaryButton: { minHeight: CONTROL.minimum, justifyContent: 'center', borderRadius: RADIUS.sm, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm, backgroundColor: COLOR.brand },
+  primaryText: { color: COLOR.surface, fontWeight: '700' },
+  viewer: { flex: 1, margin: SPACE.sm, overflow: 'hidden', borderRadius: RADIUS.sm, backgroundColor: COLOR.surface },
+  pdf: { flex: 1, backgroundColor: COLOR.surface },
+  annotationLayer: { position: 'absolute' },
+  viewerState: { position: 'absolute', zIndex: 2, top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: SPACE.md, padding: SPACE.xxl, backgroundColor: COLOR.surface },
+  viewerStateText: { color: '#6B7280', fontSize: TYPE.label, fontWeight: '600' },
+  viewerErrorTitle: { color: '#252A34', fontSize: TYPE.heading, fontWeight: '800', textAlign: 'center' },
+  viewerErrorBody: { color: '#717986', lineHeight: LINE_HEIGHT.body, textAlign: 'center' },
+  zoomNotice: { position: 'absolute', left: SPACE.md, right: SPACE.md, bottom: SPACE.md, alignItems: 'center' },
+  zoomNoticeText: { borderRadius: RADIUS.sm, paddingHorizontal: SPACE.md, paddingVertical: SPACE.sm, color: COLOR.surface, backgroundColor: 'rgba(23,27,36,.82)', fontSize: TYPE.caption, fontWeight: '700' },
+  pageBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.xxxl, padding: SPACE.sm, backgroundColor: COLOR.surface },
+  annotationOptions: { minHeight: CONTROL.comfortable + SPACE.xs, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.md, paddingVertical: SPACE.xs, backgroundColor: COLOR.surface, borderTopWidth: SPACE.hairline, borderTopColor: COLOR.control },
+  colorSwatch: { width: CONTROL.swatch, height: CONTROL.swatch, borderRadius: RADIUS.pill, borderWidth: SPACE.xxs, borderColor: COLOR.surface },
   selectedSwatch: { borderColor: '#171B24', transform: [{ scale: 1.1 }] },
-  strokeChoice: { borderRadius: 7, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', padding: 5, backgroundColor: '#ECEEF2' },
-  strokeChoiceText: { color: '#505865', fontSize: 10, fontWeight: '700' },
-  pageButton: { color: '#2B5CFF', fontSize: 28, fontWeight: '500' },
-  pageControl: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  pageLabel: { color: '#5C6470', fontSize: 12, fontWeight: '700' },
+  strokeChoice: { borderRadius: RADIUS.sm, minWidth: CONTROL.minimum, minHeight: CONTROL.minimum, alignItems: 'center', justifyContent: 'center', padding: SPACE.xs, backgroundColor: COLOR.control },
+  strokeChoiceText: { color: '#505865', fontSize: TYPE.caption, fontWeight: '700' },
+  inputStatus: { color: COLOR.success, fontSize: TYPE.caption, fontWeight: '700' },
+  pageButton: { color: COLOR.brand, fontSize: TYPE.title, fontWeight: '500' },
+  pageControl: { minWidth: CONTROL.comfortable, minHeight: CONTROL.minimum, alignItems: 'center', justifyContent: 'center' },
+  pageLabel: { color: '#5C6470', fontSize: TYPE.label, fontWeight: '700' },
   disabledText: { color: '#B7BCC5' },
-  modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(16,19,25,.45)' },
-  modalCard: { width: '100%', maxWidth: 520, alignSelf: 'center', borderRadius: 18, padding: 18, backgroundColor: '#FFFFFF' },
-  modalTitle: { color: '#20252E', fontSize: 18, fontWeight: '800' },
-  modalBody: { marginTop: 8, color: '#6D7480', lineHeight: 19 },
-  modalInput: { marginVertical: 16, borderRadius: 10, borderWidth: 1, borderColor: '#DFE2E7', padding: 12 },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACE.xxl, backgroundColor: 'rgba(16,19,25,.45)' },
+  modalCard: { width: '100%', maxWidth: LAYOUT.dialog, alignSelf: 'center', borderRadius: RADIUS.lg, padding: SPACE.xl, backgroundColor: COLOR.surface },
+  modalTitle: { color: '#20252E', fontSize: TYPE.heading, fontWeight: '800' },
+  modalBody: { marginTop: SPACE.sm, color: COLOR.muted, lineHeight: LINE_HEIGHT.body },
+  modalInput: { marginVertical: SPACE.lg, borderRadius: RADIUS.md, borderWidth: SPACE.hairline, borderColor: '#DFE2E7', padding: SPACE.md },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: SPACE.sm },
   disabledButton: { opacity: 0.45 },
 });

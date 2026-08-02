@@ -11,6 +11,7 @@ import {
 import { ContentColumn } from '@/components/ContentColumn';
 import { alertFailure, confirmDestructive } from '@/lib/alerts';
 import { t } from '@/lib/i18n';
+import { COLOR, CONTROL, RADIUS, SPACE, TYPE } from '@/lib/theme';
 
 function statusLabel(status: RecoveryCopy['status']): string {
   switch (status) {
@@ -116,19 +117,19 @@ export default function RecoveryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F6F7F9' },
-  list: { padding: 20, gap: 12 },
-  header: { marginBottom: 12 },
-  title: { color: '#171B24', fontSize: 28, fontWeight: '800' },
-  description: { marginTop: 8, color: '#6F7682', lineHeight: 20 },
-  empty: { borderRadius: 14, padding: 18, color: '#6F7682', backgroundColor: '#FFFFFF' },
-  card: { borderRadius: 16, padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6E8ED' },
+  safeArea: { flex: 1, backgroundColor: COLOR.background },
+  list: { padding: SPACE.xl, gap: SPACE.md },
+  header: { marginBottom: SPACE.md },
+  title: { color: COLOR.text, fontSize: TYPE.title, fontWeight: '800' },
+  description: { marginTop: SPACE.sm, color: '#6F7682', lineHeight: SPACE.xl },
+  empty: { borderRadius: RADIUS.md, padding: SPACE.xl, color: '#6F7682', backgroundColor: COLOR.surface },
+  card: { borderRadius: RADIUS.lg, padding: SPACE.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E6E8ED' },
   cardTitle: { color: '#252A34', fontWeight: '800', textTransform: 'capitalize' },
-  summary: { marginTop: 8, color: '#606875', lineHeight: 19 },
-  date: { marginTop: 8, color: '#969CA6', fontSize: 11 },
-  actions: { marginTop: 14, flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  secondaryButton: { minHeight: 44, justifyContent: 'center', borderRadius: 9, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#ECEEF2' },
-  primaryButton: { minHeight: 44, justifyContent: 'center', borderRadius: 9, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#2B5CFF' },
-  primaryText: { color: '#FFFFFF', fontWeight: '700' },
+  summary: { marginTop: SPACE.sm, color: '#606875', lineHeight: SPACE.xl },
+  date: { marginTop: SPACE.sm, color: '#969CA6', fontSize: TYPE.caption },
+  actions: { marginTop: SPACE.lg, flexDirection: 'row', justifyContent: 'flex-end', gap: SPACE.sm },
+  secondaryButton: { minHeight: CONTROL.minimum, justifyContent: 'center', borderRadius: RADIUS.sm, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm, backgroundColor: COLOR.control },
+  primaryButton: { minHeight: CONTROL.minimum, justifyContent: 'center', borderRadius: RADIUS.sm, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm, backgroundColor: COLOR.brand },
+  primaryText: { color: COLOR.surface, fontWeight: '700' },
   disabled: { opacity: 0.45 },
 });

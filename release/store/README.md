@@ -79,7 +79,7 @@ npm run validate:store
 
 `validate:store` enforces copy limits, HTTPS URLs, alt-text coverage, exact
 dimensions, opaque RGB encoding, Play's size/aspect constraints, unique image
-content, and provenance. `task ci` runs the same gate through Frost.
+content, and provenance. `frost test --all --no-tui` runs the same gate.
 
 ## Current official constraints
 

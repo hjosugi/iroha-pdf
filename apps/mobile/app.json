@@ -38,6 +38,7 @@
     },
     "plugins": [
       "./plugins/with-modular-ios-headers",
+      "./plugins/with-device-evidence",
       "expo-router",
       "expo-document-picker",
       [
@@ -62,7 +63,10 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 96
         }
-      ]
+      ],
+      "expo-image",
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

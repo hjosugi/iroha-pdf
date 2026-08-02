@@ -13,7 +13,7 @@
  *
  * Usage: npm run e2e:tauri
  *
- * Needs a debug binary (`task build:desktop:debug`), `tauri-driver`, a WebKitWebDriver,
+ * Needs a debug binary (`frost build desktop-app-linux-debug --no-tui`), `tauri-driver`, a WebKitWebDriver,
  * and a display — `xvfb-run -a` is enough, which is what CI gives it. The Vite dev
  * server the debug binary loads and the fixture it opens are started and built here if
  * they are not already there, so nothing else has to be arranged around it.
@@ -30,7 +30,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const WORK = '/tmp/iroha-real-e2e';
 const DRIVER_PORT = 4444;
 const DEV_PORT = 1420;
-// Where `task build:desktop:debug` leaves it, unless a CARGO_TARGET_DIR points cargo
+// Where the `desktop-app-linux-debug` Frost target leaves it, unless CARGO_TARGET_DIR points cargo
 // somewhere else — the second candidate is the shared target directory a developer
 // here uses. IROHA_APP overrides both.
 const APP_CANDIDATES = [
@@ -129,7 +129,7 @@ async function main() {
   if (!existsSync(APP)) {
     throw new Error(
       `app binary not found: ${APP}\n` +
-        'Build it with: task build:desktop:debug\n' +
+        'Build it with: frost build desktop-app-linux-debug --no-tui\n' +
         'It has to be a debug build: the scope grant this drives is #[cfg(debug_assertions)].',
     );
   }

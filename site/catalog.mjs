@@ -65,7 +65,7 @@ export const SECTIONS = [
         source: 'docs/BUILD.md',
         slug: 'build',
         label: 'Build workflow',
-        summary: 'go-task 3.52.0とFrostBuild v0.8.0の役割分担、固定バージョン、CIと同じ入口。',
+        summary: 'FrostBuild v0.8.0への一本化、固定チェックサム、CIと同じ直接ターゲット。',
       },
       {
         source: 'docs/VERIFICATION.md',

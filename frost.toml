@@ -19,8 +19,8 @@ cargo = "cargo"
 # runner failed with `failed to spawn "npm": program not found` while `npm ci`
 # in the adjacent step worked. Naming the tool per platform is the documented
 # way to say that; `pass_env` cannot fix it, because the name is resolved before
-# the action environment applies. Selected by `task bundle:desktop`, which
-# passes `--platform windows` only on a Windows host, so the Linux and macOS
+# the action environment applies. CI passes `--platform windows` only for the
+# Windows target, so the Linux and macOS
 # builds keep the root toolchain and their existing output paths untouched.
 [platform.windows.tools]
 npm = "npm.cmd"
@@ -48,6 +48,36 @@ inputs = [
   "release/lib/assets.mjs",
   "release/store/screenshots/desktop/*.png",
   "release/store/play/*.png",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-style-tokens]
+kind = "test"
+tool = "node"
+args = ["release/ui/validate-style-tokens.mjs"]
+inputs = [
+  "apps/desktop/src/styles.css",
+  "apps/mobile/src/**/*.ts",
+  "apps/mobile/src/**/*.tsx",
+  "apps/mobile/src/**/*.css",
+  "release/ui/validate-style-tokens.mjs",
+  "site/assets/site.css",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-device-fixture-validate]
+kind = "test"
+tool = "node"
+args = ["release/device-evidence/validate-fixture-generator.mjs"]
+inputs = [
+  "release/device-evidence/generate-large-pdf.mjs",
+  "release/device-evidence/prepare-stylus-instrumentation.mjs",
+  "release/device-evidence/validate-fixture-generator.mjs",
+  "release/device-evidence/verify-low-memory-android.sh",
 ]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
@@ -322,8 +352,8 @@ sandbox = false
 # `${config}` in a command output so profiles stay isolated, and cargo's dev
 # profile happens to be called `debug` too, so the two agree with nothing
 # copied. They agree only there — `--profile release` would look for a release
-# binary this action never builds — so the Taskfile runs this on the default
-# profile and does not offer another.
+# binary this action never builds — so CI and the documented command run this
+# on the default profile and do not offer another.
 [target.desktop-app-linux-debug]
 kind = "command"
 tool = "cargo"

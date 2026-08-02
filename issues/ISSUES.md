@@ -871,14 +871,14 @@ Labels: `type:ci`, `priority:P0`
 
 Expo prebuild validationはQuality jobのstepとして通っている。androidはcache有りで18m20sまで落ちており、#001が実測した初回42m51sとは別物になっている。
 
-**ビルドグラフはFrostBuild v0.8.0にpin**（`frost.toml` / `Taskfile.yml` / `ci.yml`）。CIは checksummed release を展開し、Task側は`frost info version`がpin値と一致しない binary を precondition で拒否する。Frostは1.0前でminorがmanifest/CLI意味論を変えうると明言しているため、「PATHにfrostがある」だけではローカル実行とCI実行が同じ意味を持たない。
+**ビルドグラフはFrostBuild v0.8.0にpin**（`frost.toml` / `ci.yml` / `release.yml`）。2026-08-02にTaskfile/go-taskを廃止し、ローカル、CI、ReleaseはいずれもFrost targetを直接呼ぶ形へ一本化した。CIはchecksummed releaseを展開する。Frostは1.0前でminorがmanifest/CLI意味論を変えうるため、ローカルでも`frost info version`が`0.8.0`であることを確認する。
 
 リリース検証（`validate:eas` / `validate:brand` / `verify:dependency-patches`）も生のnpm実行をやめてFrostの`test` targetにした。checked-inのconfigとassetを`inputs`として宣言しているので、`apps/mobile/app.json`を触るとbrand gateだけが再実行される。変異テストで確認済み: `adaptiveIcon.backgroundColor`を書き換えると当該gateだけがrerunして失敗し、戻すとcache hitに戻る。
 
 未実装:
 
-- ~~実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証~~ **検証済み（2026-08-01）**: Ubuntu 24.04 + `xvfb-run -a` + `webkit2gtk-driver` 2.52.3 + `tauri-driver` 2.0.6で22項目すべてPASS。アプリ側の変更は不要だった。`e2e-tauri (ubuntu)` jobとして`ci.yml`に追加。ただし**`task bundle:desktop`のバイナリでは動かない**: harnessが使う`import.meta.env.DEV`のopen seamはproduction bundleから消え、`IROHA_E2E_SCOPE`は`#[cfg(debug_assertions)]`なのでreleaseバイナリに存在しない。必要なのはdebugバイナリ + Vite dev serverで、そのビルドは新targetの`desktop-app-linux-debug`（`task build:desktop:debug`）
-- ~~Tauri jobは`cargo build --release`まで~~ **訂正（2026-08-01）**: Tauri jobは`task bundle:desktop`でFrostのターゲットを実行し3 OS分のbundleを生成してartifactに上げる（`ci.yml:207-231`）。releaseワークフローも同じ経路で成果物を添付する。#059に残るのは署名のみ
+- ~~実Tauriランタイムe2e（`npm run e2e:tauri`）のCI化。ubuntu runnerはxvfb + webkit2gtk-driverで動く見込みだが未検証~~ **検証済み（2026-08-01）**: Ubuntu 24.04 + `xvfb-run -a` + `webkit2gtk-driver` 2.52.3 + `tauri-driver` 2.0.6で22項目すべてPASS。`Real-runtime e2e (ubuntu)` jobとして`ci.yml`に追加。ただしrelease packageはharnessが使う`import.meta.env.DEV` seamと`#[cfg(debug_assertions)]` scopeを持たない。必要なのはdebug binary + Vite dev serverで、`frost build desktop-app-linux-debug --no-tui`が作る
+- ~~Tauri jobは`cargo build --release`まで~~ **訂正（2026-08-02）**: Tauri jobは3 OSそれぞれの`desktop-app-*` Frost targetを直接実行し、bundleをartifactに上げる。Release workflowも同じtargetを直接呼ぶ。#059に残るのは署名のみ
 - iOSのunsigned Release Simulator buildはstore screenshot workflowで実施済み。EAS署名、物理端末、TestFlight / archiveは未実施
 - 新設した`e2e-tauri`は`scripts/github/protect-main.sh`の必須checkに**入れていない**。CI上で実績がつくまで初日からmerge gateにはしない。安定したら昇格する
 - WebKitGTK実バイナリのCI実行はLinuxのみ。macOSはWKWebView、WindowsはEdgeのdriverが要るので、このjobのコピーでは済まない

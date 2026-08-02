@@ -16,7 +16,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # A manual device-evidence run and a store-screenshot run exercise different
+  # native builds and may run together. Keep them separate from PR/push checks
+  # too, so starting evidence never cancels an ordinary required check.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ inputs.store_screenshots || false }}
   cancel-in-progress: true
 
 env:
@@ -35,13 +38,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - uses: go-task/setup-task@v2.1.0
-        with:
-          version: 3.52.0
       # Byte-identical to the block in the `tauri` job below and in
       # .github/workflows/release.yml. It runs on three operating systems there,
       # so it is written once and copied rather than kept in two shapes; raise
-      # the version in all three together with FROST_VERSION in Taskfile.yml.
+      # the version in all three together with frost.toml's minimum version.
       - name: Install checksummed FrostBuild
         shell: bash
         run: |
@@ -92,8 +92,10 @@ jobs:
           echo "$RUNNER_TEMP/frost" >> "$GITHUB_PATH"
       - name: Install locked dependencies
         run: npm ci
-      - name: Run Task/Frost quality workflow
-        run: task ci
+      - name: Run every cached Frost test and validation target
+        run: frost test --all --no-tui
+      - name: Build the desktop web output through Frost
+        run: frost build desktop-web --no-tui
       - name: Resolve public Expo config
         run: npx expo config --type public --json > expo-config.json
         working-directory: apps/mobile
@@ -142,7 +144,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            frost_target: desktop-app-linux
+            frost_platform: ''
+          - os: macos-latest
+            frost_target: desktop-app-macos
+            frost_platform: ''
+          - os: windows-latest
+            frost_target: desktop-app-windows
+            frost_platform: '--platform windows'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -158,9 +169,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
-      - uses: go-task/setup-task@v2.1.0
-        with:
-          version: 3.52.0
       - name: Install checksummed FrostBuild
         shell: bash
         run: |
@@ -223,7 +231,7 @@ jobs:
       # Vite build is a Frost dependency of the packaging target, so there is no
       # separate web-asset step here any more.
       - name: Build and bundle the desktop app through Frost
-        run: task bundle:desktop
+        run: frost build ${{ matrix.frost_target }} --profile release ${{ matrix.frost_platform }} --no-tui
       # Windows builds under a Frost platform overlay, because npm is named
       # `npm.cmd` there; asking for an overlay puts its name in ${config}, so
       # the packages land one directory deeper. Resolved here rather than
@@ -379,9 +387,6 @@ jobs:
           # holds a release build, this one a debug build, and sharing a key would
           # have each evict the other's artifacts every run.
           key: debug
-      - uses: go-task/setup-task@v2.1.0
-        with:
-          version: 3.52.0
       # Byte-identical to the block in the `quality` and `tauri` jobs above; see the
       # note there. Raise the version in all of them together.
       - name: Install checksummed FrostBuild
@@ -439,12 +444,12 @@ jobs:
         run: cargo install tauri-driver --version 2.0.6 --locked
       - name: Install locked dependencies
         run: npm ci
-      # Not `task bundle:desktop`: that produces the release packages, and the
+      # Not a release packaging target: that produces installers, and the
       # harness cannot drive one — the seam it opens files through is compiled out
       # of a production frontend and the scope it needs is `debug_assertions`-only.
       # See the target's comment in frost.toml.
       - name: Build the debug binary through Frost
-        run: task build:desktop:debug
+        run: frost build desktop-app-linux-debug --no-tui
       # `run.mjs` starts the Vite dev server the debug binary loads, builds the
       # fixture if this checkout has not got one, and exits non-zero on the first
       # failed check.
@@ -496,6 +501,125 @@ jobs:
           name: app-debug-apk
           path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
+
+  # Deliberately manual: this builds a release APK, generates a real 300 MiB /
+  # 500-page PDF, and boots a 1.5 GiB AVD. It is evidence for the release gate,
+  # not a fast simulation folded into unit tests. The app must survive Android's
+  # critical trim signal, background/resume, and a process-cold reopen.
+  android-low-memory:
+    name: Android low-memory evidence
+    if: github.event_name == 'workflow_dispatch' && inputs.store_screenshots != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      EXPO_PUBLIC_DEVICE_EVIDENCE: '1'
+      IROHA_DEVICE_EVIDENCE: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Allow KVM acceleration
+        run: |
+          set -euo pipefail
+          [[ -e /dev/kvm ]] || { echo '/dev/kvm is unavailable' >&2; exit 1; }
+          sudo chown "$USER" /dev/kvm
+      - name: Install locked dependencies and Android image
+        run: |
+          set -euo pipefail
+          npm ci
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd-low-memory"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            emulator \
+            'system-images;android-36;google_apis;x86_64'
+          echo no | avdmanager create avd \
+            --force \
+            --name iroha-low-memory \
+            --package 'system-images;android-36;google_apis;x86_64' \
+            --device pixel_6
+      - name: Generate the evidence-only native project
+        run: |
+          npx expo prebuild --platform android --no-install --clean
+          node ../../release/device-evidence/prepare-stylus-instrumentation.mjs
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_DOCTOR: '1'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/Android/Sdk/ndk
+            ~/Android/Sdk/cmake
+          key: low-memory-android-${{ runner.os }}-${{ hashFiles('apps/mobile/package.json') }}
+          restore-keys: android-${{ runner.os }}-
+      - name: Build the x86_64 release APK and stylus instrumentation
+        run: >-
+          ./gradlew assembleRelease assembleReleaseAndroidTest --no-daemon
+          -PreactNativeArchitectures=x86_64
+        working-directory: apps/mobile/android
+      - name: Generate the 300 MiB / 500-page fixture
+        run: >-
+          node release/device-evidence/generate-large-pdf.mjs
+          --pages 500 --size-mib 300
+          --output artifacts/device-evidence/large-500-pages.pdf
+      - name: Boot the 1.5 GiB emulator and install
+        run: |
+          set -euo pipefail
+          adb start-server
+          nohup "$ANDROID_SDK_ROOT/emulator/emulator" @iroha-low-memory \
+            -no-window -noaudio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect -camera-back none -camera-front none \
+            -memory 1536 > "$RUNNER_TEMP/android-low-memory-emulator.log" 2>&1 &
+          emulator_pid=$!
+          for _ in $(seq 1 180); do
+            [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]] && break
+            kill -0 "$emulator_pid" 2>/dev/null || {
+              cat "$RUNNER_TEMP/android-low-memory-emulator.log"
+              exit 1
+            }
+            sleep 2
+          done
+          [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == 1 ]]
+          adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+      - name: Exercise open, trim, resume, and cold reopen
+        run: >-
+          bash release/device-evidence/verify-low-memory-android.sh
+          artifacts/device-evidence
+          artifacts/device-evidence/large-500-pages.pdf
+      - name: Inject native pen pressure and verify the SQLite payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_apk="$(find apps/mobile/android/app/build/outputs/apk/androidTest -name '*.apk' -print -quit)"
+          [[ -n "$test_apk" ]] || { echo 'stylus instrumentation APK not found' >&2; exit 1; }
+          adb install -r "$test_apk"
+          adb shell am instrument -w -r \
+            -e class app.irohapdf.mobile.StylusInputTest \
+            app.irohapdf.mobile.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee artifacts/device-evidence/stylus-instrumentation.txt
+          grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt
+          adb exec-out screencap -p > artifacts/device-evidence/stylus-pressure.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-low-memory-evidence
+          path: |
+            artifacts/device-evidence/
+            ${{ runner.temp }}/android-low-memory-emulator.log
+          if-no-files-found: error
+          retention-days: 90
 
   store-screenshots:
     name: Native store screenshot set

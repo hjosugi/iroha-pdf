@@ -21,6 +21,7 @@ import { alertFailure } from '@/lib/alerts';
 import { describeError } from '@/lib/errors';
 import { baseName, createOutputPdf, sharePdf } from '@/lib/files';
 import { t } from '@/lib/i18n';
+import { COLOR, CONTROL, RADIUS, SPACE, TYPE } from '@/lib/theme';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 import { ContentColumn } from '@/components/ContentColumn';
 
@@ -233,19 +234,19 @@ function Action({ label, onPress, disabled, compact = false }: { label: string; 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F6F7F9' },
-  content: { padding: 18, paddingBottom: 50 },
-  grid: { gap: 12 },
-  intro: { color: '#737B87', lineHeight: 20, marginBottom: 3 },
-  card: { borderRadius: 17, padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6E8ED' },
-  cardTitle: { color: '#1E232C', fontSize: 16, fontWeight: '800' },
-  cardDescription: { marginTop: 6, color: '#777E89', lineHeight: 19 },
-  input: { marginTop: 12, borderRadius: 10, padding: 11, backgroundColor: '#F4F5F7', color: '#262B34' },
-  action: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 14, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, backgroundColor: '#2B5CFF' },
-  actionRow: { flexDirection: 'row', gap: 8 },
+  container: { flex: 1, backgroundColor: COLOR.background },
+  content: { padding: SPACE.xl, paddingBottom: CONTROL.comfortable },
+  grid: { gap: SPACE.md },
+  intro: { color: '#737B87', lineHeight: SPACE.xl, marginBottom: SPACE.xxs },
+  card: { borderRadius: RADIUS.lg, padding: SPACE.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E6E8ED' },
+  cardTitle: { color: '#1E232C', fontSize: TYPE.heading, fontWeight: '800' },
+  cardDescription: { marginTop: SPACE.sm, color: '#777E89', lineHeight: SPACE.xl },
+  input: { marginTop: SPACE.md, borderRadius: RADIUS.md, padding: SPACE.md, backgroundColor: '#F4F5F7', color: '#262B34' },
+  action: { minHeight: CONTROL.comfortable, alignItems: 'center', justifyContent: 'center', marginTop: SPACE.lg, borderRadius: RADIUS.md, paddingHorizontal: SPACE.md, paddingVertical: SPACE.md, backgroundColor: COLOR.brand },
+  actionRow: { flexDirection: 'row', gap: SPACE.sm },
   compactAction: { flex: 1 },
   disabled: { opacity: 0.45 },
-  actionText: { color: '#FFFFFF', fontWeight: '800' },
-  busyRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, padding: 16 },
-  busy: { color: '#2B5CFF', fontWeight: '700' },
+  actionText: { color: COLOR.surface, fontWeight: '800' },
+  busyRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: SPACE.sm, padding: SPACE.lg },
+  busy: { color: COLOR.brand, fontWeight: '700' },
 });

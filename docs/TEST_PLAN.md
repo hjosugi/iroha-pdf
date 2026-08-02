@@ -18,12 +18,14 @@ remain part of the device/desktop E2E gate because `pdf-lib` does not render.
 `e2e:tauri` drives the real Tauri runtime — a real window, the real webview, the
 real file dialogs — rather than the Playwright stub, and runs 22 checks. It needs
 `cargo install tauri-driver`, a `WebKitWebDriver` binary (Debian: `webkit2gtk-driver`),
-a graphical session, and a **debug** app build from `task build:desktop:debug`.
+a graphical session, and a **debug** app build from
+`frost build desktop-app-linux-debug --no-tui`.
 
 The build has to be a debug one. The harness drives the app through
 `window.__IROHA_DEV__`, which sits behind `import.meta.env.DEV` and is compiled
 out of a production build, and its scope grant is `#[cfg(debug_assertions)]`.
-`task bundle:desktop` therefore produces exactly the binary this cannot drive.
+A `desktop-app-*-release` package therefore produces exactly the binary this
+cannot drive.
 
 Nothing else needs starting by hand: the harness runs its own Vite dev server on
 1420 when nothing is already answering there, and builds the `complex.pdf`
@@ -121,6 +123,22 @@ The release-configured Android/iOS screenshot matrix now exercises the ordinary 
 and PDF view with a deterministic bundled fixture. What still needs physical devices is
 document/photo provider resolution, share and print sheets, production OAuth, stylus,
 rotation, memory-pressure recovery, battery/thermal behaviour and accessibility services.
+
+The manual `Android low-memory evidence` job is deliberately separate from the
+ordinary debug-APK job. It generates a deterministic 300 MiB / 500-page PDF
+without allocating the payload as one Node buffer, installs a release x86_64 APK
+on a 1.5 GiB API 36 AVD, and requires these transitions: cold open, Android
+`RUNNING_CRITICAL` trim, background/resume, process-cold reopen. It then injects
+real `TOOL_TYPE_STYLUS` MotionEvents whose pressure rises from 0.18 to 0.9 and
+queries the target SQLite database to prove the pressure array crossed the native
+pointer bridge. Logs, memory reports, UI hierarchy and screenshots are uploaded
+even when the job fails.
+
+This is controlled emulator evidence, not Apple Pencil/Android hardware proof.
+The mobile renderer may view and autosave annotations on the 300 MiB fixture, but
+mobile Export/Print uses an in-memory `pdf-lib` rewrite and is intentionally
+blocked above 64 MiB with a desktop handoff message. The test must not attempt an
+unsafe export and call an OOM an acceptable result.
 
 The "really is page 1" check screenshots what the app painted and compares it against
 poppler's own render. It uses no fixed similarity threshold: font substitution and
@@ -226,7 +244,7 @@ device evidence before that path is considered verified.
 | iPhone current iOS | Files/Drive import, annotation, export, AirPrint, memory warning recovery |
 | iPad current iPadOS | split view, rotation, stylus, multi-page navigation |
 | Pixel current Android | Drive Document Provider, annotation, print service, background/foreground |
-| Low-memory Android | 300 MB PDF, page change, export failure recovery |
+| Low-memory Android | 300 MiB/500 pages, critical trim, background/resume, cold reopen, explicit >64 MiB export guard |
 
 ## Desktop matrix
 

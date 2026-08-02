@@ -284,7 +284,16 @@ jobs:
       # attempt.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            frost_target: desktop-app-linux
+            frost_platform: ''
+          - os: macos-latest
+            frost_target: desktop-app-macos
+            frost_platform: ''
+          - os: windows-latest
+            frost_target: desktop-app-windows
+            frost_platform: '--platform windows'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -305,9 +314,6 @@ jobs:
           # Keyed apart from the CI job's cache of the same workspace so a
           # release build and a pull-request build do not evict each other.
           prefix-key: release-bundle
-      - uses: go-task/setup-task@v2.1.0
-        with:
-          version: 3.52.0
       - name: Install checksummed FrostBuild
         shell: bash
         run: |
@@ -375,7 +381,7 @@ jobs:
       # package does not carry the version tauri.conf.json declares — which the
       # verify job has already checked equals the version being released.
       - name: Build and bundle the desktop app through Frost
-        run: task bundle:desktop
+        run: frost build ${{ matrix.frost_target }} --profile release ${{ matrix.frost_platform }} --no-tui
 
       # Windows builds under a Frost platform overlay, because npm is named
       # `npm.cmd` there; asking for an overlay puts its name in ${config}, so
@@ -511,7 +517,9 @@ jobs:
           gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" \
             --json assets --jq '.assets[] | select(.state == "uploaded") | .name' |
             sort > uploaded.txt
-          ls release-assets | sort > expected.txt
+          for asset in release-assets/*; do
+            [[ -f "$asset" ]] && printf '%s\n' "${asset##*/}"
+          done | sort > expected.txt
           if ! diff --unified expected.txt uploaded.txt; then
             echo "::error::the draft does not carry exactly the assets that were built"
             exit 1
