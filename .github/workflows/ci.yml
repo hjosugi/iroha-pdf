@@ -490,13 +490,22 @@ jobs:
       - name: Run the real-runtime e2e under Xvfb
         run: xvfb-run -a npm run e2e:tauri
 
-  # Not on pull_request: a cold build measured 42m 51s locally, most of it fetching the
-  # 2 GB NDK and compiling native code. Gating every PR on that is not worth it, so this
-  # runs on main and on demand. Caches should bring warm runs down substantially.
+  # Not on pull_request: compiling the patched React Android tree is deliberately a
+  # main/on-demand gate. Keep all four supported ABIs, but package them independently:
+  # a universal debug APK made one hosted runner retain every native intermediate and
+  # then failed non-deterministically in IncrementalSplitterRunnable after 74 minutes,
+  # while the identical tree packaged successfully on another runner. The matrix keeps
+  # the coverage and produces an installable APK per ABI without that single packaging
+  # and disk-pressure bottleneck.
   android:
+    name: Android debug (${{ matrix.arch }})
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true)
-    timeout-minutes: 90
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64-v8a, armeabi-v7a, x86, x86_64]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -526,13 +535,15 @@ jobs:
           key: android-${{ runner.os }}-${{ hashFiles('apps/mobile/package.json') }}
           restore-keys: android-${{ runner.os }}-
 
-      - name: Build the debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Build the ${{ matrix.arch }} debug APK
+        run: >-
+          ./gradlew assembleDebug --no-daemon
+          -PreactNativeArchitectures=${{ matrix.arch }}
         working-directory: apps/mobile/android
 
       - uses: actions/upload-artifact@v7
         with:
-          name: app-debug-apk
+          name: app-debug-apk-${{ matrix.arch }}
           path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
 

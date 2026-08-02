@@ -28,6 +28,9 @@
 
 ### Fixed
 
+- Main CI now compiles and retains Android debug APKs in four parallel ABI jobs.
+  All supported ABIs remain covered, while one runner no longer holds every
+  React Android source-build intermediate until a universal APK packaging step.
 - The Linux real-Tauri gate now accepts both WebKitGTK object results and
   Chromium-style JSON strings, waits until the Shape tool is actually active,
   checks WebDriver action errors, and refuses a save unless the reopened PDF

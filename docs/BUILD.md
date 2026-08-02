@@ -89,6 +89,12 @@ Android's React Native 0.86 pointer dispatcher is still guarded by
 `MainApplication`; CI inspects the clean Android prebuild so an Expo or React
 Native template change cannot silently disable pen/touch/mouse annotation input.
 
+The main-branch Android debug gate builds and retains a separate APK for each of
+`arm64-v8a`, `armeabi-v7a`, `x86`, and `x86_64`. It does not reduce native coverage
+to the emulator architecture. Splitting the jobs prevents a single hosted runner
+from retaining all four React Android source-build trees until one universal APK
+is packaged, while still proving and retaining every supported ABI.
+
 Brand regeneration additionally needs `rsvg-convert` and ImageMagick. Those
 tools are not needed for ordinary validation because the generated assets are
 committed and checked directly.
