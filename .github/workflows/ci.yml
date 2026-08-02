@@ -555,11 +555,11 @@ jobs:
             'platforms;android-36' \
             'build-tools;36.0.0' \
             emulator \
-            'system-images;android-36;google_apis;x86_64'
+            'system-images;android-36;default;x86_64'
           echo no | avdmanager create avd \
             --force \
             --name iroha-low-memory \
-            --package 'system-images;android-36;google_apis;x86_64' \
+            --package 'system-images;android-36;default;x86_64' \
             --device pixel_6
       - name: Generate the evidence-only native project
         run: |
@@ -605,6 +605,18 @@ jobs:
             sleep 2
           done
           [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == 1 ]]
+          # The evidence does not use Play services. A plain AOSP image avoids
+          # first-boot Google provisioning consuming the entire 1.5 GiB budget
+          # before the app process starts. Finish OS setup and remove animation
+          # timing from the UI-automation measurements.
+          adb shell settings put global device_provisioned 1
+          adb shell settings put secure user_setup_complete 1
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell input keyevent KEYCODE_WAKEUP
+          adb shell wm dismiss-keyguard
+          adb shell pm list packages >/dev/null
           adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
       - name: Exercise open, trim, resume, and cold reopen
         run: >-

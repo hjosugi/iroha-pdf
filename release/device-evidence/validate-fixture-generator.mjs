@@ -11,6 +11,9 @@ const fixture = join(temporary, 'fixture.pdf');
 try {
   const workflow = readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8');
   assert.match(workflow, /-lowram -memory 1536/, 'the device gate must prevent the API 36 emulator from raising RAM to 2.5 GiB');
+  assert.match(workflow, /system-images;android-36;default;x86_64/, 'the low-memory gate must use the plain AOSP image so Google first-boot provisioning cannot consume the app budget');
+  assert.doesNotMatch(workflow.slice(workflow.indexOf('android-low-memory:'), workflow.indexOf('store-screenshots:')), /google_apis/, 'the low-memory job must not install a Google-services system image');
+  assert.match(workflow, /device_provisioned 1[\s\S]*user_setup_complete 1[\s\S]*wm dismiss-keyguard/, 'the AVD must finish first-boot setup before evidence starts');
   assert.match(workflow, /\$\{\{ runner\.temp \}\}\/large-500-pages\.pdf/, 'the 300 MiB fixture must stay outside the uploaded evidence directory');
   const harness = readFileSync(resolve(root, 'release/device-evidence/verify-low-memory-android.sh'), 'utf8');
   assert.match(harness, /trap capture_unexpected_failure ERR/, 'unexpected harness failures must retain logcat');
