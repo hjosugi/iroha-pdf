@@ -31,6 +31,7 @@ export default function RootLayout() {
         <Stack.Screen name="drive" options={{ title: 'Google Drive' }} />
         <Stack.Screen name="recovery" options={{ title: t('recovery.title') }} />
         <Stack.Screen name="store-preview" options={{ headerShown: false }} />
+        <Stack.Screen name="device-evidence" options={{ headerShown: false }} />
       </Stack>
     </SafeAreaProvider>
   );

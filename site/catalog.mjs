@@ -55,6 +55,18 @@ export const SECTIONS = [
     blurb: 'どう組み立てられていて、どうビルドし、何が実際に検証済みか。',
     documents: [
       {
+        source: 'README.md',
+        slug: 'overview-ja',
+        label: '日本語概要',
+        summary: '現在の機能、検証済みのリリース状態、セットアップ、既知の制限をまとめた日本語概要。',
+      },
+      {
+        source: 'README.en.md',
+        slug: 'overview-en',
+        label: 'English overview',
+        summary: 'Current capabilities, verified release status, setup, and known limitations in English.',
+      },
+      {
         source: 'docs/ARCHITECTURE.md',
         slug: 'architecture',
         label: 'Architecture',
@@ -65,7 +77,7 @@ export const SECTIONS = [
         source: 'docs/BUILD.md',
         slug: 'build',
         label: 'Build workflow',
-        summary: 'go-task 3.52.0とFrostBuild v0.8.0の役割分担、固定バージョン、CIと同じ入口。',
+        summary: 'FrostBuild v0.8.0への一本化、固定チェックサム、CIと同じ直接ターゲット。',
       },
       {
         source: 'docs/VERIFICATION.md',

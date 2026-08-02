@@ -20,7 +20,7 @@ document is edited, retitled, or reorganised; changing the slug breaks every
 store listing and consent screen that has already been given the URL.
 
 GitHub Pages is enabled with **Source: GitHub Actions**. Both the site root and
-the privacy-policy URL returned HTTP 200 on 2026-08-01. Keep the URL in the
+the privacy-policy URL returned HTTP 200 on 2026-08-02. Keep the URL in the
 two store records even if the documentation layout changes. Tracked in issue
 #67.
 

@@ -65,4 +65,70 @@ assert.match(
   "the vendored glib output pointer must be passed mutably",
 );
 
+const reactNativePdfBridge = await readFile(
+  path.join(repositoryRoot, "node_modules/react-native-pdf/index.js"),
+  "utf8",
+);
+assert.match(
+  reactNativePdfBridge,
+  /onPageChanged\(Number\(message\[1\]\), Number\(message\[2\]\), size\)/,
+  "react-native-pdf must forward each native page size to JavaScript",
+);
+const reactNativePdfAndroid = await readFile(
+  path.join(
+    repositoryRoot,
+    "node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java",
+  ),
+  "utf8",
+);
+assert.match(
+  reactNativePdfAndroid,
+  /pageChanged\|"\+page\+"\|"\+numberOfPages\+"\|"\+pageSize\.getWidth\(\)\+"\|"\+pageSize\.getHeight\(\)/,
+  "react-native-pdf Android must report the current page dimensions",
+);
+const reactNativePdfIos = await readFile(
+  path.join(repositoryRoot, "node_modules/react-native-pdf/ios/RNPDFPdf/RNPDFPdfView.mm"),
+  "utf8",
+);
+assert.match(
+  reactNativePdfIos,
+  /pageChanged\|%lu\|%lu\|%f\|%f/,
+  "react-native-pdf iOS must report the current page dimensions",
+);
+
+const reactNativeAndroidPointerEvent = await readFile(
+  path.join(
+    repositoryRoot,
+    "node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt",
+  ),
+  "utf8",
+);
+assert.match(
+  reactNativeAndroidPointerEvent,
+  /pointerType == PointerEventHelper\.POINTER_TYPE_PEN[\s\S]*motionEvent\.getPressure\(index\)\.toDouble\(\)\.coerceIn\(0\.0, 1\.0\)/,
+  "React Native Android must preserve normalized MotionEvent stylus pressure",
+);
+const reactNativePatch = await readFile(
+  path.join(repositoryRoot, "patches/react-native+0.86.2.patch"),
+  "utf8",
+);
+assert.match(
+  reactNativePatch,
+  /PointerEvent\.kt[\s\S]*POINTER_TYPE_PEN[\s\S]*motionEvent\.getPressure\(index\)/,
+  "the reviewed React Native 0.86.2 pressure bridge patch must be committed",
+);
+
+const androidPointerPlugin = await readFile(
+  path.join(
+    repositoryRoot,
+    "apps/mobile/plugins/with-android-pointer-events.js",
+  ),
+  "utf8",
+);
+assert.match(
+  androidPointerPlugin,
+  /includeBuild\(irohaReactNativeSource\)[\s\S]*substitute module\("com\.facebook\.react:react-native"\) using project\(":packages:react-native:ReactAndroid"\)[\s\S]*substitute module\("com\.facebook\.react:react-android"\) using project\(":packages:react-native:ReactAndroid"\)[\s\S]*substitute module\("com\.facebook\.react:hermes-engine"\) using project\(":packages:react-native:ReactAndroid:hermes-engine"\)[\s\S]*substitute module\("com\.facebook\.react:hermes-android"\) using project\(":packages:react-native:ReactAndroid:hermes-engine"\)[\s\S]*substitute module\("com\.facebook\.hermes:hermes-android"\) using project\(":packages:react-native:ReactAndroid:hermes-engine"\)/,
+  "Android prebuild must substitute the prebuilt React Android and Hermes AARs with matching source projects",
+);
+
 console.log("Dependency patch verification passed.");

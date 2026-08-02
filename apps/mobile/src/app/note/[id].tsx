@@ -15,6 +15,7 @@ import { ContentColumn } from '@/components/ContentColumn';
 import { alertFailure } from '@/lib/alerts';
 import { getNote, saveNote } from '@/lib/database';
 import { t } from '@/lib/i18n';
+import { LAYOUT, RADIUS, SPACE, TYPE } from '@/lib/theme';
 
 export default function NoteEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -69,7 +70,7 @@ export default function NoteEditorScreen() {
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
-      <ContentColumn maxWidth={840} style={styles.editor}>
+      <ContentColumn maxWidth={LAYOUT.editor} style={styles.editor}>
         <TextInput
           accessibilityLabel={t('note.titleLabel')}
           value={note.title}
@@ -97,12 +98,12 @@ function showSaveError(error: unknown): void {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 18, backgroundColor: '#FFFDF7' },
+  container: { flex: 1, paddingHorizontal: SPACE.xl, backgroundColor: '#FFFDF7' },
   editor: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  missingTitle: { color: '#1D211E', fontSize: 20, fontWeight: '800' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACE.sm, padding: SPACE.xxl },
+  missingTitle: { color: '#1D211E', fontSize: SPACE.xl, fontWeight: '800' },
   missingBody: { color: '#777D75', textAlign: 'center' },
-  title: { color: '#1D211E', fontSize: 27, fontWeight: '800', paddingVertical: 12 },
-  body: { flex: 1, color: '#30342F', fontSize: 16, lineHeight: 26, paddingTop: 10 },
-  saved: { paddingVertical: 12, color: '#858A83', fontSize: 12 },
+  title: { color: '#1D211E', fontSize: TYPE.title, fontWeight: '800', paddingVertical: SPACE.md, borderRadius: RADIUS.sm },
+  body: { flex: 1, color: '#30342F', fontSize: TYPE.heading, lineHeight: SPACE.xxl, paddingTop: SPACE.md },
+  saved: { paddingVertical: SPACE.md, color: '#858A83', fontSize: TYPE.label },
 });

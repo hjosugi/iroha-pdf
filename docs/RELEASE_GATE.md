@@ -9,7 +9,7 @@ Git; record only checksums and access-controlled links.
 |---|---|---|---|
 | Automated verification | clean checkout | CI URL, test/typecheck/build logs, SBOM | **pass** — see below |
 | Startup | all supported devices | cold/warm timings and method | pending |
-| Large PDF | low-memory Android, iPad, desktop | 300 MB/500-page peak memory, time-to-first-page, no OOM | pending |
+| Large PDF | low-memory Android, iPad, desktop | 300 MB/500-page peak memory, time-to-first-page, no OOM | **partial** — controlled Android AVD passed; iPad, desktop and physical devices pending |
 | Battery/thermal | iOS and Android | 30-minute reading/annotation run, battery delta, thermal state | pending |
 | Rotation/stylus | iPad and Android tablet | recording, annotation alignment after zoom/rotation | pending |
 | Crash recovery | mobile | kill/disk-full/DB-lock matrix and recovery-copy recording | pending |
@@ -25,24 +25,44 @@ evidence is not a pass.
 
 ## Automated verification — Unreleased audit (2026-08-02)
 
-- **Implementation and screenshot source:**
-  `8860f71804c5377e2c750bdc612f0361cb782889`
+- **Implementation source:**
+  `eaf6553c1bfd60cbd6f0903053bf1c082b4c6cba`
 - **Clean-checkout CI:**
-  <https://github.com/hjosugi/iroha-pdf/actions/runs/30719401503> — all eight
-  pull-request jobs passed: quality/Expo, supply chain, three Tauri package builds
-  and 69 Playwright tests on each of Linux, macOS and Windows.
-- **Unit tests:** 114 total — core 39, google-drive 9, desktop 25, mobile 41.
+  <https://github.com/hjosugi/iroha-pdf/actions/runs/30743015338> — all eight
+  required pull-request jobs plus the real-Tauri runtime job passed: quality/Expo,
+  supply chain, three Tauri package builds, the 70-case Playwright suite on each
+  OS (70 pass on Linux/macOS; 66 pass and four renderer-dependent skips on
+  Windows), and 22 real-runtime checks on Linux.
+- **Unit tests:** 128 total — core 41, google-drive 9, desktop 26, mobile 52.
 - **Native rendering:**
-  <https://github.com/hjosugi/iroha-pdf/actions/runs/30719408179> — unsigned
-  Release builds installed and captured four scenes each on Android phone,
-  iPhone and iPad simulators; the assembled 12-image set passed the store asset
-  validator and was reviewed at full size.
-- **Documentation/store gates:** 18 site pages from 16 documents link-checked;
+  <https://github.com/hjosugi/iroha-pdf/actions/runs/30731064514> at
+  `c8d7d78e448809e6f97f0dadac03fa3246b9f76d` — unsigned Release builds
+  installed and captured four scenes each on Android phone, iPhone and iPad
+  simulators; the assembled 12-image set passed the store asset validator and
+  was reviewed at full size. Later commits do not alter any captured scene; the
+  pressure badge added afterward appears only after live pen input.
+- **Controlled Android memory and pen input:**
+  <https://github.com/hjosugi/iroha-pdf/actions/runs/30743017733> at the exact
+  implementation source — a 314,720,686-byte, 500-page PDF was opened on an API
+  36 AVD with 1,503,188 KiB total RAM, then subjected to `RUNNING_CRITICAL`,
+  background/resume and process-cold reopen. ActivityManager reported 2,816 ms
+  cold open, 1,063 ms hot resume and 2,684 ms process-cold reopen. The open,
+  resume and reopen `dumpsys meminfo` snapshots respectively reported PSS/RSS
+  of 436,549/517,624, 426,008/511,232 and 433,927/523,788 KiB; these are bounded
+  snapshots, not a continuous peak profile. The retained logs contain no Iroha
+  PDF crash, ANR or OOM. Native `TOOL_TYPE_STYLUS` input traversed Android's
+  input dispatcher and the React Native pointer bridge; nine low-to-high
+  pressure samples were read back from SQLite. Separate live-input and
+  process-cold-reload images show the complete pressure badge and variable-width
+  stroke, while the retained reload tree names the package, page 1/500 and pen
+  width. All artifacts are retained for 90 days.
+- **Documentation/store gates:** 20 site pages from 18 documents link-checked;
   two localized listing records and 12 mobile screenshots validated.
 
-This is sufficient evidence for the automated row only. Simulator/emulator
-screenshots are not evidence for Startup, Battery/thermal, Rotation/stylus,
-Print, Packages, Store privacy or any other production/device row.
+This passes the automated row and the controlled-Android portion of Large PDF.
+Simulator/emulator evidence is not a physical-device pass for Startup,
+Battery/thermal, Rotation/stylus, Print, Packages or Store privacy; those rows
+stay blocked.
 
 ## Automated verification — v0.3.0
 

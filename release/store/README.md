@@ -79,11 +79,11 @@ npm run validate:store
 
 `validate:store` enforces copy limits, HTTPS URLs, alt-text coverage, exact
 dimensions, opaque RGB encoding, Play's size/aspect constraints, unique image
-content, and provenance. `task ci` runs the same gate through Frost.
+content, and provenance. `frost test --all --no-tui` runs the same gate.
 
 ## Current official constraints
 
-Checked on 2026-08-01:
+Checked against the linked Apple and Google specifications on 2026-08-02:
 
 - Apple accepts one to ten screenshots without transparency. A 6.9-inch iPhone
   set is the primary phone set; a 13-inch iPad set is required when the app runs

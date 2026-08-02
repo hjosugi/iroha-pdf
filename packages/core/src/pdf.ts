@@ -10,6 +10,7 @@ import {
 } from 'pdf-lib';
 
 import type { PdfAnnotation } from './types';
+import { pressureStrokeWidth } from './annotations';
 
 export type ImageInput = {
   bytes: Uint8Array;
@@ -260,7 +261,10 @@ function drawAnnotation(
     page.drawLine({
       start: frame.point(previous.x, previous.y),
       end: frame.point(current.x, current.y),
-      thickness: annotation.strokeWidth,
+      thickness: pressureStrokeWidth(
+        annotation.strokeWidth,
+        annotation.pressures?.[index] ?? annotation.pressures?.[index - 1],
+      ),
       color: pdfColor,
       opacity: 0.95,
     });

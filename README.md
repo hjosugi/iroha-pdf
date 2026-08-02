@@ -1,5 +1,7 @@
 # Iroha PDF
 
+日本語 | [English](README.en.md)
+
 軽量・ローカルファーストのPDFワークスペースです。iOS / AndroidとWindows / macOS / Linux向けのUIから、PDF操作、注釈、メモ、同期用データモデルを共有します。
 
 `Iroha PDF` は、モバイルとデスクトップでPDFを端末内処理するオープンソースのエンジニアリングプレビューです。一般利用向けの署名、実機、性能、OAuth、ストア審査はまだ完了していません。
@@ -8,7 +10,7 @@
 
 ## 現在のリリース状態
 
-- 最新の公開版は`0.4.0`で、その後の改善は`Unreleased`です。デスクトップ成果物はGitHub Releaseにありますが、Windows署名とmacOS notarizationは未実装です。
+- 最新のpre-releaseは`0.4.0`、GitHubがlatest stableとして示す版は`0.1.0`で、その後の改善は`Unreleased`です。デスクトップ成果物はGitHub Releaseにありますが、Windows署名とmacOS notarizationは未実装です。
 - Android / iPhone / iPadのRelease構成はSimulator / Emulatorで起動・描画確認済みです。署名済みproduction buildを物理端末へ入れた証跡ではありません。
 - App Store / Google Playの掲載文と画像はリポジトリ内で検証済みです。TestFlight、Play closed testing、ストア申告・審査は未実施です。
 - Google DriveはRESTクライアントとモバイルの一覧・ダウンロード画面までです。production OAuth、アップロード、端末間同期、競合解決はリリース未検証です。
@@ -16,14 +18,15 @@
 
 ## 現在実装済み
 
-- Expo SDK 57 / React Native 0.86 / React 19.2 / TypeScript 7のモバイル基盤
-- Tauri 2 + React + EmbedPDF（PDFium/WASM）のデスクトップ基盤
-- PDF表示、複数タブ、ハイライト、手書き、テキスト注釈
+- Expo SDK 57 / React Native 0.86.2 / React 19.2.3のモバイル基盤。Expo互換のmobile・共有packageはTypeScript 6.0.3
+- Tauri 2 / React 19.2.8 / EmbedPDF（PDFium/WASM）のデスクトップ基盤。desktopとroot toolingはTypeScript 7.0.2
+- PDF表示、複数タブ、ハイライト、筆圧対応スタイラス手書き、テキスト注釈
 - PDFごとの軽量メモと自動保存
 - 注釈をPDFへ焼き込んだコピーの書き出し
+- デスクトップで開いたPDFへの保存・別名保存、初回上書き前の原本backup、編集履歴と未保存下書きの復旧
 - 画像からPDF作成（大画像縮小、JPEG圧縮、A4配置）
 - PDFページ並べ替え・複製・結合・抽出・削除・回転
-- iOS / Androidのネイティブ印刷ダイアログ
+- デスクトップの全ページ・現在ページ・範囲・注釈有無の印刷previewと、iOS / Androidのネイティブ印刷ダイアログ
 - PDF構造の安全な最適化
 - SQLiteによるPDF、メモ、注釈の永続化
 - Google Drive RESTクライアント
@@ -31,7 +34,10 @@
   - PDF一覧、ダウンロード、作成・更新、再開可能アップロード
   - Changes APIの開始トークンと差分取得
 - Google Driveモバイル画面（OAuthクライアント設定後の一覧・ダウンロード）
-- 日本語・英語UI、スクリーンリーダー用ラベル、44px以上のモバイル操作領域
+- 日本語・英語UI、スクリーンリーダー用ラベル、React Nativeのlogical unitで44以上のモバイル操作領域
+- desktop/siteのCSS custom propertiesとmobileの型付きsize token。散在した固定sizeの再導入をFrost gateで拒否
+- PDFページごとの実寸に正規化する注釈座標、混在サイズ・回転時の再計算、編集時100%表示への安全な復帰
+- 300 MiB・500ページPDFを1.5 GiB Android AVDでopen / trim / resume / cold reopenする証跡ゲート
 - 端末内PDF・メモの削除、Google Driveのログアウト・権限取り消し
 - 注釈座標、PDF操作、同期マージの単体テスト
 
@@ -39,11 +45,14 @@
 
 - 「既存テキストの直接置換」はPDFの最低限編集には含めていません。フォント、文字配置、サブセット、Content Streamの再構築が必要で、壊れやすいためです。MVPは追記、ハイライト、手書き、メモ、ページ操作を扱います。
 - モバイルの安全な最適化はObject Stream再構成のみです。画像の再圧縮を行わないため、縮まないPDFもあります。
+- モバイルの注釈書き出しはprovider原本を上書きせず別コピーを作ります。元ファイルへ安全に保存するprovider bridgeは未実装です。
+- モバイルの注釈書き出し/印刷はPDF全体をJavaScriptメモリで再構成するため、64 MiBを超える入力では強制終了を避けてdesktop利用を案内します。native閲覧と注釈autosaveは継続できます。
+- デスクトップの編集履歴はmetadataと未保存下書きをlocal storageへ保持しますが、任意revisionのPDF bytesへ戻す機能はありません。復元できる完全な版は初回上書き前の原本backupです。
 - 高圧縮、deskew、OCR、PDF/A、フォントアウトライン化はネイティブエンジンが必要です。デスクトップはpdfcpu sidecar、モバイルは専用ネイティブモジュールとしてIssue化しています。
 - Google Drive認証にはGoogle Cloud ConsoleでiOS、Android、Web OAuthクライアントを作成し、development buildを再生成する必要があります。
-- Driveのアップロード、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。
+- DriveのアップロードAPIはクライアント層までです。モバイルのアップロードUI、production実アカウントでの検証、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。
 - モバイルPDF表示は`react-native-pdf`を使うためExpo Goでは動きません。development buildを使用してください。
-- 物理iPhone / iPad / Androidでの印刷、スタイラス、回転、メモリ、電池、クラッシュ復旧は未検証です。
+- Androidエミュレータでは合成スタイラス入力と低メモリ試験を行いますが、物理iPhone / iPad / AndroidでのApple Pencil・各社ペン、印刷、回転、電池、OSによるprocess kill後の復旧は未検証です。
 - デスクトップ配布物は未署名です。Gatekeeper / SmartScreenの警告を回避できる一般向けリリースではありません。
 
 ## 構成
@@ -68,23 +77,24 @@ issues/
 
 ## ドキュメント
 
-`docs/`はGitHub Pagesへ公開しています。`main`へのpushごとに[.github/workflows/pages.yml](.github/workflows/pages.yml)が再生成します。
+`docs/`はGitHub Pagesへ公開しています。`main`へのpushごとに[Pages workflow](https://github.com/hjosugi/iroha-pdf/blob/main/.github/workflows/pages.yml)が再生成します。
 
 - サイト: https://hjosugi.github.io/iroha-pdf/
+- English overview: https://hjosugi.github.io/iroha-pdf/overview-en/
 - プライバシーポリシー（ストアとOAuth同意画面へ入力する安定URL）: https://hjosugi.github.io/iroha-pdf/privacy/
 - App Store / Google Play提出文、画像、再生成手順: [release/store/README.md](release/store/README.md)
 - 画面別UI/UX監査、修正内容、残る実機ゲート: [docs/UI_UX_AUDIT.md](docs/UI_UX_AUDIT.md)
 
-ローカルで生成して確認する場合は`task site`または`npm run site`を実行し、`site/dist/`を静的配信してください。公開URLと提出時の確認項目は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
+ローカルで生成して確認する場合は`npm run site`を実行し、`site/dist/`を静的配信してください。公開URLと提出時の確認項目は[docs/STORE_PRIVACY_CHECKLIST.md](docs/STORE_PRIVACY_CHECKLIST.md)を参照してください。
 
 ## セットアップ
 
-前提はNode.js 22.13以降です。標準の開発・CI入口にはgo-task、増分テスト・型検査・デスクトップWebビルドにはFrostBuildを使用します。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
+前提はNode.js 22.13以降とFrostBuild v0.8.0です。Taskfileは廃止し、ローカルとCIの増分テスト・型検査・検証・デスクトップビルドを`frost.toml`へ一本化しています。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
 
 ```bash
-task install
-task check
-task build:desktop
+npm ci
+frost test --all --no-tui
+frost build desktop-web --no-tui
 ```
 
 ツールの固定バージョン、インストール方法、npmとの責務分担は[docs/BUILD.md](docs/BUILD.md)を参照してください。
@@ -131,7 +141,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
 
 ## 主要な技術判断
 
-- React Native公式は新規アプリでExpoのようなFrameworkを推奨しており、Expo SDK 57はReact Native 0.86を採用しています。
+- React Native公式は新規アプリでExpoのようなFrameworkを推奨しています。Expo SDK 57はReact Native 0.86系を採用し、このリポジトリは0.86.2へ固定しています。
 - デスクトップPDFエンジンは、MITライセンス、PDFium、注釈・印刷・export pluginを持つEmbedPDFを採用しました。
 - PedaruはGoogle Drive、SQLite、タブ、セッション設計の参考にしましたが、デスクトップ専用でPDF書き込み機能がないため移植していません。
 - BentoPDFは機能要件の参考として非常に優秀ですが、AGPL-3.0 / 商用デュアルライセンスです。このプロジェクトにはコードをコピーしていません。

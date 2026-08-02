@@ -19,8 +19,8 @@ cargo = "cargo"
 # runner failed with `failed to spawn "npm": program not found` while `npm ci`
 # in the adjacent step worked. Naming the tool per platform is the documented
 # way to say that; `pass_env` cannot fix it, because the name is resolved before
-# the action environment applies. Selected by `task bundle:desktop`, which
-# passes `--platform windows` only on a Windows host, so the Linux and macOS
+# the action environment applies. CI passes `--platform windows` only for the
+# Windows target, so the Linux and macOS
 # builds keep the root toolchain and their existing output paths untouched.
 [platform.windows.tools]
 npm = "npm.cmd"
@@ -48,6 +48,52 @@ inputs = [
   "release/lib/assets.mjs",
   "release/store/screenshots/desktop/*.png",
   "release/store/play/*.png",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-style-tokens]
+kind = "test"
+tool = "node"
+args = ["release/ui/validate-style-tokens.mjs"]
+inputs = [
+  "apps/desktop/src/styles.css",
+  "apps/mobile/src/**/*.ts",
+  "apps/mobile/src/**/*.tsx",
+  "release/ui/validate-style-tokens.mjs",
+  "site/assets/site.css",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-device-fixture-validate]
+kind = "test"
+tool = "node"
+args = ["release/device-evidence/validate-fixture-generator.mjs"]
+inputs = [
+  ".github/workflows/ci.yml",
+  "release/device-evidence/generate-large-pdf.mjs",
+  "release/device-evidence/prepare-stylus-instrumentation.mjs",
+  "release/device-evidence/validate-fixture-generator.mjs",
+  "release/device-evidence/verify-low-memory-android.sh",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
+[target.iroha-pdf-frost-integration]
+kind = "test"
+tool = "node"
+args = ["release/build/validate-frost-integration.mjs"]
+inputs = [
+  ".github/workflows/ci.yml",
+  "apps/desktop/package.json",
+  "apps/desktop/e2e-tauri/run.mjs",
+  "apps/desktop/e2e/performance.spec.ts",
+  "frost.toml",
+  "release/build/validate-frost-integration.mjs",
 ]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
@@ -90,6 +136,8 @@ tool = "node"
 args = ["site/verify.mjs"]
 inputs = [
   "CHANGELOG.md",
+  "README.md",
+  "README.en.md",
   "SECURITY.md",
   "THIRD_PARTY_NOTICES.md",
   "apps/mobile/assets/images/icon.png",
@@ -124,17 +172,19 @@ env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false
 
-# Resolves the installed `xcode` and `uuid` packages as well as the vendored
-# glib patch, so the npm lockfile stands in for the module tree the way it does
-# for every other gate here.
+# Resolves the installed `xcode` and `uuid` packages, the vendored glib fix and
+# the patched React Native pointer/PDF bridges. The lockfile plus reviewed patch
+# files stand in for the installed module tree the way they do for every other gate.
 [target.iroha-pdf-dependency-patches]
 kind = "test"
 tool = "node"
 args = ["release/supply-chain/verify-dependency-patches.mjs"]
 inputs = [
   "apps/desktop/src-tauri/vendor/glib-0.18.5-patched/src/variant_iter.rs",
+  "apps/mobile/plugins/with-android-pointer-events.js",
   "package-lock.json",
   "package.json",
+  "patches/*.patch",
   "release/supply-chain/verify-dependency-patches.mjs",
 ]
 env = { CI = "true" }
@@ -322,8 +372,8 @@ sandbox = false
 # `${config}` in a command output so profiles stay isolated, and cargo's dev
 # profile happens to be called `debug` too, so the two agree with nothing
 # copied. They agree only there — `--profile release` would look for a release
-# binary this action never builds — so the Taskfile runs this on the default
-# profile and does not offer another.
+# binary this action never builds — so CI and the documented command run this
+# on the default profile and do not offer another.
 [target.desktop-app-linux-debug]
 kind = "command"
 tool = "cargo"

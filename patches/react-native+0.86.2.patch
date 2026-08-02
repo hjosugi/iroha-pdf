@@ -1,0 +1,15 @@
+diff --git a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt
+index ed14d9925..1db2bf733 100644
+--- a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt
++++ b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt
+@@ -210,5 +210,10 @@ internal class PointerEvent private constructor() : Event<PointerEvent>() {
+         if (isClickEvent) {
+           0.0 // click events need pressure=0
++        } else if (pointerType == PointerEventHelper.POINTER_TYPE_PEN) {
++          // Android already normalizes stylus pressure for MotionEvent. Preserve
++          // it instead of replacing every active pen sample with the W3C 0.5
++          // fallback used for hardware that cannot report pressure.
++          motionEvent.getPressure(index).toDouble().coerceIn(0.0, 1.0)
+         } else {
+           getPressure(pointerEvent.getInt("buttons"), _eventName)
+         }

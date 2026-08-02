@@ -11,9 +11,11 @@ import {
   mergeSyncOperations,
   normalizePoint,
   optimizePdfStructure,
+  pressureStrokeWidth,
   removePdfPages,
   reorderPdf,
   rotatePdfPages,
+  validateAnnotation,
 } from './index';
 
 const TIMESTAMP = '2026-07-12T00:00:00.000Z';
@@ -46,6 +48,28 @@ function hasEmbeddedFontFile(document: PDFDocument): boolean {
 describe('coordinate helpers', () => {
   it('normalizes and clamps page coordinates', () => {
     expect(normalizePoint({ x: 50, y: 300 }, 100, 200)).toEqual({ x: 0.5, y: 1 });
+  });
+
+  it('maps normalized pressure to a bounded readable width', () => {
+    expect(pressureStrokeWidth(2)).toBe(2);
+    expect(pressureStrokeWidth(2, 0)).toBeCloseTo(1.1);
+    expect(pressureStrokeWidth(2, 1)).toBeCloseTo(2.9);
+    expect(pressureStrokeWidth(2, -4)).toBeCloseTo(1.1);
+    expect(pressureStrokeWidth(2, 9)).toBeCloseTo(2.9);
+  });
+
+  it('rejects pressure payloads that cannot align with their points', () => {
+    const annotation = {
+      id: 'ink', documentId: 'doc', pageIndex: 0, kind: 'ink' as const,
+      color: '#0055ff', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+      strokeWidth: 2, createdAt: TIMESTAMP, updatedAt: TIMESTAMP,
+    };
+    expect(() => validateAnnotation({ ...annotation, pressures: [0.5] })).toThrow(
+      'pressure samples must match',
+    );
+    expect(() => validateAnnotation({ ...annotation, pressures: [0.5, 1.1] })).toThrow(
+      'normalized from 0 to 1',
+    );
   });
 });
 
@@ -127,7 +151,7 @@ describe('PDF output safety', () => {
       },
       {
         id: 'ink', documentId: 'doc', pageIndex: 0, kind: 'ink', color: '#0055ff',
-        points: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.9 }], strokeWidth: 2,
+        points: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.9 }], pressures: [0.1, 0.9], strokeWidth: 2,
         createdAt: timestamp, updatedAt: timestamp,
       },
     ]);

@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { LAYOUT } from '@/lib/theme';
 
 type ContentColumnProps = PropsWithChildren<{
   maxWidth?: number;
@@ -11,7 +12,7 @@ type ContentColumnProps = PropsWithChildren<{
  * The surrounding background still fills the window; only readable/actionable
  * content is capped and centred.
  */
-export function ContentColumn({ children, maxWidth = 760, style }: ContentColumnProps) {
+export function ContentColumn({ children, maxWidth = LAYOUT.readable, style }: ContentColumnProps) {
   return <View style={[styles.column, { maxWidth }, style]}>{children}</View>;
 }
 

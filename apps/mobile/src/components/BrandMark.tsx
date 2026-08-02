@@ -1,6 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 
+import { COLOR, CONTROL, RADIUS } from '@/lib/theme';
+
 export function BrandMark() {
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.container}>
@@ -23,10 +25,10 @@ export function BrandMark() {
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    backgroundColor: '#2B5CFF',
-    borderRadius: 13,
-    height: 44,
+    backgroundColor: COLOR.brand,
+    borderRadius: RADIUS.md,
+    height: CONTROL.minimum,
     justifyContent: 'center',
-    width: 44,
+    width: CONTROL.minimum,
   },
 });

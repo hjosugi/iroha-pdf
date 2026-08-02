@@ -16,7 +16,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # A manual device-evidence run and a store-screenshot run exercise different
+  # native builds and may run together. Keep them separate from PR/push checks
+  # too, so starting evidence never cancels an ordinary required check.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ inputs.store_screenshots || false }}
   cancel-in-progress: true
 
 env:
@@ -35,13 +38,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - uses: go-task/setup-task@v2.1.0
-        with:
-          version: 3.52.0
       # Byte-identical to the block in the `tauri` job below and in
       # .github/workflows/release.yml. It runs on three operating systems there,
       # so it is written once and copied rather than kept in two shapes; raise
-      # the version in all three together with FROST_VERSION in Taskfile.yml.
+      # the version in all three together with frost.toml's minimum version.
       - name: Install checksummed FrostBuild
         shell: bash
         run: |
@@ -92,8 +92,10 @@ jobs:
           echo "$RUNNER_TEMP/frost" >> "$GITHUB_PATH"
       - name: Install locked dependencies
         run: npm ci
-      - name: Run Task/Frost quality workflow
-        run: task ci
+      - name: Run every cached Frost test and validation target
+        run: frost test --all --no-tui
+      - name: Build the desktop web output through Frost
+        run: frost build desktop-web --no-tui
       - name: Resolve public Expo config
         run: npx expo config --type public --json > expo-config.json
         working-directory: apps/mobile
@@ -108,12 +110,33 @@ jobs:
         env:
           EXPO_NO_DOCTOR: "1"
       - name: Validate Android prebuild
-        run: npx expo prebuild --platform android --no-install --clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform android --no-install --clean
+          application=android/app/src/main/java/app/irohapdf/mobile/MainApplication.kt
+          settings=android/settings.gradle
+          grep --fixed-strings --line-regexp \
+            'import com.facebook.react.config.ReactFeatureFlags' "$application"
+          grep --fixed-strings --line-regexp \
+            '    ReactFeatureFlags.dispatchPointerEvents = true' "$application"
+          grep --fixed-strings --line-regexp \
+            'includeBuild(irohaReactNativeSource) {' "$settings"
+          grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:react-native") using project(":packages:react-native:ReactAndroid")' "$settings"
+          grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:react-android") using project(":packages:react-native:ReactAndroid")' "$settings"
+          grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:hermes-engine") using project(":packages:react-native:ReactAndroid:hermes-engine")' "$settings"
+          grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")' "$settings"
+          grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.hermes:hermes-android") using project(":packages:react-native:ReactAndroid:hermes-engine")' "$settings"
         working-directory: apps/mobile
         env:
           EXPO_NO_DOCTOR: "1"
       - name: Retain web build and resolved Expo config
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-artifacts
           path: |
@@ -142,7 +165,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            frost_target: desktop-app-linux
+            frost_platform: ''
+          - os: macos-latest
+            frost_target: desktop-app-macos
+            frost_platform: ''
+          - os: windows-latest
+            frost_target: desktop-app-windows
+            frost_platform: '--platform windows'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -158,9 +190,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri -> target
-      - uses: go-task/setup-task@v2.1.0
-        with:
-          version: 3.52.0
       - name: Install checksummed FrostBuild
         shell: bash
         run: |
@@ -223,7 +252,7 @@ jobs:
       # Vite build is a Frost dependency of the packaging target, so there is no
       # separate web-asset step here any more.
       - name: Build and bundle the desktop app through Frost
-        run: task bundle:desktop
+        run: frost build ${{ matrix.frost_target }} --profile release ${{ matrix.frost_platform }} --no-tui
       # Windows builds under a Frost platform overlay, because npm is named
       # `npm.cmd` there; asking for an overlay puts its name in ${config}, so
       # the packages land one directory deeper. Resolved here rather than
@@ -244,7 +273,7 @@ jobs:
           ls -1 "$dir"
 
       - name: Retain the desktop packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-packages-${{ runner.os }}
           path: ${{ steps.staged.outputs.dir }}/
@@ -295,7 +324,7 @@ jobs:
           cargo cyclonedx --manifest-path apps/desktop/src-tauri/Cargo.toml --format json --spec-version 1.5
           node release/supply-chain/normalize-cyclonedx.mjs apps/desktop/src-tauri/iroha-pdf.cdx.json artifacts/cargo.cdx.json
       - name: Retain SBOM and license evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: supply-chain-reports
           path: artifacts/
@@ -304,6 +333,7 @@ jobs:
   e2e:
     name: e2e (${{ matrix.os }})
     if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
+    needs: quality
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     strategy:
@@ -329,13 +359,24 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
         working-directory: apps/desktop
-      - run: npm run build:desktop
+      # The quality job built this tree through Frost. Reuse those exact bytes
+      # on every browser host rather than rebuilding an undeclared dist/ tree
+      # with npm and allowing a stale local preview to pass.
+      - uses: actions/download-artifact@v8
+        with:
+          name: quality-artifacts
+          # upload-artifact removes the common `apps/` ancestor shared by the
+          # desktop tree and Expo config; restore it when extracting.
+          path: apps
+      - name: Confirm the Frost web output is present
+        shell: bash
+        run: test -f apps/desktop/dist/debug/index.html
       - run: npm run e2e
         env:
           # Shared runners are slower than a developer machine; only time budgets scale.
           PERF_BUDGET_SCALE: '4'
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report-${{ matrix.os }}
@@ -361,6 +402,7 @@ jobs:
   # neither is a copy of this job.
   e2e-tauri:
     name: Real-runtime e2e (ubuntu)
+    if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
     runs-on: ubuntu-latest
     # Cold, the debug compile of the Tauri dependency tree dominates: 2m 24s on the
     # machine this was verified on, and a shared runner is slower.
@@ -379,9 +421,6 @@ jobs:
           # holds a release build, this one a debug build, and sharing a key would
           # have each evict the other's artifacts every run.
           key: debug
-      - uses: go-task/setup-task@v2.1.0
-        with:
-          version: 3.52.0
       # Byte-identical to the block in the `quality` and `tauri` jobs above; see the
       # note there. Raise the version in all of them together.
       - name: Install checksummed FrostBuild
@@ -439,12 +478,12 @@ jobs:
         run: cargo install tauri-driver --version 2.0.6 --locked
       - name: Install locked dependencies
         run: npm ci
-      # Not `task bundle:desktop`: that produces the release packages, and the
+      # Not a release packaging target: that produces installers, and the
       # harness cannot drive one — the seam it opens files through is compiled out
       # of a production frontend and the scope it needs is `debug_assertions`-only.
       # See the target's comment in frost.toml.
       - name: Build the debug binary through Frost
-        run: task build:desktop:debug
+        run: frost build desktop-app-linux-debug --no-tui
       # `run.mjs` starts the Vite dev server the debug binary loads, builds the
       # fixture if this checkout has not got one, and exits non-zero on the first
       # failed check.
@@ -491,11 +530,250 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
         working-directory: apps/mobile/android
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: app-debug-apk
           path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
           retention-days: 14
+
+  # Deliberately manual: this builds a release APK, generates a real 300 MiB /
+  # 500-page PDF, and boots a 1.5 GiB AVD. It is evidence for the release gate,
+  # not a fast simulation folded into unit tests. The app must survive Android's
+  # critical trim signal, background/resume, and a process-cold reopen.
+  android-low-memory:
+    name: Android low-memory evidence
+    if: github.event_name == 'workflow_dispatch' && inputs.store_screenshots != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      EXPO_PUBLIC_DEVICE_EVIDENCE: '1'
+      IROHA_DEVICE_EVIDENCE: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Allow KVM acceleration
+        run: |
+          set -euo pipefail
+          [[ -e /dev/kvm ]] || { echo '/dev/kvm is unavailable' >&2; exit 1; }
+          sudo chown "$USER" /dev/kvm
+      - name: Install locked dependencies and Android image
+        run: |
+          set -euo pipefail
+          npm ci
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd-low-memory"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            'platforms;android-36' \
+            'build-tools;36.0.0' \
+            emulator \
+            'system-images;android-36;default;x86_64'
+          echo no | avdmanager create avd \
+            --force \
+            --name iroha-low-memory \
+            --package 'system-images;android-36;default;x86_64' \
+            --device pixel_6
+      - name: Generate the evidence-only native project
+        run: |
+          npx expo prebuild --platform android --no-install --clean
+          node ../../release/device-evidence/prepare-stylus-instrumentation.mjs
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_DOCTOR: '1'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/Android/Sdk/ndk
+            ~/Android/Sdk/cmake
+          key: low-memory-android-${{ runner.os }}-${{ hashFiles('apps/mobile/package.json') }}
+          restore-keys: android-${{ runner.os }}-
+      - name: Verify the patched React Android and matching Hermes sources are selected
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/device-evidence
+          apps/mobile/android/gradlew -p apps/mobile/android \
+            :app:dependencyInsight \
+            --dependency react-android \
+            --configuration releaseRuntimeClasspath \
+            --no-daemon \
+            | tee artifacts/device-evidence/react-android-dependency.txt
+          grep --extended-regexp --quiet \
+            'project .*packages:react-native:ReactAndroid' \
+            artifacts/device-evidence/react-android-dependency.txt
+          if grep --extended-regexp --quiet \
+            'com\.facebook\.react:react-native.*-> com\.facebook\.react:react-android' \
+            artifacts/device-evidence/react-android-dependency.txt; then
+            echo 'legacy react-native dependency escaped to the published react-android AAR' >&2
+            exit 1
+          fi
+          apps/mobile/android/gradlew -p apps/mobile/android \
+            :app:dependencyInsight \
+            --dependency hermes-android \
+            --configuration releaseRuntimeClasspath \
+            --no-daemon \
+            | tee artifacts/device-evidence/hermes-android-dependency.txt
+          grep --extended-regexp --quiet \
+            'project .*packages:react-native:ReactAndroid:hermes-engine' \
+            artifacts/device-evidence/hermes-android-dependency.txt
+      - name: Build the x86_64 release APK and stylus instrumentation
+        run: >-
+          ./gradlew assembleRelease assembleReleaseAndroidTest --no-daemon
+          -PreactNativeArchitectures=x86_64
+        working-directory: apps/mobile/android
+      - name: Generate the 300 MiB / 500-page fixture
+        run: >-
+          node release/device-evidence/generate-large-pdf.mjs
+          --pages 500 --size-mib 300
+          --output ${{ runner.temp }}/large-500-pages.pdf
+      - name: Boot the 1.5 GiB emulator and install
+        run: |
+          set -euo pipefail
+          adb start-server
+          nohup "$ANDROID_SDK_ROOT/emulator/emulator" @iroha-low-memory \
+            -no-window -noaudio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect -camera-back none -camera-front none \
+            -lowram -memory 1536 > "$RUNNER_TEMP/android-low-memory-emulator.log" 2>&1 &
+          emulator_pid=$!
+          for _ in $(seq 1 180); do
+            [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]] && break
+            kill -0 "$emulator_pid" 2>/dev/null || {
+              cat "$RUNNER_TEMP/android-low-memory-emulator.log"
+              exit 1
+            }
+            sleep 2
+          done
+          [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == 1 ]]
+          # The evidence does not use Play services. A plain AOSP image avoids
+          # first-boot Google provisioning consuming the entire 1.5 GiB budget
+          # before the app process starts. Finish OS setup and remove animation
+          # timing from the UI-automation measurements.
+          adb shell settings put global device_provisioned 1
+          adb shell settings put secure user_setup_complete 1
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell input keyevent KEYCODE_WAKEUP
+          adb shell wm dismiss-keyguard
+          adb shell pm list packages >/dev/null
+          adb install -r apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+      - name: Exercise open, trim, resume, and cold reopen
+        run: >-
+          bash release/device-evidence/verify-low-memory-android.sh
+          artifacts/device-evidence
+          ${{ runner.temp }}/large-500-pages.pdf
+      - name: Inject native pen pressure and verify the SQLite payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_apk="$(find apps/mobile/android/app/build/outputs/apk/androidTest -name '*.apk' -print -quit)"
+          [[ -n "$test_apk" ]] || { echo 'stylus instrumentation APK not found' >&2; exit 1; }
+          adb install -r "$test_apk"
+          adb logcat -c
+          set +e
+          adb shell am instrument -w -r \
+            -e class app.irohapdf.mobile.StylusInputTest \
+            app.irohapdf.mobile.test/androidx.test.runner.AndroidJUnitRunner \
+            | tee artifacts/device-evidence/stylus-instrumentation.txt
+          instrumentation_status="${PIPESTATUS[0]}"
+          set -e
+          adb logcat -d -v brief -s IrohaStylusEvidence:I '*:S' \
+            | tee artifacts/device-evidence/stylus-logcat.txt
+          adb pull /data/local/tmp/iroha-stylus-pressure.png \
+            artifacts/device-evidence/stylus-pressure.png >/dev/null 2>&1 || true
+
+          # The instrumentation process closes its Activity when the runner
+          # exits. Relaunch the same document and require the pressure badge to
+          # return from the persisted SQLite payload before retaining shell-side
+          # evidence. Otherwise uiautomator can truthfully capture Launcher.
+          adb shell am force-stop app.irohapdf.mobile
+          adb shell am start -W -a android.intent.action.VIEW \
+            -d iroha-pdf:///viewer/device-evidence-large-pdf \
+            app.irohapdf.mobile >/dev/null
+          rm -f artifacts/device-evidence/stylus-window.xml
+          pressure_tree_ready=false
+          for _ in $(seq 1 120); do
+            adb shell uiautomator dump /data/local/tmp/iroha-stylus-window.xml \
+              >/dev/null 2>&1 || true
+            adb pull /data/local/tmp/iroha-stylus-window.xml \
+              artifacts/device-evidence/stylus-window.xml >/dev/null 2>&1 || true
+            if grep -q 'package="app.irohapdf.mobile"' \
+                artifacts/device-evidence/stylus-window.xml 2>/dev/null \
+              && grep -Eq 'Pressure enabled|筆圧を反映中' \
+                artifacts/device-evidence/stylus-window.xml 2>/dev/null; then
+              pressure_tree_ready=true
+              break
+            fi
+            sleep 1
+          done
+          [[ "$pressure_tree_ready" == true ]]
+
+          # Select Pen again using the bounds from the retained target tree,
+          # then require the restored badge to be visually rendered. Keep the
+          # instrumentation PNG and the cold-reload PNG as separate evidence.
+          read -r pen_x pen_y < <(python3 -c '
+          import re, sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          node = next(node for node in root.iter("node") if node.get("content-desc") in {"Pen annotation tool", "ペン注釈ツール"})
+          left, top, right, bottom = map(int, re.findall(r"\d+", node.get("bounds")))
+          print((left + right) // 2, (top + bottom) // 2)
+          ' artifacts/device-evidence/stylus-window.xml)
+          adb shell input tap "$pen_x" "$pen_y"
+          pen_tree_ready=false
+          for _ in $(seq 1 30); do
+            adb shell uiautomator dump /data/local/tmp/iroha-stylus-window.xml \
+              >/dev/null 2>&1 || true
+            adb pull /data/local/tmp/iroha-stylus-window.xml \
+              artifacts/device-evidence/stylus-window.xml >/dev/null 2>&1 || true
+            if grep -Eq 'Ink width 2\.4|ペンの太さ 2\.4' \
+                artifacts/device-evidence/stylus-window.xml 2>/dev/null \
+              && grep -Eq 'Pressure enabled|筆圧を反映中' \
+                artifacts/device-evidence/stylus-window.xml 2>/dev/null; then
+              pen_tree_ready=true
+              break
+            fi
+            sleep 1
+          done
+          adb exec-out screencap -p > artifacts/device-evidence/stylus-reload.png
+          (( instrumentation_status == 0 ))
+          grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt
+          grep -Eq 'Verified persisted stylus pressure: samples=[0-9]+ low<0\.3 high>0\.8' \
+            artifacts/device-evidence/stylus-logcat.txt
+          grep -q 'Verified visible pressure accessibility state' \
+            artifacts/device-evidence/stylus-logcat.txt
+          for screenshot in stylus-pressure.png stylus-reload.png; do
+            png_magic="$(od -An -tx1 -N8 "artifacts/device-evidence/$screenshot" | tr -d ' \n')"
+            [[ "$png_magic" == 89504e470d0a1a0a ]]
+          done
+          [[ "$pen_tree_ready" == true ]]
+          grep -q '<hierarchy' artifacts/device-evidence/stylus-window.xml
+          grep -q 'package="app.irohapdf.mobile"' artifacts/device-evidence/stylus-window.xml
+          grep -Eq 'Ink width 2\.4|ペンの太さ 2\.4' artifacts/device-evidence/stylus-window.xml
+          grep -Eq 'Pressure enabled|筆圧を反映中' artifacts/device-evidence/stylus-window.xml
+      - name: Collect the emulator log
+        if: always()
+        run: |
+          mkdir -p artifacts/device-evidence
+          cp "$RUNNER_TEMP/android-low-memory-emulator.log" \
+            artifacts/device-evidence/emulator.log 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: android-low-memory-evidence
+          path: artifacts/device-evidence/
+          if-no-files-found: error
+          retention-days: 90
 
   store-screenshots:
     name: Native store screenshot set

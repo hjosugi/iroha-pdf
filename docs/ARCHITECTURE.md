@@ -26,10 +26,20 @@
 
 ### Mobile
 
-- Expo SDK 57 / React Native 0.86
+- Expo SDK 57 / React Native 0.86.2 / React 19.2.3
 - Expo Router
 - `react-native-pdf`で単一ページ表示
-- React Native SVGの注釈オーバーレイ
+- React Native SVGの注釈オーバーレイ（固定した`react-native-pdf` patchが
+  ページ変更ごとに返す実寸へfitし、混在サイズPDFでも再計算）
+- React Native pointer eventでpen/touch/mouseを分離し、penの各点のpressureを保持。
+  AndroidはExpo config pluginが起動前にReact Native 0.86のpointer dispatcherを有効化し、
+  dependency patchが`MotionEvent`の実pressureを固定0.5へ置換せずbridgeへ渡す。
+  同pluginがpatched React AndroidをGradle composite buildへ追加し、`ReactAndroid`と
+  `hermes-engine` projectをそれぞれ`react-android`と`hermes-android`へ明示的に
+  dependency substitutionする。native moduleがまだ要求するlegacy `react-native`と
+  `hermes-engine`座標も同じsource projectへ吸収するため、修正はprecompiled AARではなく
+  実APKへ入り、ソース版と公開AARの二重クラスも防ぐ。clean prebuild、installed
+  Kotlin source、生成Gradle設定と両方の`dependencyInsight`結果をCIで検査する
 - `expo-sqlite`で文書、メモ、注釈を保存
 - `expo-document-picker`でFilesアプリと端末Document Providerから取り込み
 - `expo-print`でPDF URIをネイティブ印刷
@@ -38,7 +48,7 @@
 ### Desktop
 
 - Tauri 2
-- React 19
+- React 19.2.8
 - EmbedPDF + PDFium/WASM
 - PDF表示、選択、注釈、export、printをpluginとして構成
 - 右ペインにPDF連動メモ
@@ -85,7 +95,9 @@ localeはOS/端末の言語から起動時に1度だけ解決します。切り�
 - undo/redoと複数端末マージが容易
 - 元PDFを壊さない
 
-座標は左上原点の正規化座標です。PDFへ焼き込む時だけ、左下原点のPDF座標へ変換します。
+座標は左上原点の正規化座標です。PDFへ焼き込む時だけ、左下原点のPDF座標へ変換します。inkはpointと同数の任意`pressures`配列を持ち、旧データやtouch/mouse入力は従来どおり一定線幅です。pen入力だけはpressureを0.55〜1.45倍の線幅へ写像し、画面previewとflatten exportで同じ関数を使います。
+
+モバイルのflatten exportは`pdf-lib`が入力、parsed object graph、出力をJS heapへ同時に保持します。native rendererによる閲覧上限とは別物なので、64 MiBを超える入力はmobileでExport/Printせずdesktopへ案内します。これは「大容量PDFを開ける」という性質を失わず、書き出し中の強制終了だけを避ける境界です。
 
 ## Sync model
 

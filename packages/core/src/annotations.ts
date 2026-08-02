@@ -22,13 +22,31 @@ export function denormalizePoint(point: Point, width: number, height: number): P
   };
 }
 
+/**
+ * Converts normalized pen pressure into a readable stroke without allowing a
+ * light touch to disappear or a hard press to obscure the document.
+ */
+export function pressureStrokeWidth(baseWidth: number, pressure?: number): number {
+  if (pressure === undefined || !Number.isFinite(pressure)) return baseWidth;
+  const normalized = clampNormalized(pressure);
+  return baseWidth * (0.55 + normalized * 0.9);
+}
+
 export function validateAnnotation(annotation: PdfAnnotation): PdfAnnotation {
   if (annotation.pageIndex < 0) {
     throw new Error('pageIndex must be zero-based and non-negative');
   }
 
-  if (annotation.kind === 'ink' && annotation.points.length < 2) {
-    throw new Error('Ink annotations need at least two points');
+  if (annotation.kind === 'ink') {
+    if (annotation.points.length < 2) {
+      throw new Error('Ink annotations need at least two points');
+    }
+    if (annotation.pressures && annotation.pressures.length !== annotation.points.length) {
+      throw new Error('Ink pressure samples must match the point count');
+    }
+    if (annotation.pressures?.some((pressure) => !Number.isFinite(pressure) || pressure < 0 || pressure > 1)) {
+      throw new Error('Ink pressure samples must be normalized from 0 to 1');
+    }
   }
 
   return annotation;

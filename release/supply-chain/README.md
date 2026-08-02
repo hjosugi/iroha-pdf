@@ -46,3 +46,20 @@ therefore uses the published 0.18.5 source with the upstream two-line
 `VariantStrIter` fix backported. Its source, registry checksum, owner, removal
 condition, and 2026-10-31 re-review date are recorded in
 `apps/desktop/src-tauri/vendor/glib-0.18.5-patched/PROVENANCE.md`.
+
+`react-native-pdf` 7.0.4 is patched on Android and iOS to report each current
+page's dimensions, which keeps mixed-size-page annotation coordinates aligned.
+React Native 0.86.2 is patched separately so Android pen events preserve the
+normalized `MotionEvent` pressure instead of substituting `0.5`. Expo prebuild
+adds the patched React Native tree as a Gradle composite build and explicitly
+substitutes its `ReactAndroid` and `hermes-engine` projects for `react-android` and
+`hermes-android`; without those rules, Gradle either consumes the unmodified React
+Android AAR or mixes source ReactAndroid with a duplicate published Hermes class.
+Legacy `react-native` and `hermes-engine` Maven requests are substituted directly
+as well, because a later coordinate rewrite would otherwise reintroduce the
+published AAR beside the source project. CI checks the installed sources,
+committed patch files, generated Gradle setting
+and both `dependencyInsight` outputs, while the manual native instrumentation
+rejects a fixed-pressure SQLite payload.
+Upgrade either dependency only after refreshing or removing its patch and
+rerunning the native evidence gate.

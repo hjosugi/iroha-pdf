@@ -13,7 +13,7 @@
  *
  * Usage: npm run e2e:tauri
  *
- * Needs a debug binary (`task build:desktop:debug`), `tauri-driver`, a WebKitWebDriver,
+ * Needs a debug binary (`frost build desktop-app-linux-debug --no-tui`), `tauri-driver`, a WebKitWebDriver,
  * and a display — `xvfb-run -a` is enough, which is what CI gives it. The Vite dev
  * server the debug binary loads and the fixture it opens are started and built here if
  * they are not already there, so nothing else has to be arranged around it.
@@ -30,7 +30,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const WORK = '/tmp/iroha-real-e2e';
 const DRIVER_PORT = 4444;
 const DEV_PORT = 1420;
-// Where `task build:desktop:debug` leaves it, unless a CARGO_TARGET_DIR points cargo
+// Where the `desktop-app-linux-debug` Frost target leaves it, unless CARGO_TARGET_DIR points cargo
 // somewhere else — the second candidate is the shared target directory a developer
 // here uses. IROHA_APP overrides both.
 const APP_CANDIDATES = [
@@ -58,6 +58,20 @@ function check(label, condition, detail = '') {
   const mark = condition ? 'PASS' : 'FAIL';
   if (!condition) failures += 1;
   console.log(`  [${mark}] ${label}${detail ? ` — ${detail}` : ''}`);
+}
+
+/**
+ * WebDriver implementations disagree about a JSON-looking script result:
+ * Chromium preserves the returned string, while WebKitGTK may deserialize it
+ * before wrapping it in the WebDriver response. Accept both representations,
+ * but reject scalars so a malformed response cannot silently pass a check.
+ */
+function decodeJsonScriptValue(value, label) {
+  const decoded = typeof value === 'string' ? JSON.parse(value) : value;
+  if (decoded === null || typeof decoded !== 'object' || Array.isArray(decoded)) {
+    throw new TypeError(`${label} did not return a JSON object`);
+  }
+  return decoded;
 }
 
 async function wd(method, path, body) {
@@ -129,7 +143,7 @@ async function main() {
   if (!existsSync(APP)) {
     throw new Error(
       `app binary not found: ${APP}\n` +
-        'Build it with: task build:desktop:debug\n' +
+        'Build it with: frost build desktop-app-linux-debug --no-tui\n' +
         'It has to be a debug build: the scope grant this drives is #[cfg(debug_assertions)].',
     );
   }
@@ -201,26 +215,31 @@ async function main() {
           const t = setTimeout(() => done(JSON.stringify({ ok:false, error:'timeout' })), 15000);
           window.__TAURI_INTERNALS__.invoke(${JSON.stringify(cmd)}, ${JSON.stringify(args)},
             ${JSON.stringify(options ?? null)} || undefined)
-            .then(v => { clearTimeout(t); done(JSON.stringify({ ok:true, len: v && v.length })); })
+            .then(v => {
+              clearTimeout(t);
+              const len = v && (v.length ?? v.byteLength ?? Object.keys(v).length);
+              done(JSON.stringify({ ok:true, len }));
+            })
             .catch(e => { clearTimeout(t); done(JSON.stringify({ ok:false, error:String(e && e.message || e) })); });
         `,
         args: [],
       });
       try {
-        return JSON.parse(result?.value ?? '{}');
+        return decodeJsonScriptValue(result?.value ?? {}, `invoke ${cmd}`);
       } catch {
         return { ok: false, error: 'unparseable' };
       }
     };
 
     console.log('\nthe app starts in a real WebKitGTK webview');
-    const boot = JSON.parse(
+    const boot = decodeJsonScriptValue(
       await sync(`return JSON.stringify({
         internals: typeof window.__TAURI_INTERNALS__ === 'object',
         title: document.title,
         devHook: typeof window.__IROHA_DEV__ === 'object',
         buttons: [...document.querySelectorAll('button')].map(b => b.textContent.trim()),
       })`),
+      'boot state',
     );
     check('Tauri internals present', boot.internals === true);
     check('window title', boot.title === 'Iroha PDF', boot.title);
@@ -247,12 +266,13 @@ async function main() {
     let opened = null;
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await sleep(1000);
-      opened = JSON.parse(
+      opened = decodeJsonScriptValue(
         await sync(`return JSON.stringify({
           toolbar: !!document.querySelector('.pdf-toolbar'),
           pages: document.querySelectorAll('.pdf-viewport img').length,
           path: document.querySelector('.side-panel-path')?.textContent ?? null,
         })`),
+        'opened PDF state',
       );
       if (opened.toolbar && opened.pages > 0) break;
     }
@@ -267,32 +287,50 @@ async function main() {
       shape.click();
       return 'armed';
     `);
-    const rect = JSON.parse(
+    let shapeArmed = false;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      shapeArmed = await sync(`
+        return [...document.querySelectorAll('.pdf-toolbar button')]
+          .some(b => b.textContent.trim() === 'Shape' && b.classList.contains('active'));
+      `);
+      if (shapeArmed) break;
+      await sleep(100);
+    }
+    if (!shapeArmed) throw new Error('the Shape tool did not become active');
+    const rect = decodeJsonScriptValue(
       await sync(`
         const img = document.querySelector('.pdf-viewport img');
         const r = img.getBoundingClientRect();
         return JSON.stringify({ x: r.x, y: r.y, w: r.width, h: r.height });
       `),
+      'PDF page rectangle',
     );
-    await wd('POST', `/session/${sessionId}/actions`, {
+    const actionResult = await wd('POST', `/session/${sessionId}/actions`, {
       actions: [
         {
           type: 'pointer',
           id: 'mouse',
           parameters: { pointerType: 'mouse' },
           actions: [
-            { type: 'pointerMove', duration: 0, x: Math.round(rect.x + rect.w * 0.2), y: Math.round(rect.y + rect.h * 0.25) },
+            { type: 'pointerMove', origin: 'viewport', duration: 0, x: Math.round(rect.x + rect.w * 0.2), y: Math.round(rect.y + rect.h * 0.25) },
             { type: 'pointerDown', button: 0 },
-            { type: 'pointerMove', duration: 150, x: Math.round(rect.x + rect.w * 0.45), y: Math.round(rect.y + rect.h * 0.35) },
-            { type: 'pointerMove', duration: 150, x: Math.round(rect.x + rect.w * 0.65), y: Math.round(rect.y + rect.h * 0.45) },
+            { type: 'pointerMove', origin: 'viewport', duration: 150, x: Math.round(rect.x + rect.w * 0.45), y: Math.round(rect.y + rect.h * 0.35) },
+            { type: 'pointerMove', origin: 'viewport', duration: 150, x: Math.round(rect.x + rect.w * 0.65), y: Math.round(rect.y + rect.h * 0.45) },
             { type: 'pointerUp', button: 0 },
           ],
         },
       ],
     });
-    await sleep(1500);
+    if (actionResult?.value?.error) {
+      throw new Error(`WebDriver pointer actions failed: ${JSON.stringify(actionResult.value)}`);
+    }
 
-    const saveLabel = await sync(`return [...document.querySelectorAll('.primary-button')].pop().textContent`);
+    let saveLabel = null;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      saveLabel = await sync(`return [...document.querySelectorAll('.primary-button')].pop().textContent`);
+      if (/Save \(\d+\)/.test(saveLabel ?? '')) break;
+      await sleep(100);
+    }
     check('an unsaved edit is reported', /Save \(\d+\)/.test(saveLabel ?? ''), saveLabel);
 
     await sync(`[...document.querySelectorAll('.primary-button')].pop().click(); return 'saving'`);

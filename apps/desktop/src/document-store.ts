@@ -134,10 +134,26 @@ const LEGACY_LABELS: Readonly<Record<string, AnnotationKind>> = {
   Line: 'line',
 };
 
-function annotationKindOf(entry: Partial<EditEntry> & { label?: unknown }): AnnotationKind {
+type StoredEditEntry = Partial<EditEntry> & { label?: unknown };
+
+function annotationKindOf(entry: StoredEditEntry): AnnotationKind {
   if (entry.annotation && ANNOTATION_KINDS.includes(entry.annotation)) return entry.annotation;
   if (typeof entry.label === 'string') return LEGACY_LABELS[entry.label] ?? 'other';
   return 'other';
+}
+
+function normalizedEdit(entry: unknown): EditEntry | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const candidate = entry as StoredEditEntry;
+  if (!Number.isFinite(candidate.at)) return null;
+  if (candidate.kind !== 'create' && candidate.kind !== 'update' && candidate.kind !== 'delete') return null;
+  if (!Number.isInteger(candidate.pageIndex) || (candidate.pageIndex ?? -1) < 0) return null;
+  return {
+    at: candidate.at as number,
+    kind: candidate.kind,
+    annotation: annotationKindOf(candidate),
+    pageIndex: candidate.pageIndex as number,
+  };
 }
 
 /** History is a convenience, never a correctness dependency — losing it must not break saving. */
@@ -146,7 +162,7 @@ function loadHistory(path: string): Pick<DocumentFile, 'edits' | 'revisions'> {
     readStoredObject<DocumentFile>(storageKey('history', path)) ?? {};
   return {
     edits: Array.isArray(stored.edits)
-      ? stored.edits.map((entry) => ({ ...entry, annotation: annotationKindOf(entry) }))
+      ? stored.edits.map(normalizedEdit).filter((entry): entry is EditEntry => entry !== null)
       : [],
     revisions: Array.isArray(stored.revisions) ? stored.revisions : [],
   };
