@@ -187,7 +187,7 @@ function LibraryScreen() {
             <View style={styles.documentCard}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${item.title}, PDF, ${formatBytes(item.sizeBytes)}`}
+                accessibilityLabel={t('document.itemLabel', { title: item.title, size: formatBytes(item.sizeBytes) })}
                 accessibilityHint={t('document.openHint')}
                 style={styles.cardMainAction}
                 onPress={() => router.push({ pathname: '/viewer/[id]', params: { id: item.id } })}
@@ -215,7 +215,7 @@ function LibraryScreen() {
                 <View key={note.id} style={styles.noteCard}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${note.title}, note`}
+                    accessibilityLabel={t('note.itemLabel', { title: note.title })}
                     accessibilityHint={t('note.openHint')}
                     style={styles.noteMainAction}
                     onPress={() => router.push({ pathname: '/note/[id]', params: { id: note.id } })}

@@ -36,6 +36,10 @@ const MESSAGES = {
   'document.openFailed': { ja: 'このPDFを開けませんでした。', en: 'This PDF could not be opened.' },
   'document.details': { ja: '書類の詳細', en: 'Document details' },
   'document.pages': { ja: 'ページ', en: 'Pages' },
+  // Read aloud by VoiceOver and TalkBack. The separators are part of the
+  // translation: a Japanese reader should hear a Japanese list, not an English
+  // one with a Japanese title spliced into it.
+  'document.itemLabel': { ja: '{title}、PDF、{size}', en: '{title}, PDF, {size}' },
   'document.closeTab': { ja: 'タブを閉じる', en: 'Close tab' },
   'document.untitled': { ja: '名称未設定のPDF', en: 'Untitled PDF' },
   'document.list': { ja: '書類', en: 'Documents' },
@@ -97,6 +101,7 @@ const MESSAGES = {
   'note.linked': { ja: 'リンクされたメモ', en: 'Linked note' },
   'note.placeholder': { ja: 'このPDFについてのメモ…', en: 'Write a memo for this PDF…' },
   'note.list': { ja: 'メモ', en: 'Notes' },
+  'note.itemLabel': { ja: '{title}、メモ', en: '{title}, note' },
   'note.new': { ja: '新しいメモ', en: 'New note' },
   'note.untitled': { ja: '名称未設定のメモ', en: 'Untitled note' },
   'note.noMatch': { ja: '一致するメモがありません。', en: 'No matching notes.' },
