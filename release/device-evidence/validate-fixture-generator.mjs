@@ -17,7 +17,10 @@ try {
   assert.match(harness, /curl --fail --silent --show-error --head/, 'the fixture server must be ready before the app starts downloading');
   assert.match(harness, /send-trim-memory "\$package" RUNNING_CRITICAL/, 'the foreground critical-trim transition must remain explicit');
   assert.match(harness, /for _ in \$\(seq 1 30\); do[\s\S]*send-trim-memory "\$package" BACKGROUND/, 'background trim must wait for ActivityManager to finish the HOME transition');
-  assert.match(workflow, /stylus-pressure\.png[\s\S]*stylus-window\.xml[\s\S]*instrumentation_status == 0/, 'stylus failures must retain the final screen and accessibility tree before failing');
+  assert.match(workflow, /adb pull[^\n]*stylus-pressure\.png[\s\S]*adb pull[^\n]*stylus-window\.xml[\s\S]*instrumentation_status == 0/, 'stylus failures must retain the in-app screen and accessibility tree before failing');
+  const stylusHarness = readFileSync(resolve(root, 'release/device-evidence/prepare-stylus-instrumentation.mjs'), 'utf8');
+  assert.match(stylusHarness, /finally \{\s*captureEvidence\(device, target\);\s*\}/, 'the instrumentation must capture evidence before Android stops the target package');
+  assert.match(stylusHarness, /annotation page did not appear before selecting the pen/, 'the stable page bounds must be measured before annotation controls alter the accessibility tree');
 
   for (const [tool, arguments_] of [
     [process.execPath, ['--check', resolve(root, 'release/device-evidence/prepare-stylus-instrumentation.mjs')]],

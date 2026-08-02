@@ -624,9 +624,10 @@ jobs:
             | tee artifacts/device-evidence/stylus-instrumentation.txt
           instrumentation_status="${PIPESTATUS[0]}"
           set -e
-          adb exec-out screencap -p > artifacts/device-evidence/stylus-pressure.png
-          adb shell uiautomator dump /sdcard/iroha-stylus-window.xml >/dev/null 2>&1 || true
-          adb pull /sdcard/iroha-stylus-window.xml \
+          stylus_evidence=/sdcard/Android/data/app.irohapdf.mobile/files/device-evidence
+          adb pull "$stylus_evidence/stylus-pressure.png" \
+            artifacts/device-evidence/stylus-pressure.png >/dev/null 2>&1 || true
+          adb pull "$stylus_evidence/stylus-window.xml" \
             artifacts/device-evidence/stylus-window.xml >/dev/null 2>&1 || true
           (( instrumentation_status == 0 ))
           grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt

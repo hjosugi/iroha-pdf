@@ -49,6 +49,8 @@ import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
 
+import java.io.File;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
@@ -75,44 +77,53 @@ public final class StylusInputTest {
     assertNotNull(activity);
 
     UiDevice device = UiDevice.getInstance(instrumentation);
-    UiObject2 pen = waitForDescription(device, "Pen annotation tool", "ペン注釈ツール", 60_000);
-    assertNotNull("pen tool did not appear", pen);
-    pen.click();
-    UiObject2 page = waitForDescription(device, "PDF annotation page", "PDF注釈ページ", 30_000);
-    assertNotNull("annotation page did not appear", page);
-    Rect bounds = page.getVisibleBounds();
+    try {
+      UiObject2 pen = waitForDescription(device, "Pen annotation tool", "ペン注釈ツール", 60_000);
+      assertNotNull("pen tool did not appear", pen);
+      UiObject2 page = waitForDescription(device, "PDF annotation page", "PDF注釈ページ", 30_000);
+      assertNotNull("annotation page did not appear before selecting the pen", page);
+      Rect bounds = page.getVisibleBounds();
 
-    int[] decorLocation = new int[2];
-    View decor = activity.getWindow().getDecorView();
-    instrumentation.runOnMainSync(() -> decor.getLocationOnScreen(decorLocation));
-    float startX = bounds.left - decorLocation[0] + bounds.width() * 0.22f;
-    float startY = bounds.top - decorLocation[1] + bounds.height() * 0.35f;
-    float endX = bounds.left - decorLocation[0] + bounds.width() * 0.72f;
-    float endY = bounds.top - decorLocation[1] + bounds.height() * 0.62f;
-
-    long downTime = SystemClock.uptimeMillis();
-    dispatchStylus(instrumentation, activity, downTime, downTime, MotionEvent.ACTION_DOWN, startX, startY, 0.18f);
-    for (int step = 1; step <= 8; step++) {
-      float fraction = step / 8f;
-      dispatchStylus(
-        instrumentation,
-        activity,
-        downTime,
-        downTime + step * 16L,
-        MotionEvent.ACTION_MOVE,
-        startX + (endX - startX) * fraction,
-        startY + (endY - startY) * fraction,
-        0.18f + 0.72f * fraction
+      pen.click();
+      assertNotNull(
+        "pen options did not appear",
+        waitForDescription(device, "Ink width 2.4", "ペンの太さ 2.4", 30_000)
       );
-    }
-    dispatchStylus(instrumentation, activity, downTime, downTime + 160L, MotionEvent.ACTION_UP, endX, endY, 0f);
 
-    String payload = waitForPressurePayload(target);
-    assertNotNull("no pressure-aware ink annotation reached SQLite", payload);
-    JSONArray pressures = new JSONObject(payload).getJSONArray("pressures");
-    assertTrue("too few pressure samples", pressures.length() >= 8);
-    assertTrue("low pressure sample missing", pressures.getDouble(0) < 0.3);
-    assertTrue("high pressure sample missing", pressures.getDouble(pressures.length() - 1) > 0.8);
+      int[] decorLocation = new int[2];
+      View decor = activity.getWindow().getDecorView();
+      instrumentation.runOnMainSync(() -> decor.getLocationOnScreen(decorLocation));
+      float startX = bounds.left - decorLocation[0] + bounds.width() * 0.22f;
+      float startY = bounds.top - decorLocation[1] + bounds.height() * 0.35f;
+      float endX = bounds.left - decorLocation[0] + bounds.width() * 0.72f;
+      float endY = bounds.top - decorLocation[1] + bounds.height() * 0.62f;
+
+      long downTime = SystemClock.uptimeMillis();
+      dispatchStylus(instrumentation, activity, downTime, downTime, MotionEvent.ACTION_DOWN, startX, startY, 0.18f);
+      for (int step = 1; step <= 8; step++) {
+        float fraction = step / 8f;
+        dispatchStylus(
+          instrumentation,
+          activity,
+          downTime,
+          downTime + step * 16L,
+          MotionEvent.ACTION_MOVE,
+          startX + (endX - startX) * fraction,
+          startY + (endY - startY) * fraction,
+          0.18f + 0.72f * fraction
+        );
+      }
+      dispatchStylus(instrumentation, activity, downTime, downTime + 160L, MotionEvent.ACTION_UP, endX, endY, 0f);
+
+      String payload = waitForPressurePayload(target);
+      assertNotNull("no pressure-aware ink annotation reached SQLite", payload);
+      JSONArray pressures = new JSONObject(payload).getJSONArray("pressures");
+      assertTrue("too few pressure samples", pressures.length() >= 8);
+      assertTrue("low pressure sample missing", pressures.getDouble(0) < 0.3);
+      assertTrue("high pressure sample missing", pressures.getDouble(pressures.length() - 1) > 0.8);
+    } finally {
+      captureEvidence(device, target);
+    }
   }
 
   private static UiObject2 waitForDescription(
@@ -175,6 +186,19 @@ public final class StylusInputTest {
       SystemClock.sleep(500);
     }
     return null;
+  }
+
+  private static void captureEvidence(UiDevice device, Context context) {
+    try {
+      File directory = new File(context.getExternalFilesDir(null), "device-evidence");
+      if (!directory.exists() && !directory.mkdirs()) {
+        throw new IllegalStateException("could not create stylus evidence directory");
+      }
+      device.takeScreenshot(new File(directory, "stylus-pressure.png"));
+      device.dumpWindowHierarchy(new File(directory, "stylus-window.xml"));
+    } catch (Exception error) {
+      System.err.println("Could not capture in-app stylus evidence: " + error);
+    }
   }
 }
 `);
