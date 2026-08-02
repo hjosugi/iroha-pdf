@@ -24,7 +24,8 @@ try {
   assert.match(workflow, /adb exec-out run-as app\.irohapdf\.mobile\.test[\s\S]*screencap -p[\s\S]*uiautomator dump \/data\/local\/tmp\/iroha-stylus-window\.xml[\s\S]*instrumentation_status == 0[\s\S]*89504e470d0a1a0a[\s\S]*grep -q '<hierarchy'/, 'stylus failures must retain private or shell-fallback evidence, and successful runs must validate the PNG and accessibility tree instead of accepting an adb error as a file');
   const stylusHarness = readFileSync(resolve(root, 'release/device-evidence/prepare-stylus-instrumentation.mjs'), 'utf8');
   assert.match(stylusHarness, /src\/androidTest\/AndroidManifest\.xml[\s\S]*android:debuggable="true"/, 'only the generated test APK must be debuggable so CI can retrieve its private evidence');
-  assert.match(stylusHarness, /finally \{\s*captureEvidence\(device, testContext\);\s*\}/, 'the instrumentation must capture evidence before Android stops the target package');
+  assert.match(stylusHarness, /ACTION_UP[\s\S]*captureEvidence\(device, testContext\);\s*evidenceCaptured = true;[\s\S]*waitForPressurePayload/, 'the instrumentation must capture the foreground app before pressure assertions can stop it');
+  assert.match(stylusHarness, /finally \{\s*if \(!evidenceCaptured\) captureEvidence\(device, testContext\);\s*\}/, 'early stylus failures must still retain an evidence screen and accessibility tree');
   assert.match(stylusHarness, /new File\(context\.getFilesDir\(\), "device-evidence"\)/, 'stylus evidence must use the instrumentation UID private directory read by adb run-as');
   assert.match(stylusHarness, /new File\(new File\(context\.getFilesDir\(\), "SQLite"\), "iroha-pdf\.db"\)/, 'instrumentation must read Expo SQLite from its Android default directory rather than Context#getDatabasePath');
   assert.match(stylusHarness, /Page 1 of 500[\s\S]*240_000/, 'stylus instrumentation must wait for the real large document instead of racing the initial 1-page state');
