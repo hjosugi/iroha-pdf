@@ -6,6 +6,7 @@ import {
   type PdfAnnotation,
   type WorkspaceDocument,
 } from '@iroha-pdf/core';
+import { describeError } from './errors';
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
 let initializationPromise: Promise<void> | undefined;
@@ -14,13 +15,19 @@ function createId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   databasePromise ??= SQLite.openDatabaseAsync('iroha-pdf.db');
   return databasePromise;
+}
+
+/**
+ * The handle every exported operation wants: open, migrated, and with any
+ * interrupted write already reconciled. Both promises are memoised, so the
+ * work happens on the first call of a launch and the rest is a lookup.
+ */
+async function readyDatabase(): Promise<SQLite.SQLiteDatabase> {
+  await initializeDatabase();
+  return getDatabase();
 }
 
 async function setupDatabase(): Promise<void> {
@@ -117,8 +124,7 @@ function mapDocument(row: DocumentRow): WorkspaceDocument {
 }
 
 export async function saveDocument(document: WorkspaceDocument): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   await db.runAsync(
     `INSERT INTO documents
       (id, title, local_uri, source, source_id, source_revision, page_count, size_bytes, modified_at)
@@ -145,8 +151,7 @@ export async function saveDocument(document: WorkspaceDocument): Promise<void> {
 }
 
 export async function listDocuments(): Promise<WorkspaceDocument[]> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   const rows = await db.getAllAsync<DocumentRow>(
     'SELECT * FROM documents ORDER BY COALESCE(last_opened_at, modified_at) DESC',
   );
@@ -154,21 +159,18 @@ export async function listDocuments(): Promise<WorkspaceDocument[]> {
 }
 
 export async function getDocument(id: string): Promise<WorkspaceDocument | null> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   const row = await db.getFirstAsync<DocumentRow>('SELECT * FROM documents WHERE id = ?', id);
   return row ? mapDocument(row) : null;
 }
 
 export async function markDocumentOpened(id: string, openedAt = new Date().toISOString()): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   await db.runAsync('UPDATE documents SET last_opened_at = ? WHERE id = ?', openedAt, id);
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   await db.withTransactionAsync(async () => {
     // A recovery copy for an annotation must not resurrect work for a document
     // the user explicitly removed.
@@ -217,8 +219,7 @@ export async function createNote(title: string, linkedDocumentId?: string): Prom
 }
 
 export async function saveNote(note: Note): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   const previous = await db.getFirstAsync<NoteRow>('SELECT * FROM notes WHERE id = ?', note.id);
   await journaledWrite(db, 'note', note.id, previous ? JSON.stringify(mapNote(previous)) : null, JSON.stringify(note), async () => {
     await db.runAsync(
@@ -236,22 +237,19 @@ export async function saveNote(note: Note): Promise<void> {
 }
 
 export async function listNotes(): Promise<Note[]> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   const rows = await db.getAllAsync<NoteRow>('SELECT * FROM notes ORDER BY updated_at DESC');
   return rows.map(mapNote);
 }
 
 export async function getNote(id: string): Promise<Note | null> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   const row = await db.getFirstAsync<NoteRow>('SELECT * FROM notes WHERE id = ?', id);
   return row ? mapNote(row) : null;
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   await db.withTransactionAsync(async () => {
     await db.runAsync(
       `DELETE FROM write_journal WHERE entity_type = 'note' AND entity_id = ?`,
@@ -262,8 +260,7 @@ export async function deleteNote(id: string): Promise<void> {
 }
 
 export async function saveAnnotation(annotation: PdfAnnotation): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   const previous = await db.getFirstAsync<{ payload: string }>(
     'SELECT payload FROM annotations WHERE id = ?',
     annotation.id,
@@ -283,8 +280,7 @@ export async function saveAnnotation(annotation: PdfAnnotation): Promise<void> {
 }
 
 export async function listAnnotations(documentId: string): Promise<PdfAnnotation[]> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   const rows = await db.getAllAsync<{ payload: string }>(
     'SELECT payload FROM annotations WHERE document_id = ? ORDER BY updated_at',
     documentId,
@@ -293,8 +289,7 @@ export async function listAnnotations(documentId: string): Promise<PdfAnnotation
 }
 
 export async function deleteAnnotation(id: string): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   await db.runAsync('DELETE FROM annotations WHERE id = ?', id);
 }
 
@@ -309,14 +304,39 @@ type JournalRow = {
   created_at: string;
 };
 
+/** The statuses that turn a journal row into something to offer the user. */
+type RecoveryStatus = 'rolled-back' | 'diverged' | 'failed';
+
+/**
+ * Written out rather than bound, because SQLite cannot parameterise an `IN`
+ * list. The values are a closed literal set that mirrors `RecoveryStatus`, not
+ * anything a caller supplies.
+ */
+const RECOVERABLE = `status IN ('rolled-back', 'diverged', 'failed')`;
+
+const RECOVERY_COLUMNS = 'id, entity_type, entity_id, attempted_payload, status, created_at';
+
+type RecoveryRow = JournalRow & { status: RecoveryStatus };
+
 export type RecoveryCopy = {
   journalId: string;
   entityType: JournalEntityType;
   entityId: string;
   payload: Note | PdfAnnotation;
-  status: 'rolled-back' | 'diverged' | 'failed';
+  status: RecoveryStatus;
   createdAt: string;
 };
+
+function mapRecoveryCopy(row: RecoveryRow): RecoveryCopy {
+  return {
+    journalId: row.id,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    payload: JSON.parse(row.attempted_payload) as Note | PdfAnnotation,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
 
 async function journaledWrite(
   db: SQLite.SQLiteDatabase,
@@ -407,41 +427,28 @@ async function recoverPendingWrites(db: SQLite.SQLiteDatabase): Promise<void> {
 }
 
 export async function listRecoveryCopies(): Promise<RecoveryCopy[]> {
-  await initializeDatabase();
-  const db = await getDatabase();
-  const rows = await db.getAllAsync<JournalRow & { status: RecoveryCopy['status'] }>(
-    `SELECT id, entity_type, entity_id, attempted_payload, status, created_at
-     FROM write_journal
-     WHERE status IN ('rolled-back', 'diverged', 'failed')
+  const db = await readyDatabase();
+  const rows = await db.getAllAsync<RecoveryRow>(
+    `SELECT ${RECOVERY_COLUMNS} FROM write_journal
+     WHERE ${RECOVERABLE}
      ORDER BY created_at DESC`,
   );
-  return rows.map((row) => ({
-    journalId: row.id,
-    entityType: row.entity_type,
-    entityId: row.entity_id,
-    payload: JSON.parse(row.attempted_payload) as Note | PdfAnnotation,
-    status: row.status,
-    createdAt: row.created_at,
-  }));
+  return rows.map(mapRecoveryCopy);
 }
 
 export async function discardRecoveryCopy(journalId: string): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
+  const db = await readyDatabase();
   await db.runAsync(
-    `DELETE FROM write_journal
-     WHERE id = ? AND status IN ('rolled-back', 'diverged', 'failed')`,
+    `DELETE FROM write_journal WHERE id = ? AND ${RECOVERABLE}`,
     journalId,
   );
 }
 
 export async function restoreRecoveryCopy(journalId: string): Promise<void> {
-  await initializeDatabase();
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<JournalRow & { status: RecoveryCopy['status'] }>(
-    `SELECT id, entity_type, entity_id, attempted_payload, status, created_at
-     FROM write_journal
-     WHERE id = ? AND status IN ('rolled-back', 'diverged', 'failed')`,
+  const db = await readyDatabase();
+  const row = await db.getFirstAsync<RecoveryRow>(
+    `SELECT ${RECOVERY_COLUMNS} FROM write_journal
+     WHERE id = ? AND ${RECOVERABLE}`,
     journalId,
   );
   if (!row) throw new Error('Recovery copy no longer exists');

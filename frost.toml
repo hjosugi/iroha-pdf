@@ -45,6 +45,7 @@ inputs = [
   "apps/mobile/plugins/*.js",
   "assets/branding/*",
   "release/branding/validate-assets.mjs",
+  "release/lib/assets.mjs",
   "release/store/screenshots/desktop/*.png",
   "release/store/play/*.png",
 ]
@@ -72,6 +73,7 @@ inputs = [
   "release/store/screenshots/**/*.json",
   "release/store/screenshots/**/*.png",
   "release/store/validate-submission-assets.mjs",
+  "release/lib/assets.mjs",
 ]
 env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]

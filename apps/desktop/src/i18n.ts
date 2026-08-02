@@ -17,3 +17,16 @@ export const t: Translate = createTranslator(locale);
  * the right language. Screen readers use this; so does the CJK font fallback.
  */
 if (typeof document !== 'undefined') document.documentElement.lang = locale;
+
+/**
+ * Timestamps in the interface — an edit, a save, an autosave that stopped.
+ *
+ * Deliberately on the platform's own locale rather than the one resolved above:
+ * this app ships two languages, but how a machine writes a date is a setting of
+ * that machine, and someone reading English on a Japanese desktop still expects
+ * their own date format.
+ */
+export const timeFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'short',
+  timeStyle: 'short',
+});

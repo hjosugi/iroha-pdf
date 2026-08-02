@@ -11,6 +11,8 @@
  */
 import type { AnnotationTransferItem } from '@embedpdf/plugin-annotation';
 
+import { readStoredObject, storageKey } from './local-storage';
+
 export type Draft = {
   path: string;
   savedAt: number;
@@ -18,10 +20,6 @@ export type Draft = {
   /** Items dropped because their binary payload could not be stored. */
   droppedItems: number;
 };
-
-function draftKey(path: string): string {
-  return `iroha-pdf:draft:${path}`;
-}
 
 function bytesToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -86,7 +84,7 @@ export function saveDraft(path: string, items: AnnotationTransferItem[]): boolea
     droppedItems: items.length - storable.length,
   };
   try {
-    localStorage.setItem(draftKey(path), JSON.stringify(draft, replacer));
+    localStorage.setItem(storageKey('draft', path), JSON.stringify(draft, replacer));
     return true;
   } catch (error) {
     // Quota exceeded or storage disabled. The in-memory document is unaffected, but
@@ -97,27 +95,19 @@ export function saveDraft(path: string, items: AnnotationTransferItem[]): boolea
 }
 
 export function loadDraft(path: string): Draft | null {
-  try {
-    const raw = localStorage.getItem(draftKey(path));
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw, reviver);
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    const draft = parsed as Partial<Draft>;
-    if (!Array.isArray(draft.items) || typeof draft.savedAt !== 'number') return null;
-    return {
-      path,
-      savedAt: draft.savedAt,
-      items: draft.items,
-      droppedItems: draft.droppedItems ?? 0,
-    };
-  } catch {
-    return null;
-  }
+  const draft = readStoredObject<Draft>(storageKey('draft', path), reviver);
+  if (!draft || !Array.isArray(draft.items) || typeof draft.savedAt !== 'number') return null;
+  return {
+    path,
+    savedAt: draft.savedAt,
+    items: draft.items,
+    droppedItems: draft.droppedItems ?? 0,
+  };
 }
 
 export function clearDraft(path: string): void {
   try {
-    localStorage.removeItem(draftKey(path));
+    localStorage.removeItem(storageKey('draft', path));
   } catch {
     // Nothing to do; a stale draft only costs one recovery prompt.
   }

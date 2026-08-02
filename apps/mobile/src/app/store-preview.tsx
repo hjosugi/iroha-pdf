@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import type { Note, PdfAnnotation, WorkspaceDocument } from '@iroha-pdf/core';
 import { saveAnnotation, saveDocument, saveNote } from '@/lib/database';
+import { describeError } from '@/lib/errors';
 import { parseStoreCaptureScenario } from '@/lib/store-capture';
 import {
   clearStoreCaptureScenario,
@@ -40,7 +41,7 @@ export default function StorePreviewScreen() {
           router.replace('/');
         }
       })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+      .catch((reason: unknown) => setError(describeError(reason)));
   }, [router, screen]);
 
   if (!ENABLED) return <Redirect href="/" />;

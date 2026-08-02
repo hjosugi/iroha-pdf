@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { File } from 'expo-file-system';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   PanResponder,
   Pressable,
@@ -26,6 +24,7 @@ import {
   type WorkspaceDocument,
 } from '@iroha-pdf/core';
 import { loadAnnotationFont } from '../../lib/annotation-font';
+import { alertFailure } from '@/lib/alerts';
 import {
   createId,
   deleteAnnotation,
@@ -34,11 +33,14 @@ import {
   markDocumentOpened,
   saveAnnotation,
 } from '@/lib/database';
-import { createOutputPdf } from '@/lib/files';
+import { createOutputPdf, sharePdf } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 
-type Tool = 'hand' | 'highlight' | 'ink' | 'text' | 'eraser';
+/** Source of truth for the tool set: the toolbar renders it and `Tool` derives from it. */
+const TOOLS = ['hand', 'highlight', 'ink', 'text', 'eraser'] as const;
+
+type Tool = (typeof TOOLS)[number];
 
 const TOOL_COLORS = ['#2B5CFF', '#FFE45E', '#E24A3B', '#16835F'] as const;
 
@@ -103,10 +105,7 @@ export default function PdfViewerScreen() {
         await markDocumentOpened(nextDocument.id);
       }
     }).catch((error: unknown) => {
-      Alert.alert(
-        t('error.storage'),
-        error instanceof Error ? error.message : String(error),
-      );
+      alertFailure(t('error.storage'), error);
     }).finally(() => setDocumentLoaded(true));
   }, [id, navigation]);
 
@@ -122,7 +121,7 @@ export default function PdfViewerScreen() {
       }
       return true;
     } catch (error) {
-      Alert.alert(t('edit.annotationSaveFailed'), error instanceof Error ? error.message : String(error));
+      alertFailure(t('edit.annotationSaveFailed'), error);
       return false;
     }
   };
@@ -133,9 +132,26 @@ export default function PdfViewerScreen() {
       setAnnotations((current) => current.filter((item) => item.id !== annotation.id));
       return true;
     } catch (error) {
-      Alert.alert(t('edit.annotationDeleteFailed'), error instanceof Error ? error.message : String(error));
+      alertFailure(t('edit.annotationDeleteFailed'), error);
       return false;
     }
+  };
+
+  /**
+   * Identity, placement and timestamps for a new mark. Every tool fills in the
+   * same six fields before its own geometry, and they must agree about which
+   * page and colour the stroke belongs to.
+   */
+  const newMark = () => {
+    const now = new Date().toISOString();
+    return {
+      id: createId('annotation'),
+      documentId: id,
+      pageIndex: page - 1,
+      color,
+      createdAt: now,
+      updatedAt: now,
+    };
   };
 
   const undo = async () => {
@@ -188,15 +204,13 @@ export default function PdfViewerScreen() {
       },
       onPanResponderRelease: () => {
         if (tool === 'highlight' && highlightStart.current && highlightEnd.current) {
-          const now = new Date().toISOString();
           const x = Math.min(highlightStart.current.x, highlightEnd.current.x);
           const y = Math.min(highlightStart.current.y, highlightEnd.current.y);
           const width = Math.max(0.01, Math.abs(highlightEnd.current.x - highlightStart.current.x));
           const height = Math.max(0.01, Math.abs(highlightEnd.current.y - highlightStart.current.y));
           void persist({
-            id: createId('annotation'), documentId: id, pageIndex: page - 1,
-            kind: 'highlight', color, position: { x, y }, width, height,
-            opacity: 0.42, createdAt: now, updatedAt: now,
+            ...newMark(),
+            kind: 'highlight', position: { x, y }, width, height, opacity: 0.42,
           });
           highlightStart.current = null;
           highlightEnd.current = null;
@@ -204,23 +218,20 @@ export default function PdfViewerScreen() {
           return;
         }
         if (inkPoints.current.length >= 2) {
-          const now = new Date().toISOString();
           void persist({
-            id: createId('annotation'),
-            documentId: id,
-            pageIndex: page - 1,
+            ...newMark(),
             kind: 'ink',
-            color,
             points: inkPoints.current,
             strokeWidth,
-            createdAt: now,
-            updatedAt: now,
           });
         }
         inkPoints.current = [];
         setInkPreview([]);
       },
     }),
+    // `newMark` and `persist` are fresh closures each render, but they only
+    // read `id`, `page` and `color`, which are listed here — so a responder
+    // held across renders never writes to the wrong page or in a stale colour.
     [color, id, overlaySize.height, overlaySize.width, page, strokeWidth, tool],
   );
 
@@ -238,19 +249,13 @@ export default function PdfViewerScreen() {
       return;
     }
     if (tool !== 'highlight') return;
-    const now = new Date().toISOString();
     void persist({
-      id: createId('annotation'),
-      documentId: id,
-      pageIndex: page - 1,
+      ...newMark(),
       kind: 'highlight',
-      color,
       position: { x: Math.min(0.74, point.x), y: Math.min(0.96, point.y) },
       width: 0.25,
       height: 0.035,
       opacity: 0.42,
-      createdAt: now,
-      updatedAt: now,
     });
   };
 
@@ -259,18 +264,12 @@ export default function PdfViewerScreen() {
       setPendingTextPoint(null);
       return;
     }
-    const now = new Date().toISOString();
     void persist({
-      id: createId('annotation'),
-      documentId: id,
-      pageIndex: page - 1,
+      ...newMark(),
       kind: 'text',
-      color,
       position: pendingTextPoint,
       text: textValue.trim(),
       fontSize: 14,
-      createdAt: now,
-      updatedAt: now,
     });
     setPendingTextPoint(null);
   };
@@ -287,31 +286,45 @@ export default function PdfViewerScreen() {
     return createOutputPdf(`${document.title}-edited.pdf`, output);
   };
 
-  const exportCopy = async () => {
+  /**
+   * Both toolbar actions flatten the annotations into a copy and then hand it
+   * somewhere; the flattening is the slow part, and it is what the toolbar
+   * disables itself for.
+   */
+  const deliverFlattenedCopy = async (
+    action: 'export' | 'print',
+    failureTitle: string,
+    deliver: (output: File) => Promise<void>,
+  ) => {
     try {
-      setBusyAction('export');
-      const output = await createFlattenedCopy();
-      await Sharing.shareAsync(output.uri, {
-        mimeType: 'application/pdf',
-        UTI: 'com.adobe.pdf',
-      });
+      setBusyAction(action);
+      await deliver(await createFlattenedCopy());
     } catch (error) {
-      Alert.alert(t('error.export'), error instanceof Error ? error.message : String(error));
+      alertFailure(failureTitle, error);
     } finally {
       setBusyAction(null);
     }
   };
 
-  const print = async () => {
-    try {
-      setBusyAction('print');
-      const output = await createFlattenedCopy();
-      await Print.printAsync({ uri: output.uri });
-    } catch (error) {
-      Alert.alert(t('print.failed'), error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyAction(null);
-    }
+  const exportCopy = () => deliverFlattenedCopy('export', t('error.export'), sharePdf);
+
+  const print = () => deliverFlattenedCopy('print', t('print.failed'), (output) =>
+    Print.printAsync({ uri: output.uri }));
+
+  /**
+   * `react-native-pdf` reads its source once per mount, so re-opening a file —
+   * after a failure, or now that a password is known — means giving it a new key.
+   */
+  const reloadDocument = () => {
+    setLoadingProgress(0);
+    setReloadKey((value) => value + 1);
+  };
+
+  const applyPassword = () => {
+    if (!passwordAttempt) return;
+    setPassword(passwordAttempt);
+    setPasswordPromptVisible(false);
+    reloadDocument();
   };
 
   if (!documentLoaded) {
@@ -326,7 +339,7 @@ export default function PdfViewerScreen() {
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <View style={styles.toolbar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toolScroll} contentContainerStyle={styles.toolRow}>
-          {(['hand', 'highlight', 'ink', 'text', 'eraser'] as const).map((item) => (
+          {TOOLS.map((item) => (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('edit.annotationTool', { name: toolLabel(item) })}
@@ -405,8 +418,7 @@ export default function PdfViewerScreen() {
               style={styles.primaryButton}
               onPress={() => {
                 setLoadError(null);
-                setLoadingProgress(0);
-                setReloadKey((value) => value + 1);
+                reloadDocument();
               }}
             >
               <Text style={styles.primaryText}>{t('document.retry')}</Text>
@@ -498,13 +510,7 @@ export default function PdfViewerScreen() {
               secureTextEntry
               value={passwordAttempt}
               onChangeText={setPasswordAttempt}
-              onSubmitEditing={() => {
-                if (!passwordAttempt) return;
-                setPassword(passwordAttempt);
-                setPasswordPromptVisible(false);
-                setLoadingProgress(0);
-                setReloadKey((value) => value + 1);
-              }}
+              onSubmitEditing={applyPassword}
               style={styles.modalInput}
               accessibilityLabel={t('password.placeholder')}
               placeholder={t('password.placeholder')}
@@ -514,12 +520,7 @@ export default function PdfViewerScreen() {
               <Pressable
                 disabled={!passwordAttempt}
                 style={[styles.primaryButton, !passwordAttempt && styles.disabledButton]}
-                onPress={() => {
-                  setPassword(passwordAttempt);
-                  setPasswordPromptVisible(false);
-                  setLoadingProgress(0);
-                  setReloadKey((value) => value + 1);
-                }}
+                onPress={applyPassword}
               >
                 <Text style={styles.primaryText}>{t('action.open')}</Text>
               </Pressable>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -9,7 +9,27 @@ import {
   type RecoveryCopy,
 } from '@/lib/database';
 import { ContentColumn } from '@/components/ContentColumn';
+import { alertFailure, confirmDestructive } from '@/lib/alerts';
 import { t } from '@/lib/i18n';
+
+function statusLabel(status: RecoveryCopy['status']): string {
+  switch (status) {
+    case 'rolled-back': return t('recovery.rolledBack');
+    case 'diverged': return t('recovery.diverged');
+    case 'failed': return t('recovery.failedStatus');
+  }
+}
+
+function summarize(copy: RecoveryCopy): string {
+  if (copy.entityType === 'note') {
+    return 'body' in copy.payload
+      ? copy.payload.body || t('recovery.emptyNote')
+      : t('recovery.noteEdit');
+  }
+  return 'kind' in copy.payload
+    ? `${copy.payload.kind} · ${t('recovery.annotation')}`
+    : t('recovery.annotationEdit');
+}
 
 export default function RecoveryScreen() {
   const [copies, setCopies] = useState<RecoveryCopy[]>([]);
@@ -25,22 +45,18 @@ export default function RecoveryScreen() {
       else await discardRecoveryCopy(copy.journalId);
       await refresh();
     } catch (error) {
-      Alert.alert(t('recovery.failed'), error instanceof Error ? error.message : String(error));
+      alertFailure(t('recovery.failed'), error);
     } finally {
       setBusyId(null);
     }
   };
 
-  const confirmDiscard = (copy: RecoveryCopy) => {
-    Alert.alert(
-      t('recovery.discardTitle'),
-      t('recovery.discardBody'),
-      [
-        { text: t('action.cancel'), style: 'cancel' },
-        { text: t('recovery.discard'), style: 'destructive', onPress: () => void act(copy, 'discard') },
-      ],
-    );
-  };
+  const confirmDiscard = (copy: RecoveryCopy) => confirmDestructive({
+    title: t('recovery.discardTitle'),
+    message: t('recovery.discardBody'),
+    confirmLabel: t('recovery.discard'),
+    onConfirm: () => void act(copy, 'discard'),
+  });
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
@@ -60,32 +76,21 @@ export default function RecoveryScreen() {
         }
         ListEmptyComponent={<ContentColumn><Text style={styles.empty}>{t('recovery.empty')}</Text></ContentColumn>}
         renderItem={({ item }) => {
-          const summary = item.entityType === 'note'
-            ? 'body' in item.payload
-              ? item.payload.body || t('recovery.emptyNote')
-              : t('recovery.noteEdit')
-            : 'kind' in item.payload
-              ? `${item.payload.kind} · ${t('recovery.annotation')}`
-              : t('recovery.annotationEdit');
           const entityLabel = t(item.entityType === 'note' ? 'recovery.note' : 'recovery.annotation');
-          const statusLabel = t(item.status === 'rolled-back'
-            ? 'recovery.rolledBack'
-            : item.status === 'diverged'
-              ? 'recovery.diverged'
-              : 'recovery.failedStatus');
+          const busy = busyId === item.journalId;
           return (
             <ContentColumn>
               <View style={styles.card}>
-                <Text accessibilityRole="header" style={styles.cardTitle}>{entityLabel} · {statusLabel}</Text>
-                <Text numberOfLines={3} style={styles.summary}>{summary}</Text>
+                <Text accessibilityRole="header" style={styles.cardTitle}>{entityLabel} · {statusLabel(item.status)}</Text>
+                <Text numberOfLines={3} style={styles.summary}>{summarize(item)}</Text>
                 <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text>
                 <View style={styles.actions}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('recovery.discardLabel')}
-                    accessibilityState={{ disabled: busyId === item.journalId }}
-                    disabled={busyId === item.journalId}
-                    style={[styles.secondaryButton, busyId === item.journalId && styles.disabled]}
+                    accessibilityState={{ disabled: busy }}
+                    disabled={busy}
+                    style={[styles.secondaryButton, busy && styles.disabled]}
                     onPress={() => confirmDiscard(item)}
                   >
                     <Text>{t('recovery.discard')}</Text>
@@ -93,9 +98,9 @@ export default function RecoveryScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('recovery.restoreLabel')}
-                    accessibilityState={{ disabled: busyId === item.journalId }}
-                    disabled={busyId === item.journalId}
-                    style={[styles.primaryButton, busyId === item.journalId && styles.disabled]}
+                    accessibilityState={{ disabled: busy }}
+                    disabled={busy}
+                    style={[styles.primaryButton, busy && styles.disabled]}
                     onPress={() => void act(item, 'restore')}
                   >
                     <Text style={styles.primaryText}>{t('recovery.restoreCopy')}</Text>

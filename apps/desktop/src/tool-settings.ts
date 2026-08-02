@@ -9,6 +9,8 @@
  * strokes, a text box tints its glyphs — so the mapping lives here rather than being
  * repeated at every call site.
  */
+import { readStoredObject, storageKey } from './local-storage';
+
 export type ToolId = 'highlight' | 'ink' | 'freeText' | 'square';
 
 export type ToolSetting = {
@@ -90,31 +92,28 @@ export function colorOf(toolId: ToolId, annotation: Record<string, unknown>): st
   return typeof value === 'string' ? value : null;
 }
 
-function storageKey(toolId: ToolId): string {
-  return `iroha-pdf:tool:${toolId}`;
-}
+/** The palettes are six-digit hex; anything else in storage is not one of ours. */
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 export function loadSetting(toolId: ToolId): ToolSetting {
   const fallback = DEFAULT_SETTINGS[toolId];
-  try {
-    const raw = localStorage.getItem(storageKey(toolId));
-    if (!raw) return fallback;
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return fallback;
-    const { color, strokeWidth } = parsed as Partial<ToolSetting>;
-    return {
-      color: typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback.color,
-      strokeWidth:
-        typeof strokeWidth === 'number' && strokeWidth > 0 ? strokeWidth : fallback.strokeWidth,
-    };
-  } catch {
-    return fallback;
-  }
+  const stored: Partial<ToolSetting> =
+    readStoredObject<ToolSetting>(storageKey('tool', toolId)) ?? {};
+  return {
+    color:
+      typeof stored.color === 'string' && HEX_COLOR.test(stored.color)
+        ? stored.color
+        : fallback.color,
+    strokeWidth:
+      typeof stored.strokeWidth === 'number' && stored.strokeWidth > 0
+        ? stored.strokeWidth
+        : fallback.strokeWidth,
+  };
 }
 
 export function saveSetting(toolId: ToolId, setting: ToolSetting): void {
   try {
-    localStorage.setItem(storageKey(toolId), JSON.stringify(setting));
+    localStorage.setItem(storageKey('tool', toolId), JSON.stringify(setting));
   } catch {
     // Storage disabled or full; the choice still applies for this session.
   }

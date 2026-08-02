@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import {
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -14,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Note, WorkspaceDocument } from '@iroha-pdf/core';
 import { BrandMark } from '@/components/BrandMark';
 import { ContentColumn } from '@/components/ContentColumn';
+import { alertFailure, confirmDestructive } from '@/lib/alerts';
 import { createNote, deleteNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
 import { importPdfFromSystem, removeImportedDocument } from '@/lib/files';
 import { t } from '@/lib/i18n';
@@ -76,40 +76,26 @@ function LibraryScreen() {
     }
   };
 
-  const confirmDeleteDocument = (document: WorkspaceDocument) => {
-    Alert.alert(
-      t('document.deleteTitle'),
-      t('document.deleteBody', { name: document.title }),
-      [
-        { text: t('action.cancel'), style: 'cancel' },
-        {
-          text: t('action.delete'),
-          style: 'destructive',
-          onPress: () => void removeImportedDocument(document)
-            .then(refresh)
-            .catch(async (error: unknown) => {
-              await refresh();
-              showStorageError(error);
-            }),
-        },
-      ],
-    );
-  };
+  const confirmDeleteDocument = (document: WorkspaceDocument) => confirmDestructive({
+    title: t('document.deleteTitle'),
+    message: t('document.deleteBody', { name: document.title }),
+    confirmLabel: t('action.delete'),
+    // The quarantine step in removeImportedDocument can put the file back, so
+    // the list is reloaded on failure too before the reason is shown.
+    onConfirm: () => void removeImportedDocument(document)
+      .then(refresh)
+      .catch(async (error: unknown) => {
+        await refresh();
+        showStorageError(error);
+      }),
+  });
 
-  const confirmDeleteNote = (note: Note) => {
-    Alert.alert(
-      t('note.deleteTitle'),
-      t('note.deleteBody', { name: note.title }),
-      [
-        { text: t('action.cancel'), style: 'cancel' },
-        {
-          text: t('action.delete'),
-          style: 'destructive',
-          onPress: () => void deleteNote(note.id).then(refresh).catch(showStorageError),
-        },
-      ],
-    );
-  };
+  const confirmDeleteNote = (note: Note) => confirmDestructive({
+    title: t('note.deleteTitle'),
+    message: t('note.deleteBody', { name: note.title }),
+    confirmLabel: t('action.delete'),
+    onConfirm: () => void deleteNote(note.id).then(refresh).catch(showStorageError),
+  });
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredDocuments = documents.filter((document) =>
@@ -201,7 +187,7 @@ function LibraryScreen() {
             <View style={styles.documentCard}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${item.title}, PDF, ${formatBytes(item.sizeBytes)}`}
+                accessibilityLabel={t('document.itemLabel', { title: item.title, size: formatBytes(item.sizeBytes) })}
                 accessibilityHint={t('document.openHint')}
                 style={styles.cardMainAction}
                 onPress={() => router.push({ pathname: '/viewer/[id]', params: { id: item.id } })}
@@ -229,7 +215,7 @@ function LibraryScreen() {
                 <View key={note.id} style={styles.noteCard}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${note.title}, note`}
+                    accessibilityLabel={t('note.itemLabel', { title: note.title })}
                     accessibilityHint={t('note.openHint')}
                     style={styles.noteMainAction}
                     onPress={() => router.push({ pathname: '/note/[id]', params: { id: note.id } })}
@@ -251,10 +237,7 @@ function LibraryScreen() {
 }
 
 function showStorageError(error: unknown): void {
-  Alert.alert(
-    t('error.storage'),
-    error instanceof Error ? error.message : String(error),
-  );
+  alertFailure(t('error.storage'), error);
 }
 
 function ActionButton({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {

@@ -34,6 +34,22 @@ export function validateAnnotation(annotation: PdfAnnotation): PdfAnnotation {
   return annotation;
 }
 
+/**
+ * Records `operation` under `key` unless something already there outranks it.
+ * Both merges below reduce a log to one winner per key and differ only in which
+ * key they group by, so the tie-breaking lives here rather than in each of them.
+ */
+function keepHighestRanked(
+  winners: Map<string, SyncOperation>,
+  key: string,
+  operation: SyncOperation,
+): void {
+  const current = winners.get(key);
+  if (!current || compareSyncOperations(current, operation) < 0) {
+    winners.set(key, operation);
+  }
+}
+
 export function mergeSyncOperations(
   local: SyncOperation[],
   remote: SyncOperation[],
@@ -41,10 +57,7 @@ export function mergeSyncOperations(
   const byId = new Map<string, SyncOperation>();
 
   for (const operation of [...local, ...remote]) {
-    const current = byId.get(operation.id);
-    if (!current || compareSyncOperations(current, operation) < 0) {
-      byId.set(operation.id, operation);
-    }
+    keepHighestRanked(byId, operation.id, operation);
   }
 
   return [...byId.values()].sort((a, b) => {
@@ -92,10 +105,7 @@ export function mergeAnnotationOperations(
 
   for (const operation of mergeSyncOperations(local, remote)) {
     if (operation.entityType !== 'annotation') continue;
-    const current = winners.get(operation.entityId);
-    if (!current || compareSyncOperations(current, operation) < 0) {
-      winners.set(operation.entityId, operation);
-    }
+    keepHighestRanked(winners, operation.entityId, operation);
   }
 
   return [...winners.values()].sort((left, right) => {

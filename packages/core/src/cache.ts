@@ -1,9 +1,13 @@
 export type CacheEntrySize<Value> = (value: Value) => number;
 
+/** Why a value left the cache. Callers use it to tell a render that is merely
+ * cold apart from one the platform asked them to release. */
+export type CacheEvictionReason = 'budget' | 'replace' | 'delete' | 'memory-warning';
+
 export type BoundedCacheOptions<Value> = {
   maxBytes: number;
   sizeOf: CacheEntrySize<Value>;
-  onEvict?: (key: string, value: Value, reason: 'budget' | 'replace' | 'delete' | 'memory-warning') => void;
+  onEvict?: (key: string, value: Value, reason: CacheEvictionReason) => void;
 };
 
 type CacheEntry<Value> = {
@@ -92,11 +96,7 @@ export class BoundedLruCache<Value> {
     }
   }
 
-  private evict(
-    key: string,
-    entry: CacheEntry<Value>,
-    reason: 'budget' | 'replace' | 'delete' | 'memory-warning',
-  ): void {
+  private evict(key: string, entry: CacheEntry<Value>, reason: CacheEvictionReason): void {
     this.entries.delete(key);
     this.usedBytesValue -= entry.bytes;
     this.onEvict?.(key, entry.value, reason);

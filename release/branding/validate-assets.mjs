@@ -1,23 +1,7 @@
-import { readFile } from 'node:fs/promises';
-
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument } from 'pdf-lib';
 
-const root = new URL('../../', import.meta.url);
-
-async function read(relativePath) {
-  return readFile(new URL(relativePath, root));
-}
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
-
-function pngDimensions(bytes, label) {
-  const signature = '89504e470d0a1a0a';
-  assert(bytes.subarray(0, 8).toString('hex') === signature, `${label} is not a PNG`);
-  return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
-}
+import { assert, pngDimensions, read } from '../lib/assets.mjs';
 
 const expectedPngs = new Map([
   ['apps/mobile/assets/images/icon.png', [1024, 1024]],
