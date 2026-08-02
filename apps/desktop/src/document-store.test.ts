@@ -73,6 +73,7 @@ describe('document store', () => {
           { at: 1, kind: 'create', label: 'Pen stroke', pageIndex: 0 },
           { at: 2, kind: 'create', label: 'Sticky note', pageIndex: 1 },
           { at: 3, kind: 'delete', label: 'Something this build never wrote', pageIndex: 2 },
+          { at: 'invalid', kind: 'create', label: 'Highlight', pageIndex: 3 },
         ],
         revisions: [],
       }),
@@ -81,6 +82,10 @@ describe('document store', () => {
     registerOpenedFile('legacy', '/tmp/legacy.pdf');
     const { edits } = getDocumentFile('legacy');
     expect(edits.map((entry) => entry.annotation)).toEqual(['ink', 'stickyNote', 'other']);
+    recordEdit('legacy', edit({ at: 4, annotation: 'highlight' }));
+    const persisted = JSON.parse(localStorage.getItem('iroha-pdf:history:/tmp/legacy.pdf') ?? '{}');
+    expect(persisted.edits).toHaveLength(4);
+    expect(persisted.edits[0]).not.toHaveProperty('label');
     forgetDocument('legacy');
   });
 

@@ -61,7 +61,6 @@ inputs = [
   "apps/desktop/src/styles.css",
   "apps/mobile/src/**/*.ts",
   "apps/mobile/src/**/*.tsx",
-  "apps/mobile/src/**/*.css",
   "release/ui/validate-style-tokens.mjs",
   "site/assets/site.css",
 ]

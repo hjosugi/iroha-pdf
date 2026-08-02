@@ -49,12 +49,11 @@ mem_kib="$(adb shell cat /proc/meminfo | awk '/MemTotal/ { print $2; exit }' | t
 [[ "$mem_kib" =~ ^[0-9]+$ ]] || fail 'could not read emulator memory'
 (( mem_kib <= 1700000 )) || fail "emulator is not low-memory: MemTotal=${mem_kib} KiB"
 low_ram_property="$(adb shell getprop ro.config.low_ram | tr -d '\r')"
-[[ "$low_ram_property" == true ]] || fail "low-RAM mode is not active: ro.config.low_ram=${low_ram_property:-unset}"
 {
   printf 'fixture_bytes=%s\n' "$fixture_bytes"
   printf 'fixture_sha256=%s\n' "$(sha256sum "$fixture" | cut -d' ' -f1)"
   printf 'mem_total_kib=%s\n' "$mem_kib"
-  printf 'low_ram_property=%s\n' "$low_ram_property"
+  printf 'low_ram_property=%s\n' "${low_ram_property:-unset}"
   adb shell getprop ro.build.version.release
 } > "$output_dir/environment.txt"
 

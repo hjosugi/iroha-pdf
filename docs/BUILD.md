@@ -114,6 +114,14 @@ Its APK alone is not a production artifact; cleartext loopback is
 enabled only while `IROHA_DEVICE_EVIDENCE=1` so the ADB-reversed fixture server
 can be reached.
 
+API 34 and newer Emulator versions otherwise raise RAM below 2.5 GiB, so the
+workflow passes both `-lowram` and `-memory 1536` and rejects an observed
+`/proc/meminfo` total above 1.7 GiB. `ro.config.low_ram` is recorded but is not a
+gate: it is a read-only product classification of the system image, while the
+Emulator's `-lowram` option removes its host-side minimum-RAM override. The
+measured RAM, process survival and explicit `RUNNING_CRITICAL` trim are the
+evidence this gate claims.
+
 The evidence route and cleartext permission are absent from ordinary builds.
 The job stores fixture metadata, `dumpsys meminfo`, logcat, UI hierarchy,
 screenshots and instrumentation output for 90 days. A green AVD run supports the
