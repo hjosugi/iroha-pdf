@@ -23,9 +23,10 @@
 - PDF表示、複数タブ、ハイライト、筆圧対応スタイラス手書き、テキスト注釈
 - PDFごとの軽量メモと自動保存
 - 注釈をPDFへ焼き込んだコピーの書き出し
+- デスクトップで開いたPDFへの保存・別名保存、初回上書き前の原本backup、編集履歴と未保存下書きの復旧
 - 画像からPDF作成（大画像縮小、JPEG圧縮、A4配置）
 - PDFページ並べ替え・複製・結合・抽出・削除・回転
-- iOS / Androidのネイティブ印刷ダイアログ
+- デスクトップの全ページ・現在ページ・範囲・注釈有無の印刷previewと、iOS / Androidのネイティブ印刷ダイアログ
 - PDF構造の安全な最適化
 - SQLiteによるPDF、メモ、注釈の永続化
 - Google Drive RESTクライアント
@@ -44,7 +45,9 @@
 
 - 「既存テキストの直接置換」はPDFの最低限編集には含めていません。フォント、文字配置、サブセット、Content Streamの再構築が必要で、壊れやすいためです。MVPは追記、ハイライト、手書き、メモ、ページ操作を扱います。
 - モバイルの安全な最適化はObject Stream再構成のみです。画像の再圧縮を行わないため、縮まないPDFもあります。
+- モバイルの注釈書き出しはprovider原本を上書きせず別コピーを作ります。元ファイルへ安全に保存するprovider bridgeは未実装です。
 - モバイルの注釈書き出し/印刷はPDF全体をJavaScriptメモリで再構成するため、64 MiBを超える入力では強制終了を避けてdesktop利用を案内します。native閲覧と注釈autosaveは継続できます。
+- デスクトップの編集履歴はmetadataと未保存下書きをlocal storageへ保持しますが、任意revisionのPDF bytesへ戻す機能はありません。復元できる完全な版は初回上書き前の原本backupです。
 - 高圧縮、deskew、OCR、PDF/A、フォントアウトライン化はネイティブエンジンが必要です。デスクトップはpdfcpu sidecar、モバイルは専用ネイティブモジュールとしてIssue化しています。
 - Google Drive認証にはGoogle Cloud ConsoleでiOS、Android、Web OAuthクライアントを作成し、development buildを再生成する必要があります。
 - DriveのアップロードAPIはクライアント層までです。モバイルのアップロードUI、production実アカウントでの検証、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。

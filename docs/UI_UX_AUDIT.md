@@ -15,7 +15,7 @@
 | 注釈 | SQLite保存より先に画面だけ更新する経路があり、保存失敗時に見かけと実データがずれ得た | 追加、削除、undo、redoは永続化成功後だけUIと履歴を更新 |
 | 注釈座標 | PDFの実表示領域ではなくviewer全体へ座標を正規化し、余白・回転・zoomでずれ得た。さらにupstreamはAndroidで先頭、iOSで末尾ページの寸法しか返さず、混在サイズPDFでずれた | native bridgeを固定patchし、ページ変更ごとの実寸から中央配置領域を再計算。編集tool選択時は100%へ戻し、zoom中は誤配置を防ぐためoverlayを読取専用にする |
 | スタイラス | touchとpenを同じPanResponder経路で扱い、筆圧を保存も書き出しもしていなかった。さらにReact Native 0.86のAndroid pointer dispatcherは既定で無効で、upstreamは実pressureも固定0.5へ置換していた | Expo prebuildでdispatcherを有効化し、dependency patchで`MotionEvent`の実pressureをbridgeへ渡す。pointer ID / tool type / pressureをSQLiteへ保存し、画面previewとflatten済みPDFの双方で線幅へ反映する |
-| 注釈tool切替 | 色・太さの設定列をtool選択時だけ通常レイアウトへ挿入していたため、原稿が上下に跳ねて注釈overlayが一時的に外れた | 設定列をページ送りの上へ固定overlay表示し、PDFの表示領域と注釈座標をtool切替の前後で維持。小画面ではlogical unit 44の操作領域を縮めず横スクロールできる |
+| 注釈tool切替 | 色・太さの設定列をtool選択時だけ通常レイアウトへ挿入していたため、原稿が上下に跳ねて注釈overlayが一時的に外れた。筆圧状態も同じ横列へ入れた初版は狭幅で末尾が切れた | 設定列をページ送りの上へ固定overlay表示し、PDFの表示領域と注釈座標をtool切替の前後で維持。logical unit 44の色・太さ操作は横スクロール可能なまま維持し、筆圧状態は独立したtoken寸法のbadgeへ分離。SQLiteから筆圧付きinkを再読込してもbadgeを復元する |
 | 大容量PDF | native表示は可能でもmobile書き出しが全bytesをJS heapへ展開し、低メモリ時にOS終了し得た | 閲覧・注釈autosaveは維持し、64 MiB超のmobile書き出し/印刷は説明dialogからdesktopへ案内する。300 MiB/500ページ用のstreaming fixtureと1.5 GiB AVD gateも追加 |
 | size規則 | CSSとReact Native StyleSheetに近い余白・文字・角丸・操作高が個別値で散在した | desktop/siteはCSS custom properties、mobileは`theme.ts`の型付きtokenへ統合。raw固定値を再導入するとFrostのstyle-token gateが失敗する |
 | PDF読込 | 取得中、削除済み、破損PDFの表示が弱く、native errorをそのまま見せる経路があった | loading/not-found/retryを分離し、利用者向けエラーへ置換 |

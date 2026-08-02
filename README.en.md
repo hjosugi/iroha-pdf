@@ -23,9 +23,10 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 - PDF viewing, multiple tabs, highlights, pressure-aware stylus ink, and text annotations.
 - Lightweight per-PDF notes with automatic saving.
 - Export of a copy with annotations embedded into the PDF.
+- Desktop save and save-as for the opened PDF, a pristine backup before the first overwrite, edit history, and recovery of unsaved drafts.
 - PDF creation from images, including large-image downscaling, JPEG compression, and A4 placement.
 - Page reordering, duplication, merging, extraction, deletion, and rotation.
-- Native iOS and Android print dialogs.
+- Desktop print preview for all/current/custom pages with optional annotations, plus native iOS and Android print dialogs.
 - Safe structural PDF optimization.
 - SQLite persistence for PDFs, notes, and annotations.
 - Google Drive REST client:
@@ -44,7 +45,9 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 
 - Replacing existing PDF text in place is intentionally outside the minimum editing scope. It requires rebuilding fonts, glyph placement, subsets, and content streams and is too fragile for this MVP. The MVP supports additions, highlights, handwriting, notes, and page operations.
 - Safe mobile optimization only rebuilds object streams. It does not recompress images, so some PDFs will not become smaller.
+- Mobile annotation export creates a separate copy and does not overwrite the provider original. A provider bridge for safely saving back to that file is not implemented.
 - Mobile annotation export and printing rebuild the complete PDF in JavaScript memory. Inputs over 64 MiB are rejected with guidance to use the desktop app, avoiding a forced process termination. Native viewing and annotation autosave remain available.
+- Desktop edit history stores metadata and unsaved drafts in local storage, but it cannot restore arbitrary historical PDF bytes. The one complete recoverable version is the pristine backup made before the first overwrite.
 - High compression, deskew, OCR, PDF/A, and font outlining require native engines. They are tracked as a desktop `pdfcpu` sidecar and dedicated mobile native modules.
 - Google Drive authentication requires iOS, Android, and Web OAuth clients in Google Cloud Console, followed by regeneration of the development build.
 - Drive upload APIs exist at the client layer. The mobile upload UI, production-account validation, cross-device sync, offline queue, and PDF conflict-resolution UI are incomplete.

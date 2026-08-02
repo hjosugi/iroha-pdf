@@ -149,8 +149,11 @@ real `TOOL_TYPE_STYLUS` MotionEvents whose pressure rises from 0.18 to 0.9 and
 queries the target SQLite database to prove the pressure array crossed the native
 pointer bridge. This deliberately fails if React Native regresses to its upstream
 fixed `0.5` fallback, or if Gradle bypasses the patched source with the published
-precompiled AAR. Logs, memory reports, UI hierarchy and screenshots are uploaded
-even when the job fails.
+precompiled AAR. A successful run also cold-relaunches the same document, selects
+Pen from the target tree, and requires both that tree and a second image to show
+the restored pressure state. A dedicated log records the persisted sample count
+plus low/high bounds. Logs, memory reports, UI hierarchy and both screenshots are
+uploaded even when the job fails.
 
 This is controlled emulator evidence, not Apple Pencil/Android hardware proof.
 The mobile renderer may view and autosave annotations on the 300 MiB fixture, but

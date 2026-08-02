@@ -130,8 +130,12 @@ and requires open, critical memory trim, background/resume and cold reopen to
 succeed. The same build receives native Android instrumentation that dispatches
 `TOOL_TYPE_STYLUS` events with rising pressure through the React Native pointer
 bridge and reads SQLite back to prove that low and high samples were persisted.
-The test also requires a screen capture and accessibility tree from the running
-app, not only a successful instrumentation exit code.
+The test also requires live-input and cold-relaunch screen captures plus an
+accessibility tree from the running app, not only a successful instrumentation
+exit code. After the runner exits, the job cold-relaunches the same document,
+selects Pen from the retained target tree, and requires the tree and second image
+to show the restored pressure state. A dedicated filtered log records the
+persisted sample count and verified low/high bounds.
 Its APK alone is not a production artifact; cleartext loopback is
 enabled only while `IROHA_DEVICE_EVIDENCE=1` so the ADB-reversed fixture server
 can be reached.
@@ -147,10 +151,10 @@ evidence this gate claims.
 Ordinary builds leave evidence mode disabled, so the route immediately redirects
 to the library; the cleartext permission is absent unless the CI-only prebuild
 environment enables it.
-The job stores fixture metadata, `dumpsys meminfo`, logcat, UI hierarchy,
-screenshots and instrumentation output for 90 days. A green AVD run supports the
-large-PDF and stylus implementation, but does not replace signed physical-device
-evidence in `RELEASE_GATE.md`.
+The job stores fixture metadata, `dumpsys meminfo`, low-memory and stylus logcat,
+UI hierarchy, screenshots and instrumentation output for 90 days. A green AVD
+run supports the large-PDF and stylus implementation, but does not replace
+signed physical-device evidence in `RELEASE_GATE.md`.
 
 ## Main protection helper
 

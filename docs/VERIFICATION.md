@@ -11,34 +11,55 @@ listed below.
 
 ## Unreleased UI/UX and documentation audit — 2026-08-02
 
-Implementation commit `8860f71804c5377e2c750bdc612f0361cb782889` is the
-source commit for the audit and its native screenshots.
+Implementation commit `eaf6553c1bfd60cbd6f0903053bf1c082b4c6cba` is the
+source commit for the audit. Native screenshots are bound separately to their
+exact UI source below.
 
-- [CI run 30719401503](https://github.com/hjosugi/iroha-pdf/actions/runs/30719401503)
-  completed successfully: all eight pull-request jobs passed on a clean checkout
-  (quality/Expo, supply chain, three desktop package builds and Playwright on
-  Linux, macOS and Windows). The main-only Android debug job was intentionally
-  skipped.
-- The run passed 114 unit tests — core 39, google-drive 9, desktop 25 and mobile
-  41 — plus all 69 Playwright tests in 14 spec files on each desktop OS. It also
-  built and link-checked 18 site pages from 16 documents and validated two store
+- [CI run 30743015338](https://github.com/hjosugi/iroha-pdf/actions/runs/30743015338)
+  completed successfully: all eight required pull-request jobs and the additional
+  real-Tauri runtime job passed on a clean checkout (quality/Expo, supply chain,
+  three desktop package builds, real runtime and Playwright on Linux, macOS and
+  Windows). The main-only Android debug job was intentionally skipped.
+- The run passed 128 unit tests — core 41, google-drive 9, desktop 26 and mobile
+  52 — plus the 70-case Playwright suite in 14 spec files on each desktop OS:
+  70 passed on Linux and macOS; Windows passed 66 and explicitly skipped four
+  renderer-dependent cases. All 22 Linux real-runtime checks passed. It also
+  built and link-checked 20 site pages from 18 documents and validated two store
   locales and 12 mobile screenshots.
-- [Native screenshot run 30719408179](https://github.com/hjosugi/iroha-pdf/actions/runs/30719408179)
+- [Native screenshot run 30731064514](https://github.com/hjosugi/iroha-pdf/actions/runs/30731064514)
+  at `c8d7d78e448809e6f97f0dadac03fa3246b9f76d`
   built unsigned Release apps, installed them on a Pixel 6 AVD, iPhone 17 Pro Max
   Simulator and iPad Pro 13-inch Simulator, captured four ordinary product
   scenes per device, then validated and assembled the submission artifact. The
   committed `release/store/screenshots/evidence.json` binds those images to the
   exact run and source commit. All 12 images were also reviewed at full size for
   clipping, safe areas, tablet width, touch-target layout and truthful OAuth state.
+- [Controlled Android run 30743017733](https://github.com/hjosugi/iroha-pdf/actions/runs/30743017733)
+  used the exact implementation commit. It generated a deterministic
+  314,720,686-byte / 500-page PDF, booted Android 16 with 1,503,188 KiB RAM,
+  opened the document, delivered a critical-memory trim, backgrounded/resumed,
+  killed the process and reopened the same document. ActivityManager measured
+  2,816 ms cold open, 1,063 ms resume and 2,684 ms process-cold reopen. The three
+  point-in-time PSS/RSS readings were 436,549/517,624, 426,008/511,232 and
+  433,927/523,788 KiB; this is not a continuous peak profile. The app remained
+  responsive without an Iroha PDF crash, ANR or OOM. The same release build
+  received native `TOOL_TYPE_STYLUS` input with pressure rising from 0.18 to
+  0.90; instrumentation read nine samples back from SQLite. Separate live-input
+  and process-cold-reload images show the complete pressure badge and
+  variable-width stroke. The reload tree identifies Iroha PDF, page 1/500 and
+  pen width 2.4. Screens, trees, timings, memory snapshots, logs and the
+  instrumentation transcript are retained in the run artifact for 90 days.
 
-This evidence covers the implemented UI/UX changes and simulator/emulator
-rendering. It does not change any physical-device, production OAuth, signed
-artifact, store-submission or performance gate below.
+This evidence covers the implemented UI/UX, simulator/emulator rendering and
+the controlled Android portion of the large-document gate. It does not change
+any physical-device, production OAuth, signed artifact, store-submission,
+battery/thermal, iPad-memory or desktop-continuous-memory gate below.
 
-The authoritative evidence is CI, not a developer machine: run
+For the v0.4.0 snapshot below, the authoritative evidence is CI rather than a
+developer machine: run
 <https://github.com/hjosugi/iroha-pdf/actions/runs/30691337190> is green on a
-clean checkout of that commit across Linux, macOS and Windows. What follows
-records what that proves and, more importantly, what it does not.
+clean checkout of the v0.4.0 commit across Linux, macOS and Windows. What follows
+records what that dated run proves and, more importantly, what it does not.
 
 ## Passed in v0.4.0 CI
 
@@ -89,13 +110,17 @@ Devices and accounts — nothing below has been run on real hardware:
 - Google OAuth client and consent screen; Drive download, update and resumable
   upload against the live API.
 - AirPrint and the Android Print Service.
-- Startup timings, battery and thermal behaviour, memory profiling.
+- Physical-device startup timings, battery and thermal behaviour, and continuous
+  memory profiling. The bounded Android AVD open/resume/reopen run above is not
+  a substitute for these measurements.
 - Rotation and stylus behaviour on an iPad or an Android tablet.
 
 Fixtures and cases still missing:
 
-- A 300 MB document. The largest exercised is the 41.6 MB image-heavy fixture,
-  and the measured desktop ceiling stops at 249 MB.
+- The deterministic 300 MiB / 500-page fixture now passes the bounded Android
+  AVD flow. A scanned-content fixture of that size, the same case on iPad and
+  desktop, and continuous peak-memory measurement are still missing; the prior
+  desktop ceiling remains 249 MB.
 - Encrypted, malformed-but-repairable and AcroForm fixtures now exist. Mobile has
   a password prompt and does not persist the password, but that path still lacks
   physical-device evidence; desktop still refuses encrypted PDFs. Saving an

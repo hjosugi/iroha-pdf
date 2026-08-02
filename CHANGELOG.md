@@ -45,7 +45,13 @@
 - Mobile annotation coordinates now use the rendered dimensions of the current
   PDF page, including mixed-size documents. Selecting an edit tool returns to
   100%, keeps its controls in a fixed overlay so the page does not jump, and
-  allows the full 44-logical-unit control row to scroll on narrow screens.
+  allows the full 44-logical-unit control row to scroll on narrow screens. The
+  pressure state now uses a separate token-sized badge, so it cannot clip the
+  width controls, and returns when pressure-aware ink is reloaded from SQLite.
+  The Android evidence job now cold-relaunches the document before retaining
+  its accessibility tree, avoiding a Launcher tree after the instrumentation
+  Activity is torn down. It retains separate live-input and cold-reload images,
+  with the Pen controls and persisted badge visible in both states.
 - Desktop and documentation sizing now comes from CSS custom properties, while
   React Native uses typed spacing, control, type, radius, and layout tokens. A
   Frost validation target rejects newly scattered fixed sizes. The redundant

@@ -37,7 +37,7 @@ Android emulator（API 36）で手動確認した2026-07-20時点の記録に、
 4. ~~注釈の属性がすべてハードコード~~ **解消済み。** 4色パレットと3段階のink幅を選択できる
 5. ~~undo / deleteが無い~~ **解消済み。** undo/redoスタックと消しゴムツールがある
 6. ~~Highlightはタップ位置に固定矩形を置くだけ~~ **解消済み。** React Native pointer eventによるドラッグ範囲指定。タップ配置は後方互換の経路として残る
-7. ~~unit testが無い~~ **解消済み。** mobile 51件を含む全workspace 127件。SQLiteは実エンジンでschema/journal/recoveryを検証する
+7. ~~unit testが無い~~ **解消済み。** mobile 52件を含む全workspace 128件。SQLiteは実エンジンでschema/journal/recoveryを検証する
 
 つまりmobileに残るdesktop共通の課題は**in-place saveと編集履歴の永続化**であり、色・削除・undoは解決済み。出力経路（Export → 共有シート、Print）はdesktopより自然に統合されている。なお日本語の注釈はNoto Sans JPを同梱して書き出せるようになり、回転ページでの位置ずれも解消した。
 
@@ -139,7 +139,7 @@ Labels: `type:foundation`, `priority:P0`
 | **Android native build** | **成功**（下記） |
 | **Android emulator起動** | **成功**（下記） |
 | **iOS native build** | **Release Simulator build成功**（GitHub Actions 30731064514、iPhone/iPadの4画面ずつを取得。物理端末・署名は未実施） |
-| unit test | **51件**（2026-08-02現在。`vitest run`、`node:sqlite`実エンジンでschema/journal/recoveryを検証） |
+| unit test | **52件**（2026-08-02現在。`vitest run`、`node:sqlite`実エンジンでschema/journal/recoveryとpressure復元を検証） |
 
 **Android build 実測（2026-07-20、初回・キャッシュ無し）:**
 
@@ -167,7 +167,8 @@ iOSはmacOS + Xcodeが必須で、GitHubのmacOS runnerによるunsigned Release
 
 なお`expo prebuild`は`package.json`の`android`/`ios` scriptを`expo run:*`へ書き換える副作用がある（managed → bare移行のため）。生成物と併せてrevertした。`android/` `ios/`は`.gitignore`へ追加済み — EASが再生成するので、古いコピーがcommitされるとapp.jsonより優先されてしまう。
 
-Acceptance: `npm install`, `npm test`, `npm run typecheck`, desktop buildが成功する。**mobileのnative buildを別途acceptance対象にする。**
+Acceptance: `npm ci`, `frost test --all --no-tui`,
+`frost build desktop-web --no-tui`が成功する。**mobileのnative buildを別途acceptance対象にする。**
 
 ## 002 [x] Define shared document, annotation, note, tab, and sync models
 
@@ -340,6 +341,10 @@ Labels: `platform:mobile`, `type:feature`, `priority:P0`
 - 残りはselection highlight（react-native-pdfにテキストレイヤが無く実現手段が未確定）とmove/resize
 
 **訂正（2026-08-02）**: 色・太さ、undo/redo、消しゴム、ドラッグhighlightを実装済み。overlayは各ページの実寸へfitし、合成native stylusのpointer ID / pressureがSQLiteまで届くことを自動化した。acceptanceのうち未達なのは、物理端末でのzoom/rotation追従、Apple Pencil/各社stylus、傾き・hover・palm rejectionの確認。
+
+**訂正（2026-08-02, 2）**: 小画面で色4個・太さ3個と筆圧状態を同じ横列へ置くと状態文が途中で切れたため、筆圧表示を独立したtoken寸法のbadgeへ移した。保存済みpressure arrayを持つinkをSQLiteから再読込した場合もbadgeとaccessibility stateを復元する。
+
+**証跡（2026-08-02）**: [Android run 30743017733](https://github.com/hjosugi/iroha-pdf/actions/runs/30743017733)はnative `TOOL_TYPE_STYLUS`入力の9 pressure sample（low < 0.3 / high > 0.8）をSQLiteから読み戻し、入力直後とprocess-cold reload後の両方で完全なbadgeと可変幅strokeを画像に保存した。これはAndroid AVD証跡であり、物理stylusの合格ではない。
 
 Acceptance: zoom/rotation後もannotation位置がずれず、Apple PencilとAndroid stylusで滑らかに描ける。
 
@@ -749,11 +754,13 @@ CDPの`Performance.getMetrics` + `HeapProfiler.collectGarbage`で測り直した
 
 約21 ms/MBでほぼ線形。250 MBでもOOMせず開ける。
 
+**Android bounded evidence（2026-08-02）**: [run 30743017733](https://github.com/hjosugi/iroha-pdf/actions/runs/30743017733)は314,720,686 bytes / 500ページの決定的fixtureを1,503,188 KiB RAMのAndroid 16 AVDでopenし、`RUNNING_CRITICAL`、background/resume、process-cold reopenを通した。cold open 2,816 ms、resume 1,063 ms、reopen 2,684 ms。open / resume / reopenのPSS/RSSはそれぞれ436,549/517,624、426,008/511,232、433,927/523,788 KiBで、Iroha PDFのcrash / ANR / OOMはlogに無い。
+
 残作業:
 
-- 300 MB以上および実スキャン（JPEG中心、本fixtureは非圧縮ノイズPNGで最悪ケース寄り）での確認
-- memory warning / LRUの明示的な実装は依然として無い。現状「壊れていない」だけで、budget管理はされていない
-- ArrayBufferとwasm memoryは`JSHeapUsedSize`に含まれない。RSSベースの測定は未実施
+- 300 MB以上のdesktop、iPad、物理Androidと実スキャン（JPEG中心、現fixtureはstreaming生成した非圧縮データ）での確認
+- memory warning / LRUの明示的な実装は依然として無い。現状「制御下の1ケースが壊れていない」だけで、budget管理はされていない
+- AVDの3点PSS/RSS snapshotは実施済みだがcontinuous peakではない。desktopのArrayBuffer / WASMを含むRSS profileも残る
 
 Acceptance: 300 MB/500-page PDFでOOMしない。peak memory証跡を保存する。
 
@@ -782,6 +789,8 @@ Acceptance: UI、errors、print settings、OAuth explanation、file size/dateが
 **更新（2026-08-02）**: coreの型付き日英catalogをmobile/desktopの主要画面、エラー、印刷設定、OAuth説明、復旧UIへ適用した。OS localeによる日付表示も使用している。native moduleが返す予期しないエラー本文の分類、実機での長文/dynamic type確認が残る。
 
 **更新（2026-08-02, 2）**: desktopの編集履歴は注釈名を英語のまま`localStorage`へ書き込んでいたため、記録した時点の言語に固定されていた。`EditEntry`が保持する値を表示名から識別子（`AnnotationKind`）へ変え、表示時にcatalogを引くようにした。旧versionが書いた履歴も識別子へ読み替えるので、既存の履歴が日本語で表示されるようになる。e2e helperが英語のbutton名を固定していたため日本語で起動できなかった点も直し、日本語locale下で履歴が日本語になることをe2eで検証している。
+
+**更新（2026-08-02, 3）**: 日本語READMEと同じ15節を持つ`README.en.md`を追加し、GitHub Pagesの`/overview-en/`として公開対象へ登録した。ストア掲載文、説明、キーワード、画像alt textも日英2 localeをvalidatorで検証する。残るのはphysical device上の長文/dynamic type、native sheet、production OAuth同意画面と、未知のplatform errorの分類。
 
 ## 051 [~] Add privacy, security, and threat-model documentation
 
@@ -821,9 +830,17 @@ complex.pdfは`subset: false`でフォントを埋め込む。pdf-libのCFFサ�
 
 **訂正（2026-08-02）**: encrypted / repairable / form の3つとも実装済み（`e2e/fixtures.ts`）で`difficult-pdfs.spec.ts`が検証している。desktopは暗号化PDFを明示的に拒否する。mobileは保存しないpassword promptを実装済みだが、native E2Eと物理端末証跡がない。またencryptedのdesktopテストはqpdf/Ghostscriptが無い環境（Windows CI）ではskipされる。
 
-## 055 [ ] Add mobile E2E tests
+**更新（2026-08-02, 2）**: clean [CI run 30743015338](https://github.com/hjosugi/iroha-pdf/actions/runs/30743015338)はcore 41、google-drive 9、desktop 26、mobile 52の計128 unit testを通した。14 spec / 70-case Playwright suiteはLinux・macOSで70 pass、Windowsで66 pass + renderer依存4 skip、実TauriはLinuxで22 checkを通した。300 MiB/500ページfixture generatorとAndroid device gateもFrostの検証対象である。残るのはmobile全flow、物理端末、各native provider/print sheetと、reference rendererを含む全fixtureのcross-platform coverage。
+
+## 055 [~] Add mobile E2E tests
 
 Labels: `platform:mobile`, `type:test`, `priority:P1`
+
+Release構成のAndroid/iPhone/iPadで、fixture付きlibrary、viewer、tools、Drive未接続画面を起動・描画し、12枚のstore screenshotとして検証する。Androidのrelease APKでは300 MiB/500ページを開き、critical trim、background/resume、cold reopenを行う。native instrumentationは`TOOL_TYPE_STYLUS`をAndroid input dispatcherへ送り、React Native pointer bridge、画面、SQLiteのpressure arrayまで確認する。
+
+最終のcontrolled実行は[run 30743017733](https://github.com/hjosugi/iroha-pdf/actions/runs/30743017733)。
+
+まだMaestro/Detox相当のiOS/Android共通flowではない。system document providerからのimport、annotate → export → reopen、share/print sheet、暗号化PDF、権限拒否、process kill後の復旧を両OSのphysical deviceで連続実行する必要がある。
 
 Acceptance: import → annotate → export → reopen → print前までをMaestro/DetoxでiOS/Android実行する。
 
@@ -911,9 +928,11 @@ Labels: `type:observability`, `priority:P2`
 
 Acceptance: opt-in、content/path/title/tokenを送らない、export/delete、crash report previewを提供する。
 
-## 062 [ ] Validate store policy and publish privacy documents
+## 062 [~] Validate store policy and publish privacy documents
 
 Labels: `type:release`, `priority:P0`
+
+GitHub Pagesでprivacy policyを安定HTTPS URLへ公開し、App Store / Google Playの日英掲載文と12 screenshotをリポジトリ内validatorへ接続した。`app.json`はapp-levelのApple privacy manifestを宣言し、CIがclean iOS prebuildを行う。Google Data Safety、App Privacy、OAuth確認用checklistも記録した。account側の回答、signed archiveのmerged manifest確認、production OAuth verification、TestFlight / Play closed testing、実際の審査提出は未実施。
 
 Acceptance: Apple privacy manifest、Google Data Safety、OAuth verification、privacy policy、account/token deletion手順が一致する。
 
@@ -923,9 +942,11 @@ Labels: `type:reliability`, `priority:P1`
 
 Acceptance: Expo update/native version compatibility、Tauri updater、DB forward migration、backup/restoreをrelease rehearsalで検証する。
 
-## 064 [ ] Run full device and performance release gate
+## 064 [~] Run full device and performance release gate
 
 Labels: `type:release`, `priority:P0`
+
+[Run 30743017733](https://github.com/hjosugi/iroha-pdf/actions/runs/30743017733)で1.5 GiB Android 16 AVDの300 MiB/500ページ open / critical trim / resume / cold reopenとnative pen pressureを通し、timing、3点PSS/RSS、logcat、SQLite、live/reload画像を保存した。これはfull gateのcontrolled Android部分のみ。iPad・desktop large PDF、物理端末、連続peak memory、battery/thermal、rotation、print、Drive conflict、署名packageは未完了のためrelease approvalはblockedのまま。
 
 Acceptance: `docs/TEST_PLAN.md`全matrix、memory、battery、startup、large PDF、Drive conflict、print evidenceを保存し、release checklistをapproveする。
 
@@ -946,6 +967,8 @@ desktop / mobileのアプリ内headerも同じvector pathを描画するため�
 desktop store screenshotはsynthetic fixtureだけを使い、1440×900で3枚（local-first empty state、PDF editing、annotation ready to save）をPlaywrightから生成した。`npm run store:screenshots:desktop`で再現できる。
 
 mobile store screenshotもcustomer dataやaccountを使わない合成2ページPDFをseedし、release設定のnative appから取得できるようにした。GitHub ActionsがPixel 6 AVD、iPhone 17 Pro Max Simulator、iPad Pro 13-inch M5 Simulatorで同じ4 sceneを撮影し、Play 1080×1920、App Store 6.9-inch 1320×2868、iPad 13-inch 2064×2752のopaque RGB PNGへ固定する。source commit、run ID、fixture、device matrixは`release/store/screenshots/evidence.json`に保存し、`npm run validate:store`が日英掲載文と12枚をまとめて検証する。
+
+Google Play専用の512×512 listing iconと1024×500 feature graphicもSVG masterから生成し、寸法・opaque・configをCIで検証する。
 
 名称についてはApple public Search API、Google Play検索、quoted web検索、J-PlatPat/WIPO/USPTOのindexed page、`irohapdf.com` / `.app`のRDAPを予備調査し、exact-nameのPDF app / markは見つからなかった。これは法的clearanceではなく、domainも取得していない。手順と検索先は`docs/BRAND.md`に記録。
 
