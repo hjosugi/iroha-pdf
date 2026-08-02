@@ -36,6 +36,10 @@
   --empty-mark-size: 56px;
   --dialog-width: 420px;
   --mobile-panel-min: 180px;
+  --shadow-tool-selected: inset 0 0 0 var(--line) #cbd7ff;
+  --shadow-swatch-selected: 0 0 0 var(--space-1) #fff, 0 0 0 var(--space-2) #2b5cff;
+  --shadow-brand-mark: 0 var(--space-6) 34px rgba(43,92,255,.25);
+  --shadow-dialog: 0 var(--space-9) 80px rgba(12,16,24,.24);
   color: #141821;
   background: #f3f4f6;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -78,7 +82,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .tool, .primary-button { min-height: var(--control-default); border: 0; border-radius: var(--radius-md); padding: var(--space-3) var(--space-6); font-size: var(--type-label); font-weight: 650; }
 .tool { color: #4e5663; background: #f2f3f6; }
 .tool:hover { background: #e8eaf0; }
-.tool.active { color: #2149d8; background: #e7edff; box-shadow: inset 0 0 0 1px #cbd7ff; }
+.tool.active { color: #2149d8; background: #e7edff; box-shadow: var(--shadow-tool-selected); }
 .primary-button { color: white; background: #2b5cff; }
 .primary-button:hover { background: #204ce1; }
 .primary-button.large { min-height: var(--control-touch); padding: var(--space-6) var(--space-7); font-size: var(--type-body); }
@@ -108,7 +112,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .save-state { color: #6b7280; font-size: var(--type-small); }
 .tool-settings { display: flex; gap: var(--space-2); align-items: center; }
 .swatch { width: var(--swatch-size); height: var(--swatch-size); border: var(--line) solid rgba(0,0,0,.18); border-radius: var(--radius-pill); padding: 0; }
-.swatch.active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2b5cff; }
+.swatch.active { box-shadow: var(--shadow-swatch-selected); }
 .width-pick { display: grid; width: var(--control-default); height: var(--control-compact); place-items: center; border: 0; border-radius: var(--radius-sm); background: transparent; }
 .width-pick span { width: var(--space-7); border-radius: var(--space-2); background: #4a5160; }
 .width-pick:hover { background: #f1f3f6; }
@@ -126,11 +130,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .empty-workspace { align-content: center; text-align: center; }
 .empty-workspace h1 { margin: var(--space-8) 0 var(--space-4); color: #161a22; font-size: var(--type-display); letter-spacing: -.04em; }
 .empty-workspace p { max-width: var(--copy-width); margin: 0 0 var(--space-8); line-height: var(--leading-copy); }
-.empty-mark { width: var(--empty-mark-size); height: var(--empty-mark-size); font-size: var(--type-icon); box-shadow: 0 12px 34px rgba(43,92,255,.25); }
+.empty-mark { width: var(--empty-mark-size); height: var(--empty-mark-size); font-size: var(--type-icon); box-shadow: var(--shadow-brand-mark); }
 .empty-mark svg { width: var(--control-default); height: var(--control-default); }
 
 .dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: var(--space-9); background: rgba(12,16,24,.48); }
-.print-dialog { width: min(var(--dialog-width), 100%); border: var(--line) solid #dfe3ea; border-radius: var(--radius-xl); padding: var(--space-8); color: #20252e; background: #fff; box-shadow: 0 24px 80px rgba(12,16,24,.24); }
+.print-dialog { width: min(var(--dialog-width), 100%); border: var(--line) solid #dfe3ea; border-radius: var(--radius-xl); padding: var(--space-8); color: #20252e; background: #fff; box-shadow: var(--shadow-dialog); }
 .print-dialog h2 { margin: 0 0 var(--space-7); font-size: var(--type-heading); }
 .print-dialog fieldset { display: grid; gap: var(--space-5); margin: 0; border: var(--line) solid #e4e7ec; border-radius: var(--radius-lg); padding: var(--space-7); }
 .print-dialog label { display: flex; align-items: center; gap: var(--space-4); }

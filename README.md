@@ -44,7 +44,7 @@
 - モバイルの注釈書き出し/印刷はPDF全体をJavaScriptメモリで再構成するため、64 MiBを超える入力では強制終了を避けてdesktop利用を案内します。native閲覧と注釈autosaveは継続できます。
 - 高圧縮、deskew、OCR、PDF/A、フォントアウトライン化はネイティブエンジンが必要です。デスクトップはpdfcpu sidecar、モバイルは専用ネイティブモジュールとしてIssue化しています。
 - Google Drive認証にはGoogle Cloud ConsoleでiOS、Android、Web OAuthクライアントを作成し、development buildを再生成する必要があります。
-- Driveのアップロード、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。
+- DriveのアップロードAPIはクライアント層までです。モバイルのアップロードUI、production実アカウントでの検証、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。
 - モバイルPDF表示は`react-native-pdf`を使うためExpo Goでは動きません。development buildを使用してください。
 - Androidエミュレータでは合成スタイラス入力と低メモリ試験を行いますが、物理iPhone / iPad / AndroidでのApple Pencil・各社ペン、印刷、回転、電池、OSによるprocess kill後の復旧は未検証です。
 - デスクトップ配布物は未署名です。Gatekeeper / SmartScreenの警告を回避できる一般向けリリースではありません。

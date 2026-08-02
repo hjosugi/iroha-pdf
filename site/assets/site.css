@@ -70,6 +70,17 @@
   --fact-card-min: 15rem;
   --document-card-min: 17rem;
   --toc-width: 15.5rem;
+  --decoration-strong: 2px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --masthead-blur: 10px;
+  --offscreen: -9999px;
+  --hero-glow-width: 90rem;
+  --hero-glow-height: 32rem;
+  --hero-glow-top: -18rem;
+  --type-hero: clamp(2.2rem, 7vw, 3.4rem);
+  --type-hero-copy: clamp(1rem, 2.4vw, 1.12rem);
+  --type-page-title: clamp(1.8rem, 5vw, 2.4rem);
 
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo,
@@ -124,17 +135,17 @@ body {
 
 a {
   color: var(--link);
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: var(--line);
   text-underline-offset: 0.18em;
 }
 
 a:hover {
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: var(--decoration-strong);
 }
 
 :focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--brand);
+  outline-offset: var(--focus-offset);
   border-radius: var(--radius-xs);
 }
 
@@ -145,7 +156,7 @@ img {
 
 .skip-link {
   position: absolute;
-  left: -9999px;
+  left: var(--offscreen);
   top: 0;
   z-index: 20;
   padding: var(--space-2) var(--space-4);
@@ -170,8 +181,8 @@ img {
   gap: var(--space-2) var(--space-6);
   padding: var(--space-3) clamp(var(--space-4), 4vw, var(--space-10));
   background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(var(--masthead-blur));
+  border-bottom: var(--line) solid var(--border);
 }
 
 .brand {
@@ -249,9 +260,9 @@ img {
 .hero {
   padding: clamp(var(--space-10), 7vw, var(--space-20)) clamp(var(--space-4), 4vw, var(--space-10)) clamp(var(--space-8), 5vw, var(--space-12));
   background:
-    radial-gradient(90rem 32rem at 50% -18rem, color-mix(in srgb, var(--brand) 20%, transparent), transparent 70%),
+    radial-gradient(var(--hero-glow-width) var(--hero-glow-height) at 50% var(--hero-glow-top), color-mix(in srgb, var(--brand) 20%, transparent), transparent 70%),
     var(--bg);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--line) solid var(--border);
 }
 
 .hero-inner {
@@ -282,7 +293,7 @@ img {
 
 .hero h1 {
   margin: var(--space-1) 0 var(--space-3);
-  font-size: clamp(2.2rem, 7vw, 3.4rem);
+  font-size: var(--type-hero);
   line-height: var(--leading-tight);
   letter-spacing: -0.02em;
 }
@@ -290,7 +301,7 @@ img {
 .lead {
   margin: 0 auto;
   max-width: var(--measure-narrow);
-  font-size: clamp(1rem, 2.4vw, 1.12rem);
+  font-size: var(--type-hero-copy);
 }
 
 .lead-en {
@@ -349,7 +360,7 @@ img {
 .facts {
   padding: clamp(var(--space-7), 4vw, var(--space-11)) clamp(var(--space-4), 4vw, var(--space-10));
   background: var(--bg-alt);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--line) solid var(--border);
 }
 
 .facts-grid {
@@ -609,7 +620,7 @@ img {
 
 .prose h1 {
   margin: var(--space-2) 0 var(--space-6);
-  font-size: clamp(1.8rem, 5vw, 2.4rem);
+  font-size: var(--type-page-title);
   line-height: var(--leading-tight);
   letter-spacing: -0.02em;
 }
@@ -617,7 +628,7 @@ img {
 .prose h2 {
   margin: var(--space-11) 0 var(--space-4);
   padding-bottom: var(--space-1);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--line) solid var(--border);
   font-size: var(--type-heading);
   line-height: var(--leading-snug);
 }
@@ -661,7 +672,7 @@ img {
 .prose hr {
   margin: var(--space-9) 0;
   border: 0;
-  border-top: 1px solid var(--border);
+  border-top: var(--line) solid var(--border);
 }
 
 .heading-anchor {
@@ -692,7 +703,7 @@ code {
 
 .prose :not(pre) > code {
   padding: 0.12em 0.36em;
-  border: 1px solid var(--border);
+  border: var(--line) solid var(--border);
   border-radius: var(--radius-xs);
   background: var(--surface-alt);
   white-space: nowrap;
@@ -749,7 +760,7 @@ code {
 .prose th,
 .prose td {
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--line) solid var(--border);
   vertical-align: top;
   line-height: var(--leading-copy);
 }
@@ -805,7 +816,7 @@ code {
 .source-note {
   margin-top: var(--space-12);
   padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
+  border-top: var(--line) solid var(--border);
   font-size: var(--type-small);
   color: var(--text-muted);
 }
@@ -813,7 +824,7 @@ code {
 /* ----------------------------------------------------------------- footer */
 
 .site-footer {
-  border-top: 1px solid var(--border);
+  border-top: var(--line) solid var(--border);
   background: var(--bg-alt);
   padding: var(--space-8) clamp(var(--space-4), 4vw, var(--space-10)) var(--space-10);
 }

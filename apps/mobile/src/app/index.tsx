@@ -18,7 +18,7 @@ import { createNote, deleteNote, listDocuments, listNotes, listRecoveryCopies } 
 import { importPdfFromSystem, removeImportedDocument } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady, readStoreCaptureScenario } from '@/lib/store-capture-native';
-import { COLOR, CONTROL, RADIUS, SPACE, TYPE } from '@/lib/theme';
+import { COLOR, CONTROL, RADIUS, SPACE, TRACKING, TYPE } from '@/lib/theme';
 
 export default function LibraryRoute() {
   const scenario = readStoreCaptureScenario();
@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
   contentColumn: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACE.xl, paddingTop: SPACE.xl },
   identity: { flexDirection: 'row', alignItems: 'center', gap: SPACE.md },
-  eyebrow: { color: '#7B8290', fontSize: TYPE.caption, fontWeight: '800', letterSpacing: 1.4 },
-  title: { color: '#151922', fontSize: TYPE.title, fontWeight: '800', letterSpacing: -1.1 },
+  eyebrow: { color: '#7B8290', fontSize: TYPE.caption, fontWeight: '800', letterSpacing: TRACKING.wide },
+  title: { color: '#151922', fontSize: TYPE.title, fontWeight: '800', letterSpacing: TRACKING.tight },
   avatar: { width: CONTROL.minimum, height: CONTROL.minimum, borderRadius: RADIUS.md, backgroundColor: '#E9EEFF', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: COLOR.brand, fontWeight: '800' },
   search: { margin: SPACE.xl, marginBottom: SPACE.md, borderRadius: RADIUS.md, backgroundColor: COLOR.surface, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md, color: COLOR.text, borderWidth: SPACE.hairline, borderColor: '#E8EAF0' },
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   noteCard: { minHeight: CONTROL.card, flexDirection: 'row', alignItems: 'stretch', marginBottom: SPACE.sm, borderRadius: RADIUS.lg, backgroundColor: '#FFFDF6', borderWidth: SPACE.hairline, borderColor: '#EEE9D8', overflow: 'hidden' },
   noteMainAction: { minWidth: 0, flex: 1, justifyContent: 'center', padding: SPACE.lg },
   moreButton: { width: CONTROL.comfortable, minHeight: CONTROL.comfortable, alignItems: 'center', justifyContent: 'center' },
-  moreText: { color: '#7C8390', fontSize: TYPE.body, fontWeight: '800', letterSpacing: 1 },
+  moreText: { color: '#7C8390', fontSize: TYPE.body, fontWeight: '800', letterSpacing: TRACKING.normal },
   noteTitle: { color: '#29281F', fontWeight: '700' },
   notePreview: { marginTop: SPACE.xs, color: '#858170', lineHeight: SPACE.xl },
 });

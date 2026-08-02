@@ -3,12 +3,17 @@
 ## Automated
 
 ```bash
-npm test              # unit
-npm run typecheck     # app sources + e2e sources
-npm run build:desktop
+frost test --all --no-tui       # unit, typecheck, docs/store/token validators
+frost build desktop-web --no-tui
 npm run e2e           # Playwright/Chromium: editing, save path, performance budgets
 npm run e2e:tauri     # the real Tauri binary via tauri-driver (Linux desktop session)
 ```
+
+FrostBuild v0.8.0 is the canonical incremental graph used locally and in CI.
+The direct npm E2E commands remain explicit because they drive external browser
+and desktop runtimes rather than cacheable unit/build targets. Workspace-level
+`npm run test --workspace ...` and `npm run typecheck --workspace ...` are useful
+for focused diagnosis, but are not substitutes for the complete Frost gate.
 
 The core suite builds deterministic mixed-size text fixtures and automatically
 checks page count, dimensions, decoded text operators, corrupt-input rejection,

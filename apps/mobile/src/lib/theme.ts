@@ -38,6 +38,12 @@ export const LINE_HEIGHT = {
   body: 20,
 } as const;
 
+export const TRACKING = {
+  tight: -1.1,
+  normal: 1,
+  wide: 1.4,
+} as const;
+
 export const LAYOUT = {
   readable: 760,
   editor: 840,
