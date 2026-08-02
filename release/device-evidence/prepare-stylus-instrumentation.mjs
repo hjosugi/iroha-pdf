@@ -134,6 +134,7 @@ public final class StylusInputTest {
         payload
       );
       JSONArray pressures = new JSONObject(payload).getJSONArray("pressures");
+      System.out.println("Persisted stylus payload: " + payload);
       assertTrue("too few pressure samples", pressures.length() >= 8);
       assertTrue("low pressure sample missing", pressures.getDouble(0) < 0.3);
       assertTrue("high pressure sample missing", pressures.getDouble(pressures.length() - 1) > 0.8);
@@ -257,6 +258,7 @@ public final class StylusInputTest {
   private static void captureEvidence(UiDevice device, Context context) {
     try {
       File directory = new File(context.getFilesDir(), "device-evidence");
+      System.out.println("Capturing stylus evidence in " + directory);
       if (!directory.exists() && !directory.mkdirs()) {
         throw new IllegalStateException("could not create stylus evidence directory");
       }
@@ -265,7 +267,7 @@ public final class StylusInputTest {
       }
       device.dumpWindowHierarchy(new File(directory, "stylus-window.xml"));
     } catch (Exception error) {
-      System.err.println("Could not capture in-app stylus evidence: " + error);
+      System.out.println("Could not capture in-app stylus evidence: " + error);
     }
   }
 }

@@ -96,4 +96,26 @@ assert.match(
   "react-native-pdf iOS must report the current page dimensions",
 );
 
+const reactNativeAndroidPointerEvent = await readFile(
+  path.join(
+    repositoryRoot,
+    "node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt",
+  ),
+  "utf8",
+);
+assert.match(
+  reactNativeAndroidPointerEvent,
+  /pointerType == PointerEventHelper\.POINTER_TYPE_PEN[\s\S]*motionEvent\.getPressure\(index\)\.toDouble\(\)\.coerceIn\(0\.0, 1\.0\)/,
+  "React Native Android must preserve normalized MotionEvent stylus pressure",
+);
+const reactNativePatch = await readFile(
+  path.join(repositoryRoot, "patches/react-native+0.86.2.patch"),
+  "utf8",
+);
+assert.match(
+  reactNativePatch,
+  /PointerEvent\.kt[\s\S]*POINTER_TYPE_PEN[\s\S]*motionEvent\.getPressure\(index\)/,
+  "the reviewed React Native 0.86.2 pressure bridge patch must be committed",
+);
+
 console.log("Dependency patch verification passed.");

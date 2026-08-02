@@ -170,8 +170,8 @@ pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCON
 sandbox = false
 
 # Resolves the installed `xcode` and `uuid` packages, the vendored glib fix and
-# the patched React Native PDF bridge. The lockfile plus reviewed patch file
-# stand in for the installed module tree the way they do for every other gate.
+# the patched React Native pointer/PDF bridges. The lockfile plus reviewed patch
+# files stand in for the installed module tree the way they do for every other gate.
 [target.iroha-pdf-dependency-patches]
 kind = "test"
 tool = "node"
