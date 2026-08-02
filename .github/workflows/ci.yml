@@ -717,18 +717,49 @@ jobs:
             fi
             sleep 1
           done
-          adb exec-out screencap -p > artifacts/device-evidence/stylus-pressure.png
+          [[ "$pressure_tree_ready" == true ]]
+
+          # Select Pen again using the bounds from the retained target tree,
+          # then require the restored badge to be visually rendered. Keep the
+          # instrumentation PNG and the cold-reload PNG as separate evidence.
+          read -r pen_x pen_y < <(python3 -c '
+          import re, sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          node = next(node for node in root.iter("node") if node.get("content-desc") in {"Pen annotation tool", "ペン注釈ツール"})
+          left, top, right, bottom = map(int, re.findall(r"\d+", node.get("bounds")))
+          print((left + right) // 2, (top + bottom) // 2)
+          ' artifacts/device-evidence/stylus-window.xml)
+          adb shell input tap "$pen_x" "$pen_y"
+          pen_tree_ready=false
+          for _ in $(seq 1 30); do
+            adb shell uiautomator dump /data/local/tmp/iroha-stylus-window.xml \
+              >/dev/null 2>&1 || true
+            adb pull /data/local/tmp/iroha-stylus-window.xml \
+              artifacts/device-evidence/stylus-window.xml >/dev/null 2>&1 || true
+            if grep -Eq 'Ink width 2\.4|ペンの太さ 2\.4' \
+                artifacts/device-evidence/stylus-window.xml 2>/dev/null \
+              && grep -Eq 'Pressure enabled|筆圧を反映中' \
+                artifacts/device-evidence/stylus-window.xml 2>/dev/null; then
+              pen_tree_ready=true
+              break
+            fi
+            sleep 1
+          done
+          adb exec-out screencap -p > artifacts/device-evidence/stylus-reload.png
           (( instrumentation_status == 0 ))
           grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt
           grep -Eq 'Verified persisted stylus pressure: samples=[0-9]+ low<0\.3 high>0\.8' \
             artifacts/device-evidence/stylus-logcat.txt
           grep -q 'Verified visible pressure accessibility state' \
             artifacts/device-evidence/stylus-logcat.txt
-          png_magic="$(od -An -tx1 -N8 artifacts/device-evidence/stylus-pressure.png | tr -d ' \n')"
-          [[ "$png_magic" == 89504e470d0a1a0a ]]
-          [[ "$pressure_tree_ready" == true ]]
+          for screenshot in stylus-pressure.png stylus-reload.png; do
+            png_magic="$(od -An -tx1 -N8 "artifacts/device-evidence/$screenshot" | tr -d ' \n')"
+            [[ "$png_magic" == 89504e470d0a1a0a ]]
+          done
+          [[ "$pen_tree_ready" == true ]]
           grep -q '<hierarchy' artifacts/device-evidence/stylus-window.xml
           grep -q 'package="app.irohapdf.mobile"' artifacts/device-evidence/stylus-window.xml
+          grep -Eq 'Ink width 2\.4|ペンの太さ 2\.4' artifacts/device-evidence/stylus-window.xml
           grep -Eq 'Pressure enabled|筆圧を反映中' artifacts/device-evidence/stylus-window.xml
       - name: Collect the emulator log
         if: always()
