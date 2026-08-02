@@ -10,7 +10,11 @@ def irohaReactNativeSource = new File(
     commandLine("node", "--print", "require.resolve('react-native/package.json')")
   }.standardOutput.asText.get().trim()
 ).getParentFile()
-includeBuild(irohaReactNativeSource)
+includeBuild(irohaReactNativeSource) {
+  dependencySubstitution {
+    substitute module("com.facebook.react:react-android") using project(":packages:react-native:ReactAndroid")
+  }
+}
 `;
 
 /**

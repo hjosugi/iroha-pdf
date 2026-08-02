@@ -127,8 +127,8 @@ const androidPointerPlugin = await readFile(
 );
 assert.match(
   androidPointerPlugin,
-  /includeBuild\(irohaReactNativeSource\)/,
-  "Android prebuild must compile the patched React Native source instead of the prebuilt AAR",
+  /includeBuild\(irohaReactNativeSource\)[\s\S]*substitute module\("com\.facebook\.react:react-android"\) using project\(":packages:react-native:ReactAndroid"\)/,
+  "Android prebuild must explicitly substitute the prebuilt AAR with the patched React Native project",
 );
 
 console.log("Dependency patch verification passed.");

@@ -121,7 +121,9 @@ jobs:
           grep --fixed-strings --line-regexp \
             '    ReactFeatureFlags.dispatchPointerEvents = true' "$application"
           grep --fixed-strings --line-regexp \
-            'includeBuild(irohaReactNativeSource)' "$settings"
+            'includeBuild(irohaReactNativeSource) {' "$settings"
+          grep --fixed-strings --line-regexp \
+            '    substitute module("com.facebook.react:react-android") using project(":packages:react-native:ReactAndroid")' "$settings"
         working-directory: apps/mobile
         env:
           EXPO_NO_DOCTOR: "1"
@@ -588,6 +590,20 @@ jobs:
             ~/Android/Sdk/cmake
           key: low-memory-android-${{ runner.os }}-${{ hashFiles('apps/mobile/package.json') }}
           restore-keys: android-${{ runner.os }}-
+      - name: Verify the patched React Android source is selected
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/device-evidence
+          apps/mobile/android/gradlew -p apps/mobile/android \
+            :app:dependencyInsight \
+            --dependency react-android \
+            --configuration releaseRuntimeClasspath \
+            --no-daemon \
+            | tee artifacts/device-evidence/react-android-dependency.txt
+          grep --extended-regexp --quiet \
+            'project .*packages:react-native:ReactAndroid' \
+            artifacts/device-evidence/react-android-dependency.txt
       - name: Build the x86_64 release APK and stylus instrumentation
         run: >-
           ./gradlew assembleRelease assembleReleaseAndroidTest --no-daemon
