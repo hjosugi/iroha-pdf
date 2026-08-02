@@ -80,7 +80,11 @@ public final class StylusInputTest {
     try {
       UiObject2 pen = waitForDescription(device, "Pen annotation tool", "ペン注釈ツール", 60_000);
       assertNotNull("pen tool did not appear", pen);
-      UiObject2 page = waitForDescription(device, "PDF annotation page", "PDF注釈ページ", 30_000);
+      assertNotNull(
+        "500-page document did not finish loading",
+        waitForDescription(device, "Page 1 of 500", "1 / 500ページ", 240_000)
+      );
+      UiObject2 page = waitForDescription(device, "PDF annotation page", "PDF注釈ページ", 60_000);
       assertNotNull("annotation page did not appear before selecting the pen", page);
       Rect bounds = page.getVisibleBounds();
 

@@ -381,6 +381,7 @@ jobs:
   # neither is a copy of this job.
   e2e-tauri:
     name: Real-runtime e2e (ubuntu)
+    if: github.event_name != 'workflow_dispatch' || inputs.store_screenshots != true
     runs-on: ubuntu-latest
     # Cold, the debug compile of the Tauri dependency tree dominates: 2m 24s on the
     # machine this was verified on, and a shared runner is slower.

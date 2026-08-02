@@ -21,6 +21,7 @@ try {
   assert.match(workflow, /adb pull[^\n]*stylus-pressure\.png[\s\S]*adb pull[^\n]*stylus-window\.xml[\s\S]*instrumentation_status == 0/, 'stylus failures must retain the in-app screen and accessibility tree before failing');
   const stylusHarness = readFileSync(resolve(root, 'release/device-evidence/prepare-stylus-instrumentation.mjs'), 'utf8');
   assert.match(stylusHarness, /finally \{\s*captureEvidence\(device, target\);\s*\}/, 'the instrumentation must capture evidence before Android stops the target package');
+  assert.match(stylusHarness, /Page 1 of 500[\s\S]*240_000/, 'stylus instrumentation must wait for the real large document instead of racing the initial 1-page state');
   assert.match(stylusHarness, /annotation page did not appear before selecting the pen/, 'the stable page bounds must be measured before annotation controls alter the accessibility tree');
 
   for (const [tool, arguments_] of [
