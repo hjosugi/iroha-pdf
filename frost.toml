@@ -90,6 +90,7 @@ args = ["release/build/validate-frost-integration.mjs"]
 inputs = [
   ".github/workflows/ci.yml",
   "apps/desktop/package.json",
+  "apps/desktop/e2e/performance.spec.ts",
   "frost.toml",
   "release/build/validate-frost-integration.mjs",
 ]

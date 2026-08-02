@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '../..');
 const workflow = readFileSync(resolve(root, '.github/workflows/ci.yml'), 'utf8');
 const desktopPackage = JSON.parse(readFileSync(resolve(root, 'apps/desktop/package.json'), 'utf8'));
+const performanceSuite = readFileSync(resolve(root, 'apps/desktop/e2e/performance.spec.ts'), 'utf8');
 
 assert.doesNotMatch(
   workflow,
@@ -20,6 +21,11 @@ assert.equal(
   desktopPackage.scripts?.preview,
   'vite preview --outDir dist/debug',
   'Playwright preview must serve the profile-specific Frost output',
+);
+assert.match(
+  performanceSuite,
+  /\.\.\/dist\/debug/,
+  'bundle-policy tests must inspect the same profile-specific Frost output',
 );
 
 process.stdout.write('CI and Playwright consume the profile-specific Frost web output.\n');

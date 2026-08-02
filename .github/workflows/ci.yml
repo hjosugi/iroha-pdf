@@ -617,12 +617,19 @@ jobs:
           test_apk="$(find apps/mobile/android/app/build/outputs/apk/androidTest -name '*.apk' -print -quit)"
           [[ -n "$test_apk" ]] || { echo 'stylus instrumentation APK not found' >&2; exit 1; }
           adb install -r "$test_apk"
+          set +e
           adb shell am instrument -w -r \
             -e class app.irohapdf.mobile.StylusInputTest \
             app.irohapdf.mobile.test/androidx.test.runner.AndroidJUnitRunner \
             | tee artifacts/device-evidence/stylus-instrumentation.txt
-          grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt
+          instrumentation_status="${PIPESTATUS[0]}"
+          set -e
           adb exec-out screencap -p > artifacts/device-evidence/stylus-pressure.png
+          adb shell uiautomator dump /sdcard/iroha-stylus-window.xml >/dev/null 2>&1 || true
+          adb pull /sdcard/iroha-stylus-window.xml \
+            artifacts/device-evidence/stylus-window.xml >/dev/null 2>&1 || true
+          (( instrumentation_status == 0 ))
+          grep -q '^OK (1 test)' artifacts/device-evidence/stylus-instrumentation.txt
       - name: Collect the emulator log
         if: always()
         run: |

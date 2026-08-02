@@ -16,7 +16,10 @@ import { drawShape, firstPage, openPdf, save } from './helpers';
 import { boot } from './helpers';
 import { readVirtualFile } from './tauri-stub';
 
-const DIST = join(dirname(fileURLToPath(import.meta.url)), '../dist');
+// Playwright previews the exact debug profile emitted by Frost. Bundle-policy
+// checks must inspect that same tree; reading ../dist can accidentally pass on
+// a developer machine because a stale, pre-Frost Vite build is still present.
+const DIST = join(dirname(fileURLToPath(import.meta.url)), '../dist/debug');
 
 /**
  * Shared CI runners are slower and noisier than a developer machine. Scaling the time
