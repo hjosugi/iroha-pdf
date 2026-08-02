@@ -53,6 +53,7 @@
 - 注釈のFlatten export
 - Object Streamを使った安全な構造最適化
 - append-only同期操作とlogical clock
+- 日英の型付きメッセージcatalog（下記）
 
 ### `@iroha-pdf/google-drive`
 
@@ -60,6 +61,18 @@
 - モバイルとデスクトップでOAuth UIだけを差し替え
 - 小さいファイルでもresumable uploadを使い、同じコードパスに統一
 - `appDataFolder`に同期操作、cursor、設定を保存
+
+## Localization
+
+日本語と英語の2言語です。catalogは`packages/core/src/i18n.ts`に1つだけ置き、両言語を横に並べて持ちます。片方だけ追加することが型として不可能で、存在しないkeyは呼び出し側のcompile errorになります。
+
+i18nライブラリは使いません。要件は「2つのlocaleから1つ選んで文字列を引く」だけで、plural rule、lazy namespace読み込み、ICU parseを持つ依存を全platformが背負う理由がありません。
+
+localeはOS/端末の言語から起動時に1度だけ解決します。切り替えはOSの設定であり、変わればwebviewもbrowserも再読み込みするため、動かない値のためにReact contextを用意しません。desktopは`<html lang>`も設定します（screen reader、hyphenation、CJK fallback fontがこれを見ます）。
+
+日時だけは意図的にapp localeではなくplatform localeで整形します。アプリは2言語ですが、機械が日付をどう書くかはその機械の設定であり、日本語環境で英語UIを読んでいる人も日付は自分の形式を期待します。
+
+**永続化するデータに表示文字列を入れません。** 保存するのは識別子で、名前はcatalogから表示時に引きます。編集履歴（#101）がこれを破っていた実例です — 注釈の種別を英語名のまま`localStorage`へ書いていたため、記録した時点の言語に履歴が固定されていました。catalogを訳しても既存の履歴は英語のままで、しかも時期ごとに言語が混ざります。現在は`AnnotationKind`という識別子を保存し、旧版が書いた英語名は読み込み時に識別子へ読み替えます。
 
 ## Annotation strategy
 

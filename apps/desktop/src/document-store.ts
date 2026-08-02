@@ -10,10 +10,48 @@
 import { clearDraft, loadDraft, type Draft } from './draft-store';
 import { readStoredObject, storageKey } from './local-storage';
 
+/**
+ * What kind of mark an edit touched, as an identifier rather than a name.
+ *
+ * The history outlives the session in `localStorage`, so anything written here
+ * is read back by a build that may be running in the other language. A rendered
+ * label would freeze the timeline in whichever language was in use the day the
+ * edit was made; the identifier is looked up in the message catalogue at render
+ * time instead.
+ */
+export type AnnotationKind =
+  | 'highlight'
+  | 'ink'
+  | 'freetext'
+  | 'square'
+  | 'circle'
+  | 'underline'
+  | 'strikeout'
+  | 'squiggly'
+  | 'stickyNote'
+  | 'stamp'
+  | 'line'
+  | 'other';
+
+const ANNOTATION_KINDS: readonly AnnotationKind[] = [
+  'highlight',
+  'ink',
+  'freetext',
+  'square',
+  'circle',
+  'underline',
+  'strikeout',
+  'squiggly',
+  'stickyNote',
+  'stamp',
+  'line',
+  'other',
+];
+
 export type EditEntry = {
   at: number;
   kind: 'create' | 'update' | 'delete';
-  label: string;
+  annotation: AnnotationKind;
   pageIndex: number;
 };
 
@@ -76,12 +114,40 @@ function patch(documentId: string, changes: Partial<DocumentFile>): DocumentFile
   return next;
 }
 
+/**
+ * Versions before the timeline was translatable stored the English name of the
+ * mark. Those entries are still in people's browsers, so they are read back into
+ * the identifier that produces the same text — which is also what finally makes
+ * them show up in Japanese.
+ */
+const LEGACY_LABELS: Readonly<Record<string, AnnotationKind>> = {
+  Highlight: 'highlight',
+  'Pen stroke': 'ink',
+  Text: 'freetext',
+  Shape: 'square',
+  Ellipse: 'circle',
+  Underline: 'underline',
+  Strikeout: 'strikeout',
+  Squiggly: 'squiggly',
+  'Sticky note': 'stickyNote',
+  Stamp: 'stamp',
+  Line: 'line',
+};
+
+function annotationKindOf(entry: Partial<EditEntry> & { label?: unknown }): AnnotationKind {
+  if (entry.annotation && ANNOTATION_KINDS.includes(entry.annotation)) return entry.annotation;
+  if (typeof entry.label === 'string') return LEGACY_LABELS[entry.label] ?? 'other';
+  return 'other';
+}
+
 /** History is a convenience, never a correctness dependency — losing it must not break saving. */
 function loadHistory(path: string): Pick<DocumentFile, 'edits' | 'revisions'> {
   const stored: Partial<DocumentFile> =
     readStoredObject<DocumentFile>(storageKey('history', path)) ?? {};
   return {
-    edits: Array.isArray(stored.edits) ? stored.edits : [],
+    edits: Array.isArray(stored.edits)
+      ? stored.edits.map((entry) => ({ ...entry, annotation: annotationKindOf(entry) }))
+      : [],
     revisions: Array.isArray(stored.revisions) ? stored.revisions : [],
   };
 }

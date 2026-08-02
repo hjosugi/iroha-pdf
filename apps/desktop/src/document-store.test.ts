@@ -12,7 +12,7 @@ import {
 } from './document-store';
 
 function edit(overrides: Partial<EditEntry> = {}): EditEntry {
-  return { at: 1_000, kind: 'create', label: 'Highlight', pageIndex: 0, ...overrides };
+  return { at: 1_000, kind: 'create', annotation: 'highlight', pageIndex: 0, ...overrides };
 }
 
 beforeEach(() => {
@@ -51,21 +51,42 @@ describe('document store', () => {
 
   it('restores a previous session history when the same path is reopened', () => {
     registerOpenedFile('doc2', '/tmp/b.pdf');
-    recordEdit('doc2', edit({ label: 'Pen stroke' }));
+    recordEdit('doc2', edit({ annotation: 'ink' }));
     forgetDocument('doc2');
 
     registerOpenedFile('doc2-again', '/tmp/b.pdf');
     const restored = getDocumentFile('doc2-again');
     expect(restored.edits).toHaveLength(1);
-    expect(restored.edits[0]?.label).toBe('Pen stroke');
+    expect(restored.edits[0]?.annotation).toBe('ink');
     // Reopening is not an unsaved change.
     expect(restored.pendingEdits).toBe(0);
     forgetDocument('doc2-again');
   });
 
+  it('reads a history written before the timeline was translatable', () => {
+    // What an older build left in the browser: the English name of the mark,
+    // with no identifier to look a translation up by.
+    localStorage.setItem(
+      'iroha-pdf:history:/tmp/legacy.pdf',
+      JSON.stringify({
+        edits: [
+          { at: 1, kind: 'create', label: 'Pen stroke', pageIndex: 0 },
+          { at: 2, kind: 'create', label: 'Sticky note', pageIndex: 1 },
+          { at: 3, kind: 'delete', label: 'Something this build never wrote', pageIndex: 2 },
+        ],
+        revisions: [],
+      }),
+    );
+
+    registerOpenedFile('legacy', '/tmp/legacy.pdf');
+    const { edits } = getDocumentFile('legacy');
+    expect(edits.map((entry) => entry.annotation)).toEqual(['ink', 'stickyNote', 'other']);
+    forgetDocument('legacy');
+  });
+
   it('keeps histories of different files separate', () => {
     registerOpenedFile('x', '/tmp/x.pdf');
-    recordEdit('x', edit({ label: 'Text' }));
+    recordEdit('x', edit({ annotation: 'freetext' }));
     registerOpenedFile('y', '/tmp/y.pdf');
     expect(getDocumentFile('y').edits).toEqual([]);
     forgetDocument('x');

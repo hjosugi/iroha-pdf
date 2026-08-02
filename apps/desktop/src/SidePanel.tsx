@@ -38,7 +38,7 @@ function EditLabel({ entry }: { entry: EditEntry }) {
   return (
     <span className="history-label">
       {`${t(EDIT_VERBS[entry.kind])} `}
-      <strong>{entry.label}</strong>
+      <strong>{t(`annotation.${entry.annotation}`)}</strong>
       <span className="history-meta">{t('history.page', { page: entry.pageIndex + 1 })}</span>
     </span>
   );

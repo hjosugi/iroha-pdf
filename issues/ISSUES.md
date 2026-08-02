@@ -1,6 +1,19 @@
 # GitHub issues backlog
 
-このファイルは初期バックログと検証記録のリポジトリ内ミラーです。Issueは既にGitHubへ登録済みのため、状態・優先度・番号の正はGitHub Issuesです。`[x]`は実装済み、`[~]`は部分実装、`[ ]`は未実装です。実装済みでも実機証跡がない項目はcloseしません。
+このファイルは初期バックログと検証記録のリポジトリ内ミラーです。状態・優先度・番号の正はGitHub Issuesです。`[x]`は実装済み、`[~]`は部分実装、`[ ]`は未実装です。実装済みでも実機証跡がない項目はcloseしません。
+
+**節番号とGitHub Issue番号は一致しません。** 初期一括登録の際にDependabotが低い番号を消費したため、ずれは+2〜+5の範囲で一定しません。対応付けはtitleで確認してください。
+
+`001`〜`064`は一括登録済みです。作業の途中で追加した`065`以降は、未完了のものだけを個別に登録しました:
+
+| 節 | GitHub Issue |
+|---|---|
+| `065` Replace placeholder product identity and application icons | #103 |
+| `066` Save edits back into the PDF file on desktop | #100 |
+| `067` Show PDF edit history | #101 |
+| `076` Save back into the file the user opened, on mobile | #102 |
+
+`068`〜`075`と`077`は完了済みの記録なので、closeするためだけのissueは作っていません。
 
 ## モバイル棚卸し（2026-07-20 Android emulator、2026-08-01 native screenshot matrix）
 
@@ -768,6 +781,8 @@ Acceptance: UI、errors、print settings、OAuth explanation、file size/dateが
 
 **更新（2026-08-02）**: coreの型付き日英catalogをmobile/desktopの主要画面、エラー、印刷設定、OAuth説明、復旧UIへ適用した。OS localeによる日付表示も使用している。native moduleが返す予期しないエラー本文の分類、実機での長文/dynamic type確認が残る。
 
+**更新（2026-08-02, 2）**: desktopの編集履歴は注釈名を英語のまま`localStorage`へ書き込んでいたため、記録した時点の言語に固定されていた。`EditEntry`が保持する値を表示名から識別子（`AnnotationKind`）へ変え、表示時にcatalogを引くようにした。旧versionが書いた履歴も識別子へ読み替えるので、既存の履歴が日本語で表示されるようになる。e2e helperが英語のbutton名を固定していたため日本語で起動できなかった点も直し、日本語locale下で履歴が日本語になることをe2eで検証している。
+
 ## 051 [~] Add privacy, security, and threat-model documentation
 
 Labels: `type:security`, `priority:P0`
@@ -990,12 +1005,12 @@ historyプラグインはundo/redoを持つが過去の編集を一覧する口�
 
 実装済み:
 
-- annotationのcreate/update/deleteをtimestamp・種別・page番号付きで記録
+- annotationのcreate/update/deleteをtimestamp・種別・page番号付きで記録（種別は識別子で保存し、表示名はcatalogから引くため日英どちらでも読める）
 - 保存ごとにrevision（時刻、path、byte数、編集件数、save/save-as別）を記録
 - side panelをEdit history / Noteのtab構成にし、新しい順で表示
 - pathをkeyにlocalStorageへ永続化するため、閉じて開き直しても履歴が残る
 - edits 500件 / revisions 100件でcap
-- unit test 9件（`document-store.test.ts`）
+- unit test 10件（`document-store.test.ts`）。旧versionが英語の表示名で書いた履歴の読み替えも含む
 
 未実装:
 

@@ -14,7 +14,15 @@ export type BootOptions = {
   savePath?: string | null;
   /** How a confirmation prompt is answered. Defaults to backing out. */
   confirmAnswer?: 'ok' | 'cancel';
+  /**
+   * The open button's text, which is what "the app has loaded" is waited on.
+   * Only a test running under a non-English locale needs to pass this.
+   */
+  openLabel?: string;
 };
+
+/** The default because the suite runs under Playwright's default locale. */
+const OPEN_LABEL = 'Open PDF';
 
 /** Above this, base64 in an init script costs more than an intercepted fetch. */
 const INLINE_LIMIT_BYTES = 4 * 1024 * 1024;
@@ -51,13 +59,13 @@ export async function boot(
   }
 
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Open PDF' })).toBeVisible();
+  await expect(page.getByRole('button', { name: options.openLabel ?? OPEN_LABEL })).toBeVisible();
   return { openPath, originalBytes };
 }
 
 /** Clicks through the open flow and waits until pages are actually rendered. */
-export async function openPdf(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Open PDF' }).click();
+export async function openPdf(page: Page, openLabel: string = OPEN_LABEL): Promise<void> {
+  await page.getByRole('button', { name: openLabel }).click();
   await expect(page.locator('.pdf-toolbar')).toBeVisible();
   // Pages render as <img> blobs, not canvases.
   await expect(firstPage(page)).toBeVisible();
@@ -82,8 +90,10 @@ export async function drawShape(
     width: 0.4,
     height: 0.15,
   },
+  /** The tool button's text; only a non-English locale needs to pass this. */
+  toolLabel: string = 'Shape',
 ): Promise<void> {
-  const shape = page.getByRole('button', { name: 'Shape', exact: true });
+  const shape = page.getByRole('button', { name: toolLabel, exact: true });
   const bounds = await firstPage(page).boundingBox();
   if (!bounds) throw new Error('page 1 has no bounding box');
 

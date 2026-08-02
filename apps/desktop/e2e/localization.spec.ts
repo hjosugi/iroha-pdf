@@ -14,6 +14,7 @@
  */
 import { expect, test } from '@playwright/test';
 
+import { boot, drawShape, openPdf } from './helpers';
 import { installTauriStub } from './tauri-stub';
 
 test.describe('a machine set to Japanese', () => {
@@ -38,6 +39,19 @@ test.describe('a machine set to Japanese', () => {
 
     // Screen readers, hyphenation and CJK font fallback all key off this.
     await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
+  });
+
+  test('names the mark in the edit history in Japanese', async ({ page }) => {
+    // The timeline is stored, so it is the one place where a rendered label
+    // would have survived past the moment it was written. Drawing and then
+    // reading it back is what proves the identifier is what got stored.
+    await boot(page, 'complex.pdf', { openLabel: 'PDFを開く' });
+    await openPdf(page, 'PDFを開く');
+    await drawShape(page, undefined, '図形');
+
+    const entry = page.locator('.history-item.edit').first();
+    await expect(entry).toContainText('図形');
+    await expect(entry).not.toContainText('Shape');
   });
 });
 
