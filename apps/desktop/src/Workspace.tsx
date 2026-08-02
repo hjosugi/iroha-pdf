@@ -1,73 +1,44 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import type { DocumentState } from '@embedpdf/core';
-import { AnnotationLayer, useAnnotationCapability } from '@embedpdf/plugin-annotation/react';
+import { AnnotationLayer } from '@embedpdf/plugin-annotation/react';
 import {
   DocumentContent,
   useDocumentManagerCapability,
 } from '@embedpdf/plugin-document-manager/react';
-import { useHistoryCapability } from '@embedpdf/plugin-history/react';
 import {
   GlobalPointerProvider,
   PagePointerProvider,
 } from '@embedpdf/plugin-interaction-manager/react';
-import { usePrint } from '@embedpdf/plugin-print/react';
 import { RenderLayer } from '@embedpdf/plugin-render/react';
 import { Rotate } from '@embedpdf/plugin-rotate/react';
-import { Scroller, useScroll } from '@embedpdf/plugin-scroll/react';
+import { Scroller } from '@embedpdf/plugin-scroll/react';
 import { SelectionLayer } from '@embedpdf/plugin-selection/react';
 import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
-import type { Note } from '@iroha-pdf/core';
 
 import { BrandMark } from './BrandMark';
-import { basename, confirmDiscard, isDesktopRuntime } from './file-bridge';
-import {
-  colorOf,
-  colorPatchFor,
-  loadSetting,
-  PALETTES,
-  patchFor,
-  saveSetting,
-  STROKE_WIDTHS,
-  supportsStrokeWidth,
-  toolForSubtype,
-  type ToolId,
-  type ToolSetting,
-} from './tool-settings';
-import {
-  documentsWithUnsavedEdits,
-  forgetDocument,
-  getDocumentFile,
-  type EditEntry,
-  type SaveRevision,
-} from './document-store';
+import { PdfToolbar } from './PdfToolbar';
+import { SidePanel } from './SidePanel';
+import { confirmDiscard } from './file-bridge';
+import { forgetDocument, getDocumentFile, hasUnsavedEdits } from './document-store';
 import {
   useDeleteSelected,
   useDocumentFile,
   useEditTimeline,
   useOpenPdf,
-  usePdfSave,
   useRecoverDraft,
-  useSelectedAnnotations,
-  type SaveOutcome,
 } from './use-pdf-file';
-import { t } from './i18n';
+import { t, timeFormat } from './i18n';
 
 type WorkspaceProps = {
   activeDocumentId: string | null;
   documentStates: DocumentState[];
 };
 
-type TabStripProps = WorkspaceProps & {
+type TabStripProps = {
   documents: DocumentState[];
+  activeDocumentId: string | null;
 };
-
-const TOOL_LABELS = [
-  ['highlight', 'edit.highlight'],
-  ['ink', 'edit.pen'],
-  ['freeText', 'edit.text'],
-  ['square', 'edit.shape'],
-] as const;
 
 function TabStrip({ documents, activeDocumentId }: TabStripProps) {
   const { provides } = useDocumentManagerCapability();
@@ -119,459 +90,6 @@ function TabStrip({ documents, activeDocumentId }: TabStripProps) {
       ) : null}
     </div>
   );
-}
-
-/**
- * Colour and width for whichever tool is in hand.
- *
- * Shown only while a tool is active, so the toolbar stays quiet when reading. The
- * choice is pushed into the plugin's tool defaults and remembered, because picking
- * your highlighter colour again on every launch would be its own small tax.
- */
-function ToolSettings({ toolId }: { toolId: ToolId }) {
-  const { provides: annotationCapability } = useAnnotationCapability();
-  const [setting, setSetting] = useState<ToolSetting>(() => loadSetting(toolId));
-
-  useEffect(() => {
-    setSetting(loadSetting(toolId));
-  }, [toolId]);
-
-  useEffect(() => {
-    annotationCapability?.setToolDefaults(toolId, patchFor(toolId, setting));
-    saveSetting(toolId, setting);
-  }, [annotationCapability, setting, toolId]);
-
-  return (
-    <div className="tool-settings">
-      {PALETTES[toolId].map((color) => (
-        <button
-          aria-label={t('edit.color', { color })}
-          aria-pressed={setting.color.toLowerCase() === color.toLowerCase()}
-          className={
-            setting.color.toLowerCase() === color.toLowerCase() ? 'swatch active' : 'swatch'
-          }
-          key={color}
-          onClick={() => setSetting((current) => ({ ...current, color }))}
-          style={{ background: color }}
-          title={color}
-        />
-      ))}
-      {supportsStrokeWidth(toolId) && (
-        <>
-          <span className="toolbar-divider" />
-          {STROKE_WIDTHS.map((width) => (
-            <button
-              aria-label={t('edit.strokeWidth', { width })}
-              aria-pressed={setting.strokeWidth === width}
-              className={setting.strokeWidth === width ? 'width-pick active' : 'width-pick'}
-              key={width}
-              onClick={() => setSetting((current) => ({ ...current, strokeWidth: width }))}
-              title={`${width} pt`}
-            >
-              <span style={{ height: Math.max(2, width / 1.5) }} />
-            </button>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
- * The same picker, but bound to a mark already on the page.
- *
- * Without this the only way to recolour or thin an existing annotation is to delete it
- * and draw it again — the sort of friction this app exists to remove.
- */
-function SelectionSettings({ documentId }: { documentId: string }) {
-  const { selected, update } = useSelectedAnnotations(documentId);
-  if (selected.length !== 1) return null;
-
-  const target = selected[0]!.object as unknown as Record<string, unknown> & {
-    id: string;
-    pageIndex: number;
-    type: number;
-    strokeWidth?: number;
-  };
-  const toolId = toolForSubtype(target.type);
-  if (!toolId) return null;
-
-  const current = colorOf(toolId, target);
-
-  return (
-    <div className="tool-settings selection">
-      <span className="toolbar-group-label">{t('edit.selected')}</span>
-      {PALETTES[toolId].map((color) => (
-        <button
-          aria-label={t('edit.color', { color })}
-          aria-pressed={current?.toLowerCase() === color.toLowerCase()}
-          className={current?.toLowerCase() === color.toLowerCase() ? 'swatch active' : 'swatch'}
-          key={color}
-          onClick={() => update(target.pageIndex, target.id, colorPatchFor(toolId, color))}
-          style={{ background: color }}
-          title={color}
-        />
-      ))}
-      {supportsStrokeWidth(toolId) && (
-        <>
-          <span className="toolbar-divider" />
-          {STROKE_WIDTHS.map((width) => (
-            <button
-              aria-label={t('edit.strokeWidth', { width })}
-              aria-pressed={target.strokeWidth === width}
-              className={target.strokeWidth === width ? 'width-pick active' : 'width-pick'}
-              key={width}
-              onClick={() => update(target.pageIndex, target.id, { strokeWidth: width })}
-              title={`${width} pt`}
-            >
-              <span style={{ height: Math.max(2, width / 1.5) }} />
-            </button>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-function PdfToolbar({ documentId, documentName }: { documentId: string; documentName: string }) {
-  const { provides: annotationCapability } = useAnnotationCapability();
-  const { provides: historyCapability } = useHistoryCapability();
-  const { provides: printProvider } = usePrint(documentId);
-  const { save, saveAs } = usePdfSave(documentId, documentName);
-  const file = useDocumentFile(documentId);
-  const [saveState, setSaveState] = useState<string | null>(null);
-  const annotation = useMemo(
-    () => annotationCapability?.forDocument(documentId),
-    [annotationCapability, documentId],
-  );
-  const history = useMemo(
-    () => historyCapability?.forDocument(documentId),
-    [historyCapability, documentId],
-  );
-  const { state: scrollState } = useScroll(documentId);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
-  const [printOpen, setPrintOpen] = useState(false);
-  const [printMode, setPrintMode] = useState<'all' | 'current' | 'custom'>('all');
-  const [pageRange, setPageRange] = useState('');
-  const [includeAnnotations, setIncludeAnnotations] = useState(true);
-  const printButtonRef = useRef<HTMLButtonElement>(null);
-  const printDialogRef = useRef<HTMLElement>(null);
-
-  const closePrint = useCallback(() => {
-    setPrintOpen(false);
-    window.requestAnimationFrame(() => printButtonRef.current?.focus());
-  }, []);
-
-  useEffect(() => {
-    if (!printOpen) return;
-    printDialogRef.current?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      closePrint();
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [closePrint, printOpen]);
-
-  useEffect(() => {
-    if (!annotation) return;
-    setActiveTool(annotation.getActiveTool()?.id ?? null);
-    return annotation.onActiveToolChange((tool) => setActiveTool(tool?.id ?? null));
-  }, [annotation]);
-
-  const toggleTool = (tool: string) => {
-    annotation?.setActiveTool(activeTool === tool ? null : tool);
-  };
-
-  const describe = (outcome: SaveOutcome): string | null => {
-    if (outcome.status === 'cancelled') return null;
-    if (outcome.status === 'downloaded') return t('save.downloaded');
-    return t('save.savedTo', { name: basename(outcome.path) });
-  };
-
-  /**
-   * Engine and IPC failures arrive as things like
-   * `Task rejected: {"code":14,"message":"Document doc-123 not found"}`. Showing that
-   * to someone who just wanted to keep their notes is useless, so it goes to the
-   * console and they get something they can act on.
-   */
-  const describeFailure = (error: unknown): string => {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/forbidden path|not allowed/i.test(message)) {
-      return t('save.notAllowed');
-    }
-    if (/ENOSPC|no space left/i.test(message)) return t('save.diskFull');
-    if (/EACCES|permission denied|read-only/i.test(message)) {
-      return t('save.notWritable');
-    }
-    if (/not found/i.test(message)) return t('save.notOpen');
-    return t('save.failed');
-  };
-
-  const runSave = async (action: () => Promise<SaveOutcome>) => {
-    setSaveState(t('save.saving'));
-    try {
-      setSaveState(describe(await action()));
-    } catch (error) {
-      console.error('Iroha PDF: save failed', error);
-      setSaveState(describeFailure(error));
-    }
-  };
-
-  const unsaved = file.pendingEdits > 0;
-
-  return (
-    <div className="pdf-toolbar">
-      <span className="toolbar-group-label">{t('edit.label')}</span>
-      {TOOL_LABELS.map(([tool, labelKey]) => (
-        <button
-          aria-pressed={activeTool === tool}
-          className={activeTool === tool ? 'tool active' : 'tool'}
-          key={tool}
-          onClick={() => toggleTool(tool)}
-        >
-          {t(labelKey)}
-        </button>
-      ))}
-      <span className="toolbar-divider" />
-      {activeTool ? (
-        <ToolSettings toolId={activeTool as ToolId} />
-      ) : (
-        <SelectionSettings documentId={documentId} />
-      )}
-      <span className="toolbar-divider" />
-      <button className="tool" onClick={() => history?.undo()}>{t('edit.undo')}</button>
-      <button className="tool" onClick={() => history?.redo()}>{t('edit.redo')}</button>
-      <span className="toolbar-spacer" />
-      {saveState && <span className="save-state">{saveState}</span>}
-      <button className="tool" onClick={() => void runSave(saveAs)}>
-        {t(isDesktopRuntime() ? 'save.saveAs' : 'save.downloadCopy')}
-      </button>
-      <button ref={printButtonRef} className="tool" onClick={() => setPrintOpen(true)}>
-        {t('print.open')}
-      </button>
-      <button className={unsaved ? 'primary-button unsaved' : 'primary-button'} onClick={() => void runSave(save)}>
-        {unsaved ? t('save.saveCount', { count: file.pendingEdits }) : t('save.save')}
-      </button>
-      {printOpen ? (
-        <div className="dialog-backdrop" role="presentation" onMouseDown={closePrint}>
-          <section
-            ref={printDialogRef}
-            className="print-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="print-dialog-title"
-            tabIndex={-1}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <h2 id="print-dialog-title">{t('print.dialogTitle')}</h2>
-            <fieldset>
-              <legend>{t('print.pages')}</legend>
-              <label><input type="radio" checked={printMode === 'all'} onChange={() => setPrintMode('all')} /> {t('print.allPages')}</label>
-              <label><input type="radio" checked={printMode === 'current'} onChange={() => setPrintMode('current')} /> {t('print.currentPage')} ({scrollState.currentPage || 1})</label>
-              <label><input type="radio" checked={printMode === 'custom'} onChange={() => setPrintMode('custom')} /> {t('print.range')}</label>
-              <input aria-label={t('print.pageRange')} disabled={printMode !== 'custom'} value={pageRange} onChange={(event) => setPageRange(event.target.value)} placeholder={t('print.rangePlaceholder')} />
-            </fieldset>
-            <label className="print-checkbox">
-              <input type="checkbox" checked={includeAnnotations} onChange={(event) => setIncludeAnnotations(event.target.checked)} />
-              {t('print.includeAnnotations')}
-            </label>
-            <div className="dialog-actions">
-              <button className="tool" onClick={closePrint}>{t('action.cancel')}</button>
-              <button
-                className="primary-button"
-                disabled={printMode === 'custom' && !pageRange.trim()}
-                onClick={() => {
-                  const selectedRange = printMode === 'current'
-                    ? String(scrollState.currentPage || 1)
-                    : printMode === 'custom' ? pageRange.trim() : undefined;
-                  printProvider?.print({ includeAnnotations, pageRange: selectedRange });
-                  closePrint();
-                }}
-              >
-                {t('print.openPreview')}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-const timeFormat = new Intl.DateTimeFormat(undefined, {
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
-
-function formatBytes(byteLength: number): string {
-  if (byteLength < 1024) return `${byteLength} B`;
-  if (byteLength < 1024 * 1024) return `${(byteLength / 1024).toFixed(0)} KB`;
-  return `${(byteLength / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function HistoryPanel({ documentId }: { documentId: string }) {
-  const file = useDocumentFile(documentId);
-
-  // Newest first: the most recent change is the one being reasoned about.
-  const timeline = useMemo(() => {
-    const edits: Array<{ at: number; entry: EditEntry }> = file.edits.map((entry) => ({
-      at: entry.at,
-      entry,
-    }));
-    const saves: Array<{ at: number; revision: SaveRevision }> = file.revisions.map(
-      (revision) => ({ at: revision.at, revision }),
-    );
-    return [...edits, ...saves].sort((a, b) => b.at - a.at);
-  }, [file.edits, file.revisions]);
-
-  if (timeline.length === 0) {
-    return (
-      <p className="history-empty">
-        {t('history.empty')}
-      </p>
-    );
-  }
-
-  return (
-    <ol className="history-list">
-      {timeline.map((item, index) => {
-        const isSave = 'revision' in item;
-        return (
-          <li className={isSave ? 'history-item save' : 'history-item edit'} key={`${item.at}-${index}`}>
-            <span className="history-time">{timeFormat.format(item.at)}</span>
-            {isSave ? (
-              <span className="history-label">
-                {t(item.revision.kind === 'save-as' ? 'history.savedAs' : 'history.saved')}{' '}
-                <strong>{basename(item.revision.path)}</strong>
-                <span className="history-meta">
-                  {formatBytes(item.revision.byteLength)} · {t(item.revision.editCount === 1 ? 'history.editOne' : 'history.edits', { count: item.revision.editCount })}
-                </span>
-              </span>
-            ) : (
-              <span className="history-label">
-                {item.entry.kind === 'create' && `${t('history.added')} `}
-                {item.entry.kind === 'update' && `${t('history.changed')} `}
-                {item.entry.kind === 'delete' && `${t('history.removed')} `}
-                <strong>{item.entry.label}</strong>
-                <span className="history-meta">{t('history.page', { page: item.entry.pageIndex + 1 })}</span>
-              </span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function NotePanel({ documentId }: { documentId: string }) {
-  const storageKey = `iroha-pdf:note:${documentId}`;
-  const [note, setNote] = useState<Note>(() => loadLinkedNote(storageKey, documentId));
-
-  useEffect(() => {
-    setNote(loadLinkedNote(storageKey, documentId));
-  }, [documentId, storageKey]);
-
-  useEffect(() => {
-    if (note.linkedDocumentId !== documentId) return;
-    const save = () => localStorage.setItem(storageKey, JSON.stringify(note));
-    const timer = window.setTimeout(save, 250);
-    return () => {
-      window.clearTimeout(timer);
-      save();
-    };
-  }, [documentId, note, storageKey]);
-
-  return (
-    <>
-      <textarea
-        className="note-body"
-        value={note.body}
-        onChange={(event) => setNote((current) => ({
-          ...current,
-          body: event.target.value,
-          updatedAt: new Date().toISOString(),
-        }))}
-        placeholder={t('note.placeholder')}
-        aria-label={t('note.linked')}
-      />
-      <span className="saved-indicator">{t('autosave.saved')}</span>
-    </>
-  );
-}
-
-function SidePanel({ documentId }: { documentId: string }) {
-  const [tab, setTab] = useState<'history' | 'note'>('history');
-  const file = useDocumentFile(documentId);
-
-  return (
-    <aside className="side-panel">
-      <div className="side-panel-tabs" role="tablist" aria-label={t('document.details')}>
-        <button
-          className={tab === 'history' ? 'panel-tab active' : 'panel-tab'}
-          onClick={() => setTab('history')}
-          role="tab"
-          aria-selected={tab === 'history'}
-        >
-          {t('edit.history')}
-        </button>
-        <button
-          className={tab === 'note' ? 'panel-tab active' : 'panel-tab'}
-          onClick={() => setTab('note')}
-          role="tab"
-          aria-selected={tab === 'note'}
-        >
-          {t('note.label')}
-        </button>
-      </div>
-      {tab === 'history' && file.path && (
-        <p className="side-panel-path" title={file.path}>
-          {file.path}
-        </p>
-      )}
-      {tab === 'history' ? <HistoryPanel documentId={documentId} /> : <NotePanel documentId={documentId} />}
-    </aside>
-  );
-}
-
-function loadLinkedNote(storageKey: string, documentId: string): Note {
-  const stored = localStorage.getItem(storageKey);
-  const now = new Date().toISOString();
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored) as Partial<Note>;
-      if (typeof parsed.body === 'string') {
-        return {
-          id: parsed.id ?? `desktop-note:${documentId}`,
-          title: parsed.title ?? t('note.linked'),
-          body: parsed.body,
-          linkedDocumentId: documentId,
-          createdAt: parsed.createdAt ?? now,
-          updatedAt: parsed.updatedAt ?? now,
-        };
-      }
-    } catch {
-      // Older versions stored only the body, so keep that local data intact.
-      return {
-        id: `desktop-note:${documentId}`,
-        title: t('note.linked'),
-        body: stored,
-        linkedDocumentId: documentId,
-        createdAt: now,
-        updatedAt: now,
-      };
-    }
-  }
-
-  return {
-    id: `desktop-note:${documentId}`,
-    title: t('note.linked'),
-    body: '',
-    linkedDocumentId: documentId,
-    createdAt: now,
-    updatedAt: now,
-  };
 }
 
 function EmptyWorkspace() {
@@ -653,6 +171,48 @@ function ActiveDocument({ documentId, documentName }: { documentId: string; docu
   );
 }
 
+/** The pages themselves, and the layers that make them selectable and markable. */
+function PdfViewer({ documentId }: { documentId: string }) {
+  return (
+    <DocumentContent documentId={documentId}>
+      {({ isLoading, isError, isLoaded }) => (
+        <>
+          {isLoading && <div className="center-state">{t('document.opening')}</div>}
+          {isError && <div className="center-state">{t('document.openFailed')}</div>}
+          {isLoaded && (
+            <GlobalPointerProvider documentId={documentId}>
+              <Viewport documentId={documentId} className="pdf-viewport">
+                <Scroller
+                  documentId={documentId}
+                  renderPage={({ pageIndex }) => (
+                    <Rotate documentId={documentId} pageIndex={pageIndex}>
+                      <PagePointerProvider documentId={documentId} pageIndex={pageIndex}>
+                        <RenderLayer
+                          documentId={documentId}
+                          pageIndex={pageIndex}
+                          scale={1}
+                          style={{ pointerEvents: 'none' }}
+                        />
+                        <TilingLayer
+                          documentId={documentId}
+                          pageIndex={pageIndex}
+                          style={{ pointerEvents: 'none' }}
+                        />
+                        <SelectionLayer documentId={documentId} pageIndex={pageIndex} />
+                        <AnnotationLayer documentId={documentId} pageIndex={pageIndex} />
+                      </PagePointerProvider>
+                    </Rotate>
+                  )}
+                />
+              </Viewport>
+            </GlobalPointerProvider>
+          )}
+        </>
+      )}
+    </DocumentContent>
+  );
+}
+
 /**
  * Closing the window is the other way work disappears. beforeunload cannot be async,
  * so this only marks the event; the runtime shows its own confirmation.
@@ -660,7 +220,7 @@ function ActiveDocument({ documentId, documentName }: { documentId: string; docu
 function useUnsavedGuard(): void {
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
-      if (documentsWithUnsavedEdits().length === 0) return;
+      if (!hasUnsavedEdits()) return;
       event.preventDefault();
       // Legacy browsers require a returnValue to show the prompt at all.
       event.returnValue = '';
@@ -677,58 +237,21 @@ export function Workspace({ activeDocumentId, documentStates }: WorkspaceProps) 
   const activeName = active?.name ?? 'document.pdf';
   // Editing tools on a document that failed to load offer actions that cannot work:
   // Save on a document the engine never opened only produces an error.
-  const isLoaded = active?.status === 'loaded';
+  const canEdit = active?.status === 'loaded';
 
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div className="brand"><BrandMark className="brand-mark" /> Iroha PDF</div>
+        <div className="brand"><BrandMark className="brand-mark" /> {t('app.name')}</div>
         <div className="header-status"><span className="status-dot" /> {t('app.localFirst')}</div>
       </header>
-      <TabStrip activeDocumentId={activeDocumentId} documents={documentStates} documentStates={documentStates} />
+      <TabStrip activeDocumentId={activeDocumentId} documents={documentStates} />
       {activeDocumentId ? (
         <>
-          {isLoaded && (
-            <ActiveDocument documentId={activeDocumentId} documentName={activeName} />
-          )}
+          {canEdit && <ActiveDocument documentId={activeDocumentId} documentName={activeName} />}
           <div className="workspace-body">
             <section className="viewer-pane">
-              <DocumentContent documentId={activeDocumentId}>
-                {({ isLoading, isError, isLoaded }) => (
-                  <>
-                    {isLoading && <div className="center-state">{t('document.opening')}</div>}
-                    {isError && <div className="center-state">{t('document.openFailed')}</div>}
-                    {isLoaded && (
-                      <GlobalPointerProvider documentId={activeDocumentId}>
-                        <Viewport documentId={activeDocumentId} className="pdf-viewport">
-                          <Scroller
-                            documentId={activeDocumentId}
-                            renderPage={({ pageIndex }) => (
-                              <Rotate documentId={activeDocumentId} pageIndex={pageIndex}>
-                                <PagePointerProvider documentId={activeDocumentId} pageIndex={pageIndex}>
-                                  <RenderLayer
-                                    documentId={activeDocumentId}
-                                    pageIndex={pageIndex}
-                                    scale={1}
-                                    style={{ pointerEvents: 'none' }}
-                                  />
-                                  <TilingLayer
-                                    documentId={activeDocumentId}
-                                    pageIndex={pageIndex}
-                                    style={{ pointerEvents: 'none' }}
-                                  />
-                                  <SelectionLayer documentId={activeDocumentId} pageIndex={pageIndex} />
-                                  <AnnotationLayer documentId={activeDocumentId} pageIndex={pageIndex} />
-                                </PagePointerProvider>
-                              </Rotate>
-                            )}
-                          />
-                        </Viewport>
-                      </GlobalPointerProvider>
-                    )}
-                  </>
-                )}
-              </DocumentContent>
+              <PdfViewer documentId={activeDocumentId} />
             </section>
             <SidePanel documentId={activeDocumentId} />
           </div>

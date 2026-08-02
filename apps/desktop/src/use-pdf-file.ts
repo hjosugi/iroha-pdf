@@ -50,6 +50,19 @@ export function useDocumentFile(documentId: string): DocumentFile {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
+type AnnotationScope = NonNullable<
+  ReturnType<NonNullable<ReturnType<typeof useAnnotationCapability>['provides']>['forDocument']>
+>;
+
+/**
+ * The annotation plugin narrowed to one document, which is where every hook
+ * below starts. Undefined until the plugin has finished registering.
+ */
+export function useAnnotationScope(documentId: string): AnnotationScope | undefined {
+  const { provides } = useAnnotationCapability();
+  return useMemo(() => provides?.forDocument(documentId), [provides, documentId]);
+}
+
 type DocumentManager = NonNullable<ReturnType<typeof useDocumentManagerCapability>['provides']>;
 
 async function openPath(provides: DocumentManager, path: string): Promise<void> {
@@ -102,11 +115,7 @@ export function useOpenPdf(): () => Promise<void> {
 
 /** Mirrors annotation activity into the edit timeline, and keeps a crash draft. */
 export function useEditTimeline(documentId: string): void {
-  const { provides: annotationCapability } = useAnnotationCapability();
-  const annotation = useMemo(
-    () => annotationCapability?.forDocument(documentId),
-    [annotationCapability, documentId],
-  );
+  const annotation = useAnnotationScope(documentId);
 
   useEffect(() => {
     if (!annotation) return;
@@ -154,11 +163,7 @@ export function useEditTimeline(documentId: string): void {
  * what they are.
  */
 export function useRecoverDraft(documentId: string) {
-  const { provides: annotationCapability } = useAnnotationCapability();
-  const annotation = useMemo(
-    () => annotationCapability?.forDocument(documentId),
-    [annotationCapability, documentId],
-  );
+  const annotation = useAnnotationScope(documentId);
 
   const restore = useCallback(() => {
     const file = getDocumentFile(documentId);
@@ -194,10 +199,6 @@ export function useRecoverDraft(documentId: string) {
 /** The pen tool's default hold before a finished stroke becomes an annotation. */
 const INK_COMMIT_DELAY_MS = 800;
 
-type AnnotationScope = NonNullable<
-  ReturnType<NonNullable<ReturnType<typeof useAnnotationCapability>['provides']>['forDocument']>
->;
-
 /**
  * Gives an in-flight pen stroke time to become a real annotation.
  *
@@ -214,16 +215,29 @@ async function waitForPendingInk(annotation: AnnotationScope): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, delay + 150));
 }
 
+type SelectedAnnotations = ReturnType<AnnotationScope['getSelectedAnnotations']>;
+
+/**
+ * Everything the selection toolbar draws from an annotation, as one string.
+ *
+ * onStateChange fires on every annotation state change, including each preview frame
+ * while a stroke is being drawn. Republishing the array unconditionally would re-render
+ * the toolbar on every one of those, so it only publishes when this differs.
+ */
+function selectionSignature(items: SelectedAnnotations): string {
+  return items
+    .map((item) => {
+      const object = item.object as unknown as Record<string, unknown>;
+      return [object.id, object.color, object.strokeColor, object.fontColor, object.strokeWidth]
+        .join(':');
+    })
+    .join('|');
+}
+
 /** The annotations currently selected in the viewer, kept in sync with the plugin. */
 export function useSelectedAnnotations(documentId: string) {
-  const { provides: annotationCapability } = useAnnotationCapability();
-  const annotation = useMemo(
-    () => annotationCapability?.forDocument(documentId),
-    [annotationCapability, documentId],
-  );
-  const [selected, setSelected] = useState<ReturnType<AnnotationScope['getSelectedAnnotations']>>(
-    [],
-  );
+  const annotation = useAnnotationScope(documentId);
+  const [selected, setSelected] = useState<SelectedAnnotations>([]);
 
   useEffect(() => {
     if (!annotation) {
@@ -231,25 +245,12 @@ export function useSelectedAnnotations(documentId: string) {
       return;
     }
 
-    // onStateChange fires on every annotation state change, including each preview
-    // frame while a stroke is being drawn. Replacing the array unconditionally would
-    // re-render the toolbar on every one of those, so only publish when the set of
-    // selected annotations, or the properties this panel shows, actually differ.
-    const signature = (items: ReturnType<AnnotationScope['getSelectedAnnotations']>) =>
-      items
-        .map((item) => {
-          const object = item.object as unknown as Record<string, unknown>;
-          return [object.id, object.color, object.strokeColor, object.fontColor, object.strokeWidth]
-            .join(':');
-        })
-        .join('|');
-
     let current = annotation.getSelectedAnnotations();
     setSelected(current);
 
     return annotation.onStateChange(() => {
       const next = annotation.getSelectedAnnotations();
-      if (signature(next) === signature(current)) return;
+      if (selectionSignature(next) === selectionSignature(current)) return;
       current = next;
       setSelected(next);
     });
@@ -273,11 +274,7 @@ export function useSelectedAnnotations(documentId: string) {
  * and deleting a note you left earlier is the other half of "fix this PDF".
  */
 export function useDeleteSelected(documentId: string): void {
-  const { provides: annotationCapability } = useAnnotationCapability();
-  const annotation = useMemo(
-    () => annotationCapability?.forDocument(documentId),
-    [annotationCapability, documentId],
-  );
+  const annotation = useAnnotationScope(documentId);
 
   useEffect(() => {
     if (!annotation) return;
@@ -310,12 +307,8 @@ export type SaveOutcome =
   | { status: 'cancelled' };
 
 export function usePdfSave(documentId: string, documentName: string) {
-  const { provides: annotationCapability } = useAnnotationCapability();
+  const annotation = useAnnotationScope(documentId);
   const { provides: exportProvider } = useExport(documentId);
-  const annotation = useMemo(
-    () => annotationCapability?.forDocument(documentId),
-    [annotationCapability, documentId],
-  );
 
   /** Flushes pending annotations into the document, then serialises it. */
   const serialize = useCallback(async (): Promise<ArrayBuffer> => {

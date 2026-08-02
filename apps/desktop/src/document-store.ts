@@ -8,6 +8,7 @@
  */
 
 import { clearDraft, loadDraft, type Draft } from './draft-store';
+import { readStoredObject, storageKey } from './local-storage';
 
 export type EditEntry = {
   at: number;
@@ -69,38 +70,27 @@ export function getDocumentFile(documentId: string): DocumentFile {
 }
 
 function patch(documentId: string, changes: Partial<DocumentFile>): DocumentFile {
-  const next = { ...(files.get(documentId) ?? EMPTY), ...changes };
+  const next = { ...getDocumentFile(documentId), ...changes };
   files.set(documentId, next);
   emit();
   return next;
 }
 
-function historyKey(path: string): string {
-  return `iroha-pdf:history:${path}`;
-}
-
 /** History is a convenience, never a correctness dependency — losing it must not break saving. */
 function loadHistory(path: string): Pick<DocumentFile, 'edits' | 'revisions'> {
-  try {
-    const raw = localStorage.getItem(historyKey(path));
-    if (!raw) return { edits: [], revisions: [] };
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return { edits: [], revisions: [] };
-    const { edits, revisions } = parsed as Partial<DocumentFile>;
-    return {
-      edits: Array.isArray(edits) ? edits : [],
-      revisions: Array.isArray(revisions) ? revisions : [],
-    };
-  } catch {
-    return { edits: [], revisions: [] };
-  }
+  const stored: Partial<DocumentFile> =
+    readStoredObject<DocumentFile>(storageKey('history', path)) ?? {};
+  return {
+    edits: Array.isArray(stored.edits) ? stored.edits : [],
+    revisions: Array.isArray(stored.revisions) ? stored.revisions : [],
+  };
 }
 
 function persistHistory(file: DocumentFile): void {
   if (!file.path) return;
   try {
     localStorage.setItem(
-      historyKey(file.path),
+      storageKey('history', file.path),
       JSON.stringify({ edits: file.edits, revisions: file.revisions }),
     );
   } catch {
@@ -140,14 +130,14 @@ export function dismissRecovery(documentId: string): void {
  * — that is when the drafts stopped being worth anything.
  */
 export function recordDraftWrite(documentId: string, stored: boolean): void {
-  const current = files.get(documentId) ?? EMPTY;
+  const current = getDocumentFile(documentId);
   // Autosave runs after every edit; only a change of state is worth a re-render.
   if (stored === (current.draftFailedAt === null)) return;
   patch(documentId, { draftFailedAt: stored ? null : Date.now() });
 }
 
 export function recordEdit(documentId: string, entry: EditEntry): void {
-  const current = files.get(documentId) ?? EMPTY;
+  const current = getDocumentFile(documentId);
   const next = patch(documentId, {
     edits: [...current.edits, entry].slice(-MAX_EDITS),
     pendingEdits: current.pendingEdits + 1,
@@ -156,7 +146,7 @@ export function recordEdit(documentId: string, entry: EditEntry): void {
 }
 
 export function recordSave(documentId: string, revision: SaveRevision): void {
-  const current = files.get(documentId) ?? EMPTY;
+  const current = getDocumentFile(documentId);
   const next = patch(documentId, {
     path: revision.path,
     revisions: [...current.revisions, revision].slice(-MAX_REVISIONS),
@@ -176,9 +166,7 @@ export function forgetDocument(documentId: string): void {
   if (files.delete(documentId)) emit();
 }
 
-/** Documents holding edits that have never reached disk. */
-export function documentsWithUnsavedEdits(): string[] {
-  return [...files.entries()]
-    .filter(([, file]) => file.pendingEdits > 0)
-    .map(([documentId]) => documentId);
+/** Whether any open document holds edits that have never reached disk. */
+export function hasUnsavedEdits(): boolean {
+  return [...files.values()].some((file) => file.pendingEdits > 0);
 }
