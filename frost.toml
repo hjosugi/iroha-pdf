@@ -83,6 +83,20 @@ env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false
 
+[target.iroha-pdf-frost-integration]
+kind = "test"
+tool = "node"
+args = ["release/build/validate-frost-integration.mjs"]
+inputs = [
+  ".github/workflows/ci.yml",
+  "apps/desktop/package.json",
+  "frost.toml",
+  "release/build/validate-frost-integration.mjs",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
 # The store listing is a release input, so screenshots, localized copy, fixture
 # provenance, and the generator that makes the screenshots reproducible form a
 # separate test boundary. Keeping it separate from the brand icon gate makes a

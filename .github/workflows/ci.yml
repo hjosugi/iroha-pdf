@@ -344,6 +344,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: quality-artifacts
+          # upload-artifact removes the common `apps/` ancestor shared by the
+          # desktop tree and Expo config; restore it when extracting.
+          path: apps
       - name: Confirm the Frost web output is present
         shell: bash
         run: test -f apps/desktop/dist/debug/index.html
