@@ -50,6 +50,14 @@ declare global {
       calls: () => InvokeRecord[];
       setSavePath: (path: string | null) => void;
       setOpenPath: (path: string | null) => void;
+      /**
+       * Makes writes to `path` run out of room. Null gives the disk back.
+       *
+       * Faithful to the failure it stands for: a real write empties its target before
+       * it starts, so the file is left at zero bytes and only then does the call fail.
+       * That is precisely why a save must not write straight into the document.
+       */
+      setDiskFull: (path: string | null) => void;
     };
   }
 }
@@ -95,6 +103,7 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
     const calls: InvokeRecord[] = [];
     let openPath = stub.openPath;
     let savePath = stub.savePath;
+    let fullDiskPath: string | null = null;
 
     const toBytes = (payload: unknown): Uint8Array => {
       if (payload instanceof Uint8Array) return payload;
@@ -115,6 +124,9 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
       },
       setOpenPath: (path) => {
         openPath = path;
+      },
+      setDiskFull: (path) => {
+        fullDiskPath = path;
       },
     };
 
@@ -172,9 +184,34 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
             if (!raw) throw new Error('write_file called without a path header');
             const path = decodeURIComponent(raw);
             const bytes = toBytes(args);
+            if (path === fullDiskPath) {
+              files.set(path, new Uint8Array());
+              record.path = path;
+              record.byteLength = 0;
+              calls.push(record);
+              throw new Error(`failed to write to ${path}: No space left on device (os error 28)`);
+            }
             files.set(path, bytes);
             record.path = path;
             record.byteLength = bytes.length;
+            calls.push(record);
+            return null;
+          }
+          case 'plugin:fs|rename': {
+            const { oldPath, newPath } = args as { oldPath: string; newPath: string };
+            const bytes = files.get(oldPath);
+            record.path = newPath;
+            record.byteLength = bytes?.length;
+            calls.push(record);
+            if (!bytes) throw new Error(`ENOENT: ${oldPath}`);
+            files.set(newPath, bytes);
+            files.delete(oldPath);
+            return null;
+          }
+          case 'allow_derived_file': {
+            // The Rust command only widens the filesystem scope, which the stub does
+            // not model; what matters here is that the app asks before it writes.
+            record.path = (args as { derived: string }).derived;
             calls.push(record);
             return null;
           }

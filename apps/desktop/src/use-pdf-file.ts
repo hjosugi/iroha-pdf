@@ -5,6 +5,7 @@ import { useExport } from '@embedpdf/plugin-export/react';
 import { PdfAnnotationSubtype } from '@embedpdf/models';
 
 import {
+  allowSaveSiblings,
   ensureOriginalBackup,
   isDesktopRuntime,
   pickPdfFromDisk,
@@ -340,6 +341,7 @@ export function usePdfSave(documentId: string, documentName: string) {
     const target = await pickSaveLocation(documentName || 'document.pdf');
     if (!target) return { status: 'cancelled' };
 
+    await allowSaveSiblings(target);
     await writePdfToDisk(target, buffer);
     recordSave(documentId, {
       at: Date.now(),
@@ -356,6 +358,7 @@ export function usePdfSave(documentId: string, documentName: string) {
     if (!isDesktopRuntime() || !path) return saveAs();
 
     const buffer = await serialize();
+    await allowSaveSiblings(path);
     // Keep the bytes the user originally opened recoverable before the first overwrite.
     await ensureOriginalBackup(path);
     await writePdfToDisk(path, buffer);

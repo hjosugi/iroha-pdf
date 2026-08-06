@@ -222,24 +222,16 @@ describe('initializeDatabase', () => {
   });
 
   it('runs setup again after a failure instead of handing the retry the same error', async () => {
-    await database.initializeDatabase();
-    // A write left unresolved by a kill: reconciling it is the part of setup that
-    // needs the database to itself.
-    seedJournalEntry({
-      id: 'journal-1',
-      entityType: 'note',
-      entityId: 'note-1',
-      attemptedPayload: JSON.stringify(noteFixture()),
-      createdAt: '2026-01-01T00:00:00.000Z',
-    });
-
-    await launch();
+    // Laying the schema down needs the database to itself, and another connection has
+    // it. Reconciling an interrupted edit deliberately does not fail this way — see
+    // "still opens when the disk is too full" — so the failure has to come from setup
+    // proper, which is also the part a retry has to be able to complete.
     sqlite.holdWriteLock();
     await expect(database.initializeDatabase()).rejects.toThrow(/locked/);
     sqlite.releaseWriteLock();
 
     await expect(database.initializeDatabase()).resolves.toBeUndefined();
-    expect(journalRows()).toEqual([{ id: 'journal-1', entity_id: 'note-1', status: 'rolled-back' }]);
+    expect(schemaObjects('table')).toContain('write_journal');
   });
 });
 
@@ -370,6 +362,95 @@ describe('journaledWrite', () => {
     expect(copies).toHaveLength(1);
     expect(copies[0]).toMatchObject({ entityType: 'note', entityId: 'note-1', status: 'rolled-back' });
     expect((copies[0]?.payload as Note).body).toBe('second draft');
+  });
+});
+
+/**
+ * A full disk is the one failure the journal cannot write its way out of: keeping a
+ * recovery copy is itself a write. What these pin down is which of the two moments
+ * the storage ran out in, and that the stored document is the last valid state in
+ * both — never a half-applied one.
+ */
+describe('a full disk', () => {
+  /** Large enough that storing it has to grow the database rather than fit in slack. */
+  const longBody = 'x'.repeat(200_000);
+
+  afterEach(() => {
+    sqlite.restoreStorage();
+  });
+
+  it('keeps the interrupted edit when the storage runs out during the write', async () => {
+    await database.saveNote(noteFixture());
+
+    // The journal entry is announced first and lands; the write itself is what meets
+    // the full disk. Marking that entry failed is another write, so it meets it too —
+    // the entry is left pending, and the message has to say the copy is not on hand.
+    sqlite.onNextTransaction(() => sqlite.exhaustStorage());
+    const failure = await database
+      .saveNote(noteFixture({ body: longBody, updatedAt: '2026-01-02T00:00:00.000Z' }))
+      .then(() => null)
+      .catch((error: unknown) => error as Error);
+
+    expect(failure?.message).toContain('database or disk is full');
+    expect(failure?.message).toMatch(/offered again after the next launch/);
+    expect((await database.getNote('note-1'))?.body).toBe('first draft');
+    expect(await database.listRecoveryCopies()).toEqual([]);
+
+    // Space is freed and the app is restarted: the promise that message made is kept.
+    sqlite.restoreStorage();
+    await launch();
+    const copies = await database.listRecoveryCopies();
+    expect(copies).toMatchObject([{ entityType: 'note', entityId: 'note-1', status: 'rolled-back' }]);
+    expect((copies[0]?.payload as Note).body).toBe(longBody);
+  });
+
+  it('still opens when the disk is too full to reconcile an interrupted edit', async () => {
+    await database.saveNote(noteFixture());
+    seedJournalEntry({
+      id: 'journal-1',
+      entityType: 'note',
+      entityId: 'note-1',
+      previousPayload: JSON.stringify(noteFixture()),
+      attemptedPayload: JSON.stringify(noteFixture({ body: longBody })),
+      createdAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    await launch();
+    sqlite.exhaustStorage();
+
+    // Reconciliation runs before anything else the app does, so if a full disk made it
+    // throw, the launch would take the whole database layer down with it.
+    await expect(database.initializeDatabase()).resolves.toBeUndefined();
+    expect((await database.getNote('note-1'))?.body).toBe('first draft');
+    // Undecided, so nothing is offered yet — but nothing is thrown away either.
+    expect(await database.listRecoveryCopies()).toEqual([]);
+    expect(journalRows()).toMatchObject([{ id: 'journal-1', status: 'pending' }]);
+
+    sqlite.restoreStorage();
+    await launch();
+    expect(await database.listRecoveryCopies()).toMatchObject([{ status: 'rolled-back' }]);
+  });
+
+  it('says the edit was not kept when there is no room to announce it either', async () => {
+    await database.saveNote(noteFixture());
+    sqlite.exhaustStorage();
+
+    const failure = await database
+      .saveNote(noteFixture({ body: longBody, updatedAt: '2026-01-02T00:00:00.000Z' }))
+      .then(() => null)
+      .catch((error: unknown) => error as Error);
+
+    expect(failure?.message).toContain('database or disk is full');
+    expect(failure?.message).toMatch(/no room to keep it as a recovery copy/);
+    expect(failure?.cause).toBeInstanceOf(Error);
+    expect((await database.getNote('note-1'))?.body).toBe('first draft');
+    expect(await database.listRecoveryCopies()).toEqual([]);
+
+    // And it stays gone: unlike the locked database, there is no entry for a later
+    // launch to reconcile, so the message must not promise one.
+    sqlite.restoreStorage();
+    await launch();
+    expect(await database.listRecoveryCopies()).toEqual([]);
   });
 });
 

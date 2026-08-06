@@ -11,6 +11,7 @@
     "fs:allow-read-file",
     "fs:allow-write-file",
     "fs:allow-copy-file",
+    "fs:allow-rename",
     "fs:allow-exists"
   ]
 }

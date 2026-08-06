@@ -712,10 +712,29 @@ autosaveとrecoveryを`apps/desktop/src/draft-store.ts`に実装。PDF全体で�
 
 テスト: unit 9件（`draft-store.test.ts`、base64往復とcorrupt storage含む）、e2e 6件（`autosave.spec.ts`、reloadでクラッシュを再現）。
 
+### 2026-08-06: disk fullを実際に起こして分かったこと
+
+**desktopの上書き保存はatomicではなかった。** `writePdfToDisk`は`writeFile(path, bytes)`をそのまま呼んでおり、これは対象を空にしてから書き込む。途中でdisk fullやクラッシュに遭うと、**利用者の書類があった場所に断片が残る** — 文書エディタが出してはいけない唯一の結果。
+
+修正: 新しいbytesは隣の`<name>.iroha-part.pdf`に組み立て、全部がディスクに載ってから`rename`で1手で書類にする。失敗しても書類は1バイトも変わらず、途中まで書けたbytesはpart fileとして残る（消すには`fs:allow-remove`が要るが、これは意図的に持たせていない。見えて消せるファイルの方が、黙って消えるより良い）。
+
+失敗メッセージに`save.unchanged`「ディスク上のファイルはそのままです。」を足した。保存に失敗した人が最初に知りたいのはこれで、いまはそれが本当になった。
+
+**同時に見つかった、より重い不具合。** `tauri-plugin-dialog`は選ばれたpathに対して`allow_file`しか呼ばない。つまりdialogで開いたPDFに対して`<name>.iroha-original.pdf`は**scope外**で、`exists()`の時点で`forbidden path`になる。実機でdialogからファイルを開いた場合、**初回の上書き保存は必ず失敗していた**。e2eが`IROHA_E2E_SCOPE`でdirectory全体を許可していたため、これまで一度も表面化していない。
+
+修正: `allow_derived_file`コマンドを追加。sourceが既にscope内にあり、derivedが同じディレクトリにあり、名前がsourceのstemで始まる`.pdf`である場合にのみ、その1ファイルを許可する。real-runtime harnessは`IROHA_E2E_SCOPE_FILE`でdialogと同じ「1ファイルだけ」のscopeに切り替えたので、この経路は本番と同じ条件で通っている。
+
+**mobileのjournalはdisk fullで2通りに割れる。** 書き込み中に容量が尽きた場合、`failed`へ倒すUPDATEも書き込みなので同じく失敗し、entryは`pending`のまま残る（DB lockedと同じ挙動で、次回起動で照合される）。編集の宣言そのものが書けなかった場合は何も残らないので、メッセージがそれを認めるようにした。
+
+さらに、**full diskで起動できなくなる経路があった**: 起動時の`recoverPendingWrites`がUPDATEに失敗すると`initializeDatabase`ごと落ち、DB層全体が使えなくなる。照合は「既にどちらかに確定した編集」の帳簿付けなので、書けなければ警告してentryを残し、起動は通すようにした。
+
+追加テスト: mobile 4件（`PRAGMA max_page_count`で本物の`SQLITE_FULL`を起こす）、desktop e2e 2件（stubのwrite_fileが対象を空にしてから失敗する、実際の挙動どおり）、real-runtime 5件。desktop e2eの2件は、修正前の`writePdfToDisk`に戻すと両方落ちることを確認済み。
+
 未実装:
 
-- disk full / write失敗時の復旧導線
 - draftはlocalStorage依存。storageを消すと消える
+- desktopのpart fileは失敗時に残る。掃除にはremove権限が要る
+- mobileはfull diskでもdisk上のPDF書き出し（Export）を試みる経路が未検証
 - ~~mobileは未対応~~ **訂正（2026-08-01）**: mobileにもwrite-ahead journal（`database.ts:62-74`）、起動時の再照合（`:355-378`）、復旧画面（`app/recovery.tsx`）があり16件のテストが掛かっている。残るのはprocess kill / disk full / DB lockedの実機確認
 
 Acceptance: annotation中にprocess kill、disk full、DB lockedを発生させ、last valid stateとrecovery copyを提示する。
@@ -1008,9 +1027,11 @@ Labels: `platform:desktop`, `type:feature`, `priority:P0`
 - 実ディスクのfileが36451→39017 bytesに変わり、`complex.iroha-original.pdf`が元のSHA-256のまま残る
 - capability拒否がRust側で本当に効く（スコープ外のread/write、未付与の`fs.remove`をすべて拒否）
 
+**2026-08-06の訂正:** 上の「backupが作られる」証跡は、e2eが`IROHA_E2E_SCOPE`でdirectory全体を許可していたから成立していた。dialogは選ばれた1ファイルしか`allow_file`しないため、**実機でdialogから開いた場合は初回の上書き保存が`forbidden path`で必ず失敗していた**。#046で`allow_derived_file`（source隣接・source名由来の`.pdf`のみ許可）を足し、harnessも`IROHA_E2E_SCOPE_FILE`で「1ファイルだけ」のscopeに切り替えたので、いまはdialogと同じ条件で通っている。書き込み自体も非atomicだったため、あわせてpart file + renameへ変えた。
+
 未実装・未検証:
 
-- **dialog経由でのscope付与そのものは人手でしか確認できない。** Wayland/portalのdialogを駆動する手段が無く、e2eは`IROHA_E2E_SCOPE`（`debug_assertions`限定）で同等のscopeを与えている。plugin側が`allow_file`を呼ぶ実装は`tauri-plugin-dialog`の`commands.rs`で確認済みだが、実行時の証跡は無い。
+- **dialogが返すpathそのものは人手でしか確認できない。** Wayland/portalのdialogを駆動する手段が無く、e2eは`IROHA_E2E_SCOPE_FILE`（`debug_assertions`限定）でdialogと同じ1ファイルscopeを与えている。plugin側が`allow_file`を呼ぶ実装は`tauri-plugin-dialog`の`commands.rs`で確認済み。付与されたあとの挙動は実ランタイムで検証済みになった。
 - 上書き保存の確認dialogが無い（現状は無言で上書きし、backupだけ残す）
 - 保存失敗時の扱いがtoolbarの文字列表示のみ
 - Preview/Acrobatなど他ビューアでの目視確認

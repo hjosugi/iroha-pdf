@@ -6,10 +6,11 @@
  * real Rust backend, and neither had ever executed this code. This script closes that
  * gap: a real binary, a real webview, real files on disk.
  *
- * Two things it deliberately does not test, because they cannot be scripted here:
- *   - the native file dialog (a portal window under Wayland; no driver available)
- *   - the dialog's scope grant, which is emulated by IROHA_E2E_SCOPE
- * Scope *denial* is tested, which is the half that matters for safety.
+ * The one thing it deliberately does not test is the native file dialog itself: a
+ * portal window under Wayland, with no driver available. Its *scope grant* is no longer
+ * approximated — `IROHA_E2E_SCOPE_FILE` grants exactly the one file the dialog would
+ * have granted, so everything a save writes beside that file has to be earned through
+ * `allow_derived_file`, exactly as it is in production.
  *
  * Usage: npm run e2e:tauri
  *
@@ -159,12 +160,12 @@ async function main() {
 
   const devServer = await startDevServer();
 
-  // The app inherits the driver's environment, which is how IROHA_E2E_SCOPE reaches it.
+  // The app inherits the driver's environment, which is how the scope grant reaches it.
   const driver = spawn(DRIVER, ['--port', String(DRIVER_PORT)], {
     env: {
       ...process.env,
       DISPLAY: process.env.DISPLAY ?? ':0',
-      IROHA_E2E_SCOPE: WORK,
+      IROHA_E2E_SCOPE_FILE: target,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -194,8 +195,9 @@ async function main() {
         alwaysMatch: {
           'tauri:options': {
             application: APP,
-            // The dialog cannot be scripted, so open by path instead.
-            env: { IROHA_E2E_SCOPE: WORK },
+            // The dialog cannot be scripted, so open by path instead — under the scope
+            // grant the dialog would have made, which is this one file and nothing else.
+            env: { IROHA_E2E_SCOPE_FILE: target },
           },
         },
       },
@@ -258,6 +260,21 @@ async function main() {
     const removed = await invoke('plugin:fs|remove', { path: target });
     check('fs.remove not granted at all', removed.ok === false && /not allowed/.test(removed.error ?? ''));
 
+    console.log('\nwhat a save writes beside the document has to be granted, and narrowly');
+    const part = join(WORK, 'complex.iroha-part.pdf');
+    const beforeGrant = await invoke('plugin:fs|write_file', [37], {
+      headers: { path: encodeURIComponent(part), options: '{}' },
+    });
+    check('a file beside the document is forbidden until it is granted', beforeGrant.ok === false);
+    for (const [label, args] of [
+      ['a name not derived from the document', { source: target, derived: join(WORK, 'payroll.pdf') }],
+      ['a file outside the document folder', { source: target, derived: '/tmp/complex.iroha-part.pdf' }],
+      ['a source the user never picked', { source: '/etc/passwd', derived: '/etc/passwd.pdf' }],
+    ]) {
+      const refused = await invoke('allow_derived_file', args);
+      check(`the grant refuses ${label}`, refused.ok === false && /not allowed/.test(refused.error ?? ''), refused.error);
+    }
+
     console.log('\nthe granted path is readable, and pdfium renders it under WebKit');
     const granted = await invoke('plugin:fs|read_file', { path: target });
     check('granted path readable', granted.ok === true, `${granted.len ?? granted.error} bytes`);
@@ -301,10 +318,31 @@ async function main() {
       await sync(`
         const img = document.querySelector('.pdf-viewport img');
         const r = img.getBoundingClientRect();
-        return JSON.stringify({ x: r.x, y: r.y, w: r.width, h: r.height });
+        return JSON.stringify({
+          x: r.x, y: r.y, w: r.width, h: r.height,
+          viewW: window.innerWidth, viewH: window.innerHeight, dpr: window.devicePixelRatio,
+        });
       `),
       'PDF page rectangle',
     );
+    console.log(
+      `  (geometry) page ${Math.round(rect.w)}x${Math.round(rect.h)} at ` +
+        `${Math.round(rect.x)},${Math.round(rect.y)} in a ${rect.viewW}x${rect.viewH} view, dpr ${rect.dpr}`,
+    );
+    // Fractions of the page would leave the window on any display where a page is
+    // taller than the viewport, and WebDriver rejects a move outside it. Drag across
+    // the part of the page actually on screen instead, which is on the page either way.
+    const left = Math.max(rect.x, 0);
+    const top = Math.max(rect.y, 0);
+    const width = Math.min(rect.x + rect.w, rect.viewW) - left;
+    const height = Math.min(rect.y + rect.h, rect.viewH) - top;
+    if (width < 120 || height < 120) {
+      throw new Error(`too little of the page is on screen to drag across: ${width}x${height}`);
+    }
+    const at = (fx, fy) => ({
+      x: Math.round(left + width * fx),
+      y: Math.round(top + height * fy),
+    });
     const actionResult = await wd('POST', `/session/${sessionId}/actions`, {
       actions: [
         {
@@ -312,10 +350,10 @@ async function main() {
           id: 'mouse',
           parameters: { pointerType: 'mouse' },
           actions: [
-            { type: 'pointerMove', origin: 'viewport', duration: 0, x: Math.round(rect.x + rect.w * 0.2), y: Math.round(rect.y + rect.h * 0.25) },
+            { type: 'pointerMove', origin: 'viewport', duration: 0, ...at(0.2, 0.2) },
             { type: 'pointerDown', button: 0 },
-            { type: 'pointerMove', origin: 'viewport', duration: 150, x: Math.round(rect.x + rect.w * 0.45), y: Math.round(rect.y + rect.h * 0.35) },
-            { type: 'pointerMove', origin: 'viewport', duration: 150, x: Math.round(rect.x + rect.w * 0.65), y: Math.round(rect.y + rect.h * 0.45) },
+            { type: 'pointerMove', origin: 'viewport', duration: 150, ...at(0.45, 0.45) },
+            { type: 'pointerMove', origin: 'viewport', duration: 150, ...at(0.65, 0.7) },
             { type: 'pointerUp', button: 0 },
           ],
         },
@@ -352,6 +390,9 @@ async function main() {
     if (existsSync(backup)) {
       check('the backup is the pristine original', sha(backup) === originalHash);
     }
+    // The bytes were assembled beside the document and renamed over it, so a completed
+    // save leaves nothing behind. A partial still here would mean the rename never ran.
+    check('no partial file is left beside the document', !existsSync(part));
 
     // Prove the saved bytes are a real PDF carrying the annotation.
     const header = readFileSync(target).subarray(0, 5).toString('latin1');

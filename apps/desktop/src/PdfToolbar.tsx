@@ -259,10 +259,16 @@ function describeOutcome(outcome: SaveOutcome): string | null {
  */
 function describeFailure(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  // Every failure path leaves the document alone — the new bytes are assembled beside
+  // it and only become the document in one rename — so every one of these can say so.
+  return `${reasonFor(message)} ${t('save.unchanged')}`;
+}
+
+function reasonFor(message: string): string {
   if (/forbidden path|not allowed/i.test(message)) {
     return t('save.notAllowed');
   }
-  if (/ENOSPC|no space left/i.test(message)) return t('save.diskFull');
+  if (/ENOSPC|no space left|disk is full/i.test(message)) return t('save.diskFull');
   if (/EACCES|permission denied|read-only/i.test(message)) {
     return t('save.notWritable');
   }
