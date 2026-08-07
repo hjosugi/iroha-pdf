@@ -1,3 +1,16 @@
+/**
+ * Sync, as a mechanism with no caller yet.
+ *
+ * Everything exported here is complete and tested, and nothing outside this file's own
+ * tests references any of it: no application enqueues an operation and nothing drains a
+ * queue. That is deliberate to state rather than leave to be discovered — a class with
+ * tests around it reads like working infrastructure, and planning against it as though
+ * the feature exists is the mistake this note is here to prevent.
+ *
+ * Intended callers: #38 for the queue, #41 for the merge path once it is decided
+ * whether that stays last-write-wins. Whoever connects it should expect to change these
+ * signatures; they were written against an imagined call site, not a real one.
+ */
 import type { SyncOperation } from './types';
 
 export type SyncCursor = {

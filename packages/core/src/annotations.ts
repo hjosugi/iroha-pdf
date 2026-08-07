@@ -4,6 +4,15 @@ export function clampNormalized(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+/**
+ * Not in service. `apps/mobile/src/lib/annotation-input.ts` has `normalizePagePoint`,
+ * which is this computation with the page frame passed as one argument instead of two,
+ * and that is the one the overlay actually calls. This pair predates it and nothing
+ * outside this file's tests references either function.
+ *
+ * Left in place rather than deleted or merged: the mobile signature suits its call site,
+ * and picking a winner is work for whoever needs both platforms to agree — #10.
+ */
 export function normalizePoint(point: Point, width: number, height: number): Point {
   if (width <= 0 || height <= 0) {
     throw new Error('Page dimensions must be positive');
@@ -32,6 +41,12 @@ export function pressureStrokeWidth(baseWidth: number, pressure?: number): numbe
   return baseWidth * (0.55 + normalized * 0.9);
 }
 
+/**
+ * Not in service. Both applications write annotations to their own stores without
+ * passing them through this, so nothing outside this file's tests calls it. Kept
+ * because whatever accepts annotations from a sync peer will want exactly this — an
+ * annotation that arrived over a wire is the one nobody has checked.
+ */
 export function validateAnnotation(annotation: PdfAnnotation): PdfAnnotation {
   if (annotation.pageIndex < 0) {
     throw new Error('pageIndex must be zero-based and non-negative');
@@ -68,6 +83,12 @@ function keepHighestRanked(
   }
 }
 
+/**
+ * Not in service, along with `compareSyncOperations` and `mergeAnnotationOperations`
+ * below. This is the last-write-wins merge #41 proposes replacing with Yjs — worth
+ * knowing before that comparison is made, because there is no LWW running to replace:
+ * nothing outside this file's tests reaches any of the three.
+ */
 export function mergeSyncOperations(
   local: SyncOperation[],
   remote: SyncOperation[],
