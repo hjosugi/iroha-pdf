@@ -18,6 +18,16 @@ type CacheEntry<Value> = {
 /**
  * Byte-budgeted LRU intended for rendered pages and thumbnails. Values larger
  * than the whole budget are deliberately not retained.
+ *
+ * Not in service. Nothing outside this file's tests constructs one, because there is
+ * nothing yet for it to bound: no thumbnails are rendered (#18), and pages are drawn by
+ * the engine on both platforms — pdfium's own tiling on desktop, native on mobile — so
+ * no rendered bytes pass through JavaScript to be cached.
+ *
+ * Kept because #52 wants precisely this once #18 gives it a consumer, and since
+ * `@iroha-pdf/core` is marked side-effect free it costs no bytes in either bundle
+ * meanwhile. Worth stating plainly, though: #52 reads as half-built on the strength of
+ * this file, and the budget it asks for is not started.
  */
 export class BoundedLruCache<Value> {
   readonly maxBytes: number;
