@@ -45,9 +45,17 @@ const BUDGETS = {
    */
   heapMb: 120,
   /** Total shipped bytes, the honest measure of "app weight" for the web layer. */
-  bundleMb: 12,
-  /** Everything except the PDF engine wasm, which dominates and is not ours. */
-  appJsMb: 2.5,
+  bundleMb: 8,
+  /**
+   * Everything except the PDF engine wasm, which dominates and is not ours.
+   *
+   * Measured at 0.63 MB. It was 1.80 MB until `@iroha-pdf/core` was marked
+   * side-effect free and the bundler could stop pulling pdf-lib and fontkit in
+   * behind two i18n functions — a library the desktop never calls, because the
+   * engine is wasm. Kept tight deliberately: pdf-lib alone is 1.1 MB, so a
+   * re-entry through some other barrel breaches this rather than passing quietly.
+   */
+  appJsMb: 1,
 };
 
 /**
