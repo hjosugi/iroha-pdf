@@ -215,6 +215,15 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
             calls.push(record);
             return null;
           }
+          case 'discard_part_file': {
+            // Derived on the Rust side from the source alone, so the stub derives it
+            // the same way rather than taking a path it was handed.
+            const source = (args as { source: string }).source;
+            const part = source.replace(/\.pdf$/i, '') + '.iroha-part.pdf';
+            record.path = part;
+            calls.push(record);
+            return files.delete(part);
+          }
           case 'plugin:fs|exists': {
             const path = (args as { path: string }).path;
             record.path = path;

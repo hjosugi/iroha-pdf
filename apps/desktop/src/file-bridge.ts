@@ -102,10 +102,10 @@ export async function ensureOriginalBackup(path: string): Promise<string | null>
  * editor must not produce. The bytes go beside it first and only become the document
  * once every one of them is on disk, which `rename` does in a single step.
  *
- * A failed save therefore leaves the document exactly as it was. The incomplete bytes
- * stay under the name the error carries: deleting them would need a permission the app
- * deliberately does not hold, and a file the user can see and delete is a better answer
- * than one that vanished.
+ * A failed save therefore leaves the document exactly as it was, and takes its own
+ * half-written bytes with it. Those bytes are never worth keeping: what an interrupted
+ * edit is recovered from is the draft, not this. Only when the clean-up itself fails
+ * does the file stay, and then the error says where.
  */
 export async function writePdfToDisk(path: string, buffer: ArrayBuffer): Promise<void> {
   const part = partPathFor(path);
@@ -113,9 +113,24 @@ export async function writePdfToDisk(path: string, buffer: ArrayBuffer): Promise
     await writeFile(part, new Uint8Array(buffer));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${reason} (writing ${part})`, { cause: error });
+    throw new Error(`${reason}${await describePartFile(path, part)}`, { cause: error });
   }
   await rename(part, path);
+}
+
+/**
+ * Clears the partial left by a failed write, and says what the user is left with.
+ *
+ * Reported rather than thrown: the write already failed, and that is the failure worth
+ * surfacing. Losing the clean-up on top only changes whether a file is lying around.
+ */
+async function describePartFile(path: string, part: string): Promise<string> {
+  try {
+    await invoke('discard_part_file', { source: path });
+    return '';
+  } catch {
+    return ` (the incomplete copy is at ${part})`;
+  }
 }
 
 /**

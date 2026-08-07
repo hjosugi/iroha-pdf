@@ -730,10 +730,19 @@ autosaveとrecoveryを`apps/desktop/src/draft-store.ts`に実装。PDF全体で�
 
 追加テスト: mobile 4件（`PRAGMA max_page_count`で本物の`SQLITE_FULL`を起こす）、desktop e2e 2件（stubのwrite_fileが対象を空にしてから失敗する、実際の挙動どおり）、real-runtime 5件。desktop e2eの2件は、修正前の`writePdfToDisk`に戻すと両方落ちることを確認済み。
 
+### 2026-08-07: part fileの後片付け
+
+前回「part fileは残す。消すには持たせていない権限が要るし、見えて消せるファイルの方が黙って消えるより良い」と書いたが、これは制約を美点として書いていた。part fileは**復旧価値が無い** — 中断された編集はdraftから戻すのであって、これは失敗した保存の途中バイト列でしかない。書類そっくりの名前で隣に残るぶん、むしろ紛らわしい。
+
+`discard_part_file`コマンドを追加。webviewには`fs:allow-remove`を渡さないまま（何かがファイルを消せる状態自体を作らない）、Rust側が**sourceから自分でpartのpathを導出して**消す。webviewは消す対象を指定できないので、権限の及ぶ範囲はscope内の1ファイルにつきpart 1個だけ。原本にもpristine copyにも届かない。
+
+後片付けに失敗したときだけファイルが残り、そのときはエラーが場所を言う。
+
+**harnessの取りこぼしも1つ直した。** 作業ディレクトリは実行ごとに作り直していたが、webviewのlocalStorageは残る。draftのkeyはfixtureのpath固定なので、途中で終わった実行のdraftが次の実行に持ち越され、開いた瞬間に復旧バナーが出る。するとSaveボタンが最後の`.primary-button`ではなくなり、以降の検査が別のcontrolを読む。実際にこれで5件が誤って落ちた。実行の先頭でstorageを消すようにした。
+
 未実装:
 
 - draftはlocalStorage依存。storageを消すと消える
-- desktopのpart fileは失敗時に残る。掃除にはremove権限が要る
 - mobileはfull diskでもdisk上のPDF書き出し（Export）を試みる経路が未検証
 - ~~mobileは未対応~~ **訂正（2026-08-01）**: mobileにもwrite-ahead journal（`database.ts:62-74`）、起動時の再照合（`:355-378`）、復旧画面（`app/recovery.tsx`）があり16件のテストが掛かっている。残るのはprocess kill / disk full / DB lockedの実機確認
 

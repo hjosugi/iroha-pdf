@@ -174,6 +174,11 @@ test.describe('a save that runs out of room', () => {
     expect(onDisk!.equals(originalBytes), 'the document must be byte-identical').toBe(true);
     expect(await readVirtualFile(page, backupPathFor(openPath))).not.toBeNull();
 
+    // The half-written bytes are debris — the draft is what an interrupted edit is
+    // recovered from — so a failed save must not leave them beside the document.
+    expect(await listVirtualFiles(page)).not.toContain(partPathFor(openPath));
+    await expect(page.locator('.save-state')).not.toContainText('incomplete copy');
+
     // Nothing reached the file, so the draft is still the only copy of the edit and
     // must survive to be offered back.
     expect(await readDraft(page, openPath)).not.toBeNull();

@@ -21,7 +21,7 @@
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -248,6 +248,14 @@ async function main() {
     check('app shell rendered', boot.buttons.includes('Open PDF'), boot.buttons.join('|'));
     check('dev open hook available', boot.devHook === true);
 
+    // The working directory is recreated every run, but the webview's storage is not:
+    // it belongs to the app, and drafts and history are keyed by the fixture's path,
+    // which is the same path every time. A run that ended mid-edit therefore leaves a
+    // draft that the next run opens into a recovery banner — where the Save button is
+    // not the last `.primary-button` any more, and every check after it reads the wrong
+    // control. Start from nothing, so a run measures only itself.
+    await sync(`localStorage.clear(); return 'cleared'`);
+
     console.log('\nthe capability denies paths the user never picked');
     for (const path of ['/etc/passwd', '/etc/hostname']) {
       const result = await invoke('plugin:fs|read_file', { path });
@@ -274,6 +282,22 @@ async function main() {
       const refused = await invoke('allow_derived_file', args);
       check(`the grant refuses ${label}`, refused.ok === false && /not allowed/.test(refused.error ?? ''), refused.error);
     }
+
+    // Clearing the partial is the one deletion this app can perform, and it derives the
+    // path itself. Written here, then removed through the command, so the check covers
+    // the deletion actually happening rather than only the refusals below it.
+    writeFileSync(part, 'not a pdf');
+    const discarded = await invoke('discard_part_file', { source: target });
+    check('discards only the partial file', discarded.ok === true && !existsSync(part));
+    check('says so when there was no partial to discard', (await invoke('discard_part_file', { source: target })).ok === true);
+    const unpicked = await invoke('discard_part_file', { source: '/etc/passwd' });
+    check(
+      'refuses to discard for a source the user never picked',
+      unpicked.ok === false && /not allowed/.test(unpicked.error ?? ''),
+      unpicked.error,
+    );
+    // The document and its pristine copy are not reachable through it at all.
+    check('the document itself is still there', existsSync(target) && sha(target) === originalHash);
 
     console.log('\nthe granted path is readable, and pdfium renders it under WebKit');
     const granted = await invoke('plugin:fs|read_file', { path: target });
