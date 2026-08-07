@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-08-07
+
+A desktop save can no longer be interrupted into losing the document. The new
+bytes are assembled beside the file and renamed over it in one step, so a crash
+or a full disk leaves the file exactly as it was; the first overwrite of a file
+opened through the dialog also used to fail outright, on a scope the dialog
+never granted. Mobile keeps an interrupted edit through a full disk, and a full
+disk no longer stops the app from opening.
+
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
 
 ### Added
 
