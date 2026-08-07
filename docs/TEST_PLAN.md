@@ -22,7 +22,7 @@ remain part of the device/desktop E2E gate because `pdf-lib` does not render.
 
 `e2e:tauri` drives the real Tauri runtime — a real window, the real webview,
 real filesystem writes and real Tauri plugin calls — rather than the Playwright
-stub, and runs 22 checks. The native file dialog itself remains a manual gate. It needs
+stub, and runs 27 checks. The native file dialog itself remains a manual gate. It needs
 `cargo install tauri-driver`, a `WebKitWebDriver` binary (Debian: `webkit2gtk-driver`),
 a graphical session, and a **debug** app build from
 `frost build desktop-app-linux-debug --no-tui`.
@@ -75,6 +75,7 @@ bytes that would have hit disk.
 | difficult documents | desktop refuses an encrypted PDF visibly rather than silently; a PDF whose cross-reference table is wrong is repaired and opens, and survives annotate-and-save with all pages and text; an AcroForm keeps every field and value through the same round trip |
 | unsaved work | closing a tab mid-edit asks first and backing out keeps the edits; confirming closes; a saved or untouched document closes without a prompt; the window-close guard arms and disarms with the pending count |
 | autosave | an edit is drafted without being asked; saving clears the draft; work survives a simulated crash (page reload) and is offered back; restoring reports the work as still unsaved and it then reaches the file; discarding is permanent |
+| a full disk | a save never writes into the document itself, so a write that runs out of room cannot empty it; the document stays byte-identical, the message says so, the draft is still there to recover from, and the same edit saves once there is room |
 | keyboard/responsive access | tab select/close are separate controls with no nested buttons; the print dialog closes with Escape and restores focus; narrow windows keep history and notes reachable |
 | rendering | poppler and Ghostscript both draw the annotation at the drawn coordinates, and nowhere else; a save with no edits is pixel-identical |
 | performance | 500-page first-page latency, heap, deep scroll; 40 MB scan open/annotate/save; bundle weight; shell paint before the wasm engine loads |
@@ -189,13 +190,17 @@ files on disk.
 - annotate then save mutates the real file, writes `*.iroha-original.pdf`, and the backup
   still hashes to the bytes originally opened
 - the saved file on disk carries the annotation in `/Annots` and keeps its CJK and table text
+- the run holds exactly the scope the dialog grants — one file — so the pristine copy and
+  the partial a save is assembled in are reachable only through `allow_derived_file`, and
+  that command is exercised refusing an underived name, a path outside the folder, and a
+  source the user never picked
 
-Two things it does not cover. The native file dialog is a portal window under Wayland and
+One thing it does not cover: the native file dialog is a portal window under Wayland and
 no scripting tool available here can drive it, so the suite opens by path through a
-`import.meta.env.DEV` hook. The dialog's own scope grant is likewise emulated, by
-`IROHA_E2E_SCOPE`, which `src-tauri/src/lib.rs` honours only under `debug_assertions`.
-Scope *denial* is genuinely exercised, which is the half that protects users. Picking a
-file through the dialog therefore still needs a human.
+`import.meta.env.DEV` hook, and grants the same single-file scope through
+`IROHA_E2E_SCOPE_FILE`, which `src-tauri/src/lib.rs` honours only under
+`debug_assertions`. Which path the dialog returns therefore still needs a human; what the
+app is allowed to do with it no longer does.
 
 ### Measured on a developer machine, 2026-07-20
 

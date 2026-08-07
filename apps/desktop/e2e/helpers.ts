@@ -142,6 +142,16 @@ export function backupPathFor(path: string): string {
   return path.replace(/\.pdf$/i, '') + '.iroha-original.pdf';
 }
 
+/** Where a save assembles its bytes before they become the document. */
+export function partPathFor(path: string): string {
+  return path.replace(/\.pdf$/i, '') + '.iroha-part.pdf';
+}
+
+/** Makes writes to `path` run out of room; null gives the disk back. */
+export async function fillDisk(page: Page, path: string | null): Promise<void> {
+  await page.evaluate((target) => window.__IROHA_TEST__.setDiskFull(target), path);
+}
+
 /** A normalised rectangle over page 1, as a fraction of its rendered box. */
 export type PageBox = { x1: number; y1: number; x2: number; y2: number };
 

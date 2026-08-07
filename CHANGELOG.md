@@ -28,6 +28,23 @@
 
 ### Fixed
 
+- A desktop save no longer writes into the document it is replacing. The bytes
+  are assembled beside it and renamed over it in one step, so a crash or a full
+  disk partway through leaves the file exactly as it was rather than a fragment
+  where the document used to be. Every save failure now says the file on disk is
+  unchanged.
+- The first overwrite of a file opened through the desktop dialog failed with a
+  forbidden path: the dialog grants exactly the file it returned, so the
+  `.iroha-original.pdf` copy taken beside it was never in scope. A narrow
+  `allow_derived_file` command grants that one derived name, and the
+  real-runtime suite now runs under the same single-file scope the dialog gives,
+  where the whole save path is exercised as a user meets it.
+- A full disk no longer stops the mobile app from opening. Reconciling an
+  interrupted edit at launch is bookkeeping over work that is already durable
+  one way or the other, so a status update that cannot be written now leaves the
+  entry for the next launch instead of taking the database layer down. When
+  there is no room to record an interrupted edit at all, the failure says so
+  rather than implying a recovery copy exists.
 - Main CI now compiles and retains Android debug APKs in four parallel ABI jobs.
   All supported ABIs remain covered, while one runner no longer holds every
   React Android source-build intermediate until a universal APK packaging step.

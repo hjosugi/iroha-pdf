@@ -348,17 +348,29 @@ async function journaledWrite(
 ): Promise<void> {
   const journalId = createId('journal');
   const createdAt = new Date().toISOString();
-  await db.runAsync(
-    `INSERT INTO write_journal
-      (id, entity_type, entity_id, previous_payload, attempted_payload, status, created_at)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-    journalId,
-    entityType,
-    entityId,
-    previousPayload,
-    attemptedPayload,
-    createdAt,
-  );
+  try {
+    await db.runAsync(
+      `INSERT INTO write_journal
+        (id, entity_type, entity_id, previous_payload, attempted_payload, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+      journalId,
+      entityType,
+      entityId,
+      previousPayload,
+      attemptedPayload,
+      createdAt,
+    );
+  } catch (journalError) {
+    // A full disk is the case that lands here: announcing the write needs a page of
+    // storage, and there is none. Nothing was written and nothing was kept, so the
+    // stored document is still the last valid state — but the edit is gone, and the
+    // caller is the only one who can say so before the user makes another.
+    throw new Error(
+      `${describeError(journalError)} — the edit was not saved, and there was no room to` +
+        ` keep it as a recovery copy either.`,
+      { cause: journalError },
+    );
+  }
 
   try {
     await db.withTransactionAsync(write);
@@ -414,14 +426,24 @@ async function recoverPendingWrites(db: SQLite.SQLiteDatabase): Promise<void> {
       row.attempted_payload,
       await currentSnapshot(db, row),
     );
-    await db.runAsync(
-      'UPDATE write_journal SET status = ?, resolved_at = ? WHERE id = ?',
-      decision.status,
-      new Date().toISOString(),
-      row.id,
-    );
-    if (decision.status === 'applied') {
-      await db.runAsync('DELETE FROM write_journal WHERE id = ?', row.id);
+    try {
+      await db.runAsync(
+        'UPDATE write_journal SET status = ?, resolved_at = ? WHERE id = ?',
+        decision.status,
+        new Date().toISOString(),
+        row.id,
+      );
+      if (decision.status === 'applied') {
+        await db.runAsync('DELETE FROM write_journal WHERE id = ?', row.id);
+      }
+    } catch (error) {
+      // Recording the decision is bookkeeping over an edit that is already durable one
+      // way or the other, and it runs before the app can open anything. A disk with no
+      // room left for it must not be the reason the app will not start: the row stays
+      // pending, so the next launch reaches the same decision and tries again.
+      console.warn(
+        `Iroha PDF: an interrupted edit could not be reconciled yet (${describeError(error)})`,
+      );
     }
   }
 }

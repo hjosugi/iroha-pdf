@@ -182,6 +182,10 @@ const MESSAGES = {
   'save.notWritable': { ja: '保存に失敗しました — このファイルには書き込めません。', en: 'Save failed — that file is not writable.' },
   'save.notOpen': { ja: '保存に失敗しました — この書類は開かれていません。', en: 'Save failed — this document is not open.' },
   'save.failed': { ja: '保存に失敗しました — PDFを書き込めませんでした。', en: 'Save failed — the PDF could not be written.' },
+  // A save assembles the new bytes beside the document and only then renames them over
+  // it, so a failure never leaves a half-written file. Someone who has just been told
+  // their save failed has no way to know that, and it is the first thing they want.
+  'save.unchanged': { ja: 'ディスク上のファイルはそのままです。', en: 'The file on disk is unchanged.' },
 
   'history.empty': { ja: '編集はまだありません。追加したマーカー、ペン、テキストと、PDFを保存した履歴がここに表示されます。', en: 'No edits yet. Highlights, pen strokes, and text you add will be listed here, along with every time this PDF was saved.' },
   'history.saved': { ja: '保存', en: 'Saved' },

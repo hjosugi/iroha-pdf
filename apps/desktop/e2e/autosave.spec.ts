@@ -8,9 +8,18 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boot, drawShape, openPdf, pendingEdits, save } from './helpers';
+import {
+  backupPathFor,
+  boot,
+  drawShape,
+  fillDisk,
+  openPdf,
+  partPathFor,
+  pendingEdits,
+  save,
+} from './helpers';
 import { inspectPdf } from './inspect';
-import { readVirtualFile } from './tauri-stub';
+import { listVirtualFiles, readVirtualFile } from './tauri-stub';
 
 const DRAFT_KEY = (path: string) => `iroha-pdf:draft:${path}`;
 
@@ -122,5 +131,64 @@ test.describe('autosave and recovery', () => {
     await openPdf(page);
     await page.waitForTimeout(1500);
     await expect(page.locator('.recovery-banner')).toBeHidden();
+  });
+});
+
+/**
+ * A crash is not the only way a save is interrupted. A disk with no room left stops it
+ * partway through, and a write empties its target before it starts filling it — so the
+ * question these answer is whether what is left on disk is still the document.
+ */
+test.describe('a save that runs out of room', () => {
+  test('never writes into the document itself', async ({ page }) => {
+    const { openPath, originalBytes } = await boot(page, 'complex.pdf');
+    await openPdf(page);
+    await drawShape(page);
+
+    // If the save wrote straight into the document, this is the write that would empty
+    // it. It has to go somewhere else, so this must not fire at all.
+    await fillDisk(page, openPath);
+    await save(page);
+
+    await expect(page.locator('.save-state')).toContainText('Saved to');
+    const saved = await readVirtualFile(page, openPath);
+    expect(saved!.length, 'the document must not be left empty').toBeGreaterThan(0);
+    expect(saved!.equals(originalBytes), 'the annotation must have reached the file').toBe(false);
+    expect(saved!.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  test('leaves the document as it was, and the work still recoverable', async ({ page }) => {
+    const { openPath, originalBytes } = await boot(page, 'complex.pdf');
+    await openPdf(page);
+    await drawShape(page);
+    await expect.poll(async () => (await readDraft(page, openPath))?.count ?? 0).toBeGreaterThan(0);
+
+    await fillDisk(page, partPathFor(openPath));
+    await save(page);
+
+    await expect(page.locator('.save-state')).toContainText('the disk is full');
+    // The one thing someone whose save just failed needs to know.
+    await expect(page.locator('.save-state')).toContainText('unchanged');
+
+    const onDisk = await readVirtualFile(page, openPath);
+    expect(onDisk!.equals(originalBytes), 'the document must be byte-identical').toBe(true);
+    expect(await readVirtualFile(page, backupPathFor(openPath))).not.toBeNull();
+
+    // Nothing reached the file, so the draft is still the only copy of the edit and
+    // must survive to be offered back.
+    expect(await readDraft(page, openPath)).not.toBeNull();
+    expect(await pendingEdits(page)).toBeGreaterThan(0);
+
+    // With room again, the same edit saves.
+    await fillDisk(page, null);
+    await save(page);
+    await expect(page.locator('.save-state')).toContainText('Saved to');
+    const saved = await readVirtualFile(page, openPath);
+    expect(saved!.equals(originalBytes)).toBe(false);
+    const facts = await inspectPdf(saved!);
+    expect(facts.annotationSubtypes.flat().length).toBeGreaterThan(0);
+    expect(await readDraft(page, openPath), 'a completed save clears the draft').toBeNull();
+    // And the partial is not left lying beside a document that saved fine.
+    expect(await listVirtualFiles(page)).not.toContain(partPathFor(openPath));
   });
 });

@@ -131,6 +131,27 @@ export function releaseWriteLock(): void {
   contender?.exec('ROLLBACK');
 }
 
+/** SQLite's own ceiling, and what `max_page_count` returns to when the disk is given back. */
+const DEFAULT_MAX_PAGE_COUNT = 1073741823;
+
+/**
+ * Caps the database at the pages it already occupies, which is what a device out of
+ * storage looks like from inside SQLite: anything that needs a new page fails with
+ * `SQLITE_FULL` — `database or disk is full` — exactly as it does on a real full disk.
+ *
+ * Filling a temporary directory for real would be measured in gigabytes and would
+ * take the machine running the tests down with it.
+ */
+export function exhaustStorage(): void {
+  const db = open();
+  const { page_count: pages } = db.prepare('PRAGMA page_count').get() as { page_count: number };
+  db.exec(`PRAGMA max_page_count = ${pages}`);
+}
+
+export function restoreStorage(): void {
+  open().exec(`PRAGMA max_page_count = ${DEFAULT_MAX_PAGE_COUNT}`);
+}
+
 /** Runs once, just before the next transaction opens. */
 export function onNextTransaction(hook: () => void): void {
   beforeTransaction = hook;
