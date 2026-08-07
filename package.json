@@ -31,7 +31,9 @@
     "e2e": "npm run e2e --workspace @iroha-pdf/desktop",
     "e2e:tauri": "npm run e2e:tauri --workspace @iroha-pdf/desktop",
     "e2e:tauri:ceiling": "npm run e2e:tauri:ceiling --workspace @iroha-pdf/desktop",
-    "verify:emulator": "npm run verify:emulator --workspace @iroha-pdf/mobile"
+    "verify:emulator": "npm run verify:emulator --workspace @iroha-pdf/mobile",
+    "graphify:setup": "sh scripts/graphify.sh setup",
+    "graphify:update": "sh scripts/graphify.sh update"
   },
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "6.0.0",
