@@ -187,6 +187,12 @@ const MESSAGES = {
   // their save failed has no way to know that, and it is the first thing they want.
   'save.unchanged': { ja: 'ディスク上のファイルはそのままです。', en: 'The file on disk is unchanged.' },
 
+  'thumbnails.label': { ja: 'ページ', en: 'Pages' },
+  // Read out by a screen reader in place of the picture, so it says which page this
+  // is rather than describing a thumbnail nobody can see.
+  'thumbnails.page': { ja: '{page}ページ目', en: 'Page {page}' },
+  'thumbnails.empty': { ja: 'ページを読み込んでいます…', en: 'Loading pages…' },
+
   'history.empty': { ja: '編集はまだありません。追加したマーカー、ペン、テキストと、PDFを保存した履歴がここに表示されます。', en: 'No edits yet. Highlights, pen strokes, and text you add will be listed here, along with every time this PDF was saved.' },
   'history.saved': { ja: '保存', en: 'Saved' },
   'history.savedAs': { ja: '別名で保存', en: 'Saved as' },

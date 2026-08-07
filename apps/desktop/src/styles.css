@@ -17,6 +17,10 @@
   --control-default: 36px;
   --control-touch: 44px;
   --toolbar-height: 48px;
+  /* One page in the strip. `THUMBNAIL_WIDTH` in thumbnails renders to match; they
+     drift harmlessly — object-fit rescales — but a thumbnail is sharpest when they
+     agree. */
+  --thumbnail-width: 120px;
   --type-caption: 10px;
   --type-small: 11px;
   --type-label: 12px;
@@ -103,6 +107,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 
 .history-empty { margin: 0; padding: var(--space-8) var(--space-7); color: #8c929c; font-size: var(--type-label); line-height: var(--leading-copy); }
 .history-list { overflow-y: auto; flex: 1; margin: 0; padding: var(--space-3) 0; list-style: none; }
+
+/* The strip scrolls on its own so the slots stay put while pictures arrive into them. */
+.thumbnail-strip { overflow-y: auto; flex: 1; margin: 0; padding: var(--space-4); list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumbnail-width), 1fr)); gap: var(--space-4); }
+.thumbnail { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+/* Both states occupy the same box, so a thumbnail arriving cannot move the ones after it. */
+.thumbnail-image, .thumbnail-placeholder { width: var(--thumbnail-width); aspect-ratio: 1 / 1.414; background: #fff; border: var(--line) solid #dfe3e8; border-radius: var(--radius-sm); object-fit: contain; }
+.thumbnail-placeholder { background: #f1f3f5; }
+.thumbnail-number { color: #8c929c; font-size: var(--type-label); }
 .history-item { display: flex; gap: var(--space-5); padding: var(--space-4) var(--space-7); border-left: var(--space-1) solid transparent; font-size: var(--type-label); }
 .history-item.save { border-left-color: #2b5cff; background: #f7f9ff; }
 .history-time { flex-shrink: 0; padding-top: var(--line); color: #a2a8b2; font-size: var(--type-caption); font-variant-numeric: tabular-nums; }

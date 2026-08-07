@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- A page strip in the desktop side panel. Every page has a slot from the start,
+  so the list is the right length and scrolls correctly immediately, and each
+  picture is drawn only when its page comes near the view — a 500-page document
+  draws single digits of them rather than 500. What has been drawn is held to a
+  byte budget and released in least-recently-seen order, which is the first thing
+  to use the bounded cache that had been sitting in `@iroha-pdf/core` with tests
+  and no caller. Leaving the tab releases every bitmap it was holding.
+
 ### Changed
 
 - The desktop application no longer ships pdf-lib and fontkit. It never called
