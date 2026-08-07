@@ -300,10 +300,14 @@ jobs:
       - name: Verify temporary dependency patches
         run: npm run verify:dependency-patches
       - name: Audit npm advisories
-        # libxmljs2 is an optional XML validator of the dev-only CycloneDX
-        # library. The project emits JSON SBOMs; audit the installed product
-        # graph without treating that unused optional peer as shipped code.
-        run: npm audit --omit=optional --audit-level=moderate
+        # Wraps `npm audit --omit=optional` — libxmljs2 is an optional XML
+        # validator of the dev-only CycloneDX library, and the project emits JSON
+        # SBOMs, so that unused optional peer is not shipped code. The wrapper
+        # exists for the advisory with nowhere to go: every published version
+        # affected and no fix but a major downgrade. Those may be excepted in
+        # release/supply-chain/advisory-exceptions.json, with a reason and an
+        # expiry, and the script fails on an expired or no-longer-matching entry.
+        run: npm run audit:advisories
       - name: Generate reproducible npm CycloneDX SBOM
         run: npm run sbom:npm
       - name: Enforce npm license allowlist and detect copyleft

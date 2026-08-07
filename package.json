@@ -24,6 +24,7 @@
     "verify:store:fixture": "node release/store/fixtures/generate.mjs --check",
     "validate:store": "node release/store/validate-submission-assets.mjs",
     "verify:dependency-patches": "node release/supply-chain/verify-dependency-patches.mjs",
+    "audit:advisories": "node release/supply-chain/audit-npm-advisories.mjs",
     "store:screenshots:desktop": "UPDATE_STORE_SCREENSHOTS=1 npm run store:screenshots --workspace @iroha-pdf/desktop",
     "sbom:npm": "node release/supply-chain/prepare-output.mjs && cyclonedx-npm --omit dev --output-reproducible --validate --output-file artifacts/npm.cdx.json",
     "audit:licenses:npm": "node release/supply-chain/audit-npm-licenses.mjs artifacts/npm.cdx.json",
@@ -41,6 +42,7 @@
     "xcode": "3.0.1"
   },
   "overrides": {
+    "nanoid": "^3.3.17",
     "uuid": "11.1.1"
   },
   "engines": {
