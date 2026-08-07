@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "Advisories this build knowingly ships with, each with a reason and an expiry.",
+    "An advisory not listed here fails the gate. An entry past its expiry fails the",
+    "gate. An entry that no longer matches anything also fails the gate, so the list",
+    "cannot quietly rot into a permanent allowance."
+  ],
+  "exceptions": [
+    {
+      "package": "image-size",
+      "advisories": ["GHSA-w3rx-r6r6-pgpr", "GHSA-5p2g-fcmc-qvqq"],
+      "expires": "2026-11-07",
+      "why": [
+        "Denial of service through infinite loops in the ICNS, JXL and HEIF parsers.",
+        "There is no version to move to: the advisories cover <=2.0.2 and 2.0.2 is the",
+        "latest published release. npm's own suggested fix is a major downgrade of Expo",
+        "to 53, which would take React Native back three years and is not a fix.",
+        "",
+        "It reaches this project only through metro, which reads image dimensions while",
+        "bundling. It is never installed into an application binary and never sees a",
+        "file a user opens — the images it parses are the ones already committed to this",
+        "repository, so triggering it requires control of the source tree, at which",
+        "point the loop is the least of the problems.",
+        "",
+        "Revisit when image-size publishes a fix and metro adopts it. The expiry is",
+        "there so this is re-argued rather than inherited."
+      ]
+    }
+  ]
+}
