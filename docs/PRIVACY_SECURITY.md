@@ -63,17 +63,24 @@ PDFs are untrusted input. Production releases must keep PDFium, `pdf-lib`, and n
 
 ### Threats and required controls
 
-| Threat | Impact | Controls / release requirement |
-|---|---|---|
-| Malformed or decompression-bomb PDF | crash, OOM, native-code exploit | byte-budgeted LRU, page-at-a-time rendering, patched engines, malicious fixtures, processing timeout |
-| PDF JavaScript or external link | unexpected execution or exfiltration | JavaScript disabled; external navigation requires an explicit user action |
-| Path traversal / unsafe output name | overwrite or disclose local files | app-private directories, generated output names, never trust embedded file names |
-| OAuth token disclosure | Drive account access | secure storage, PKCE/system browser, token/log redaction, revoke on disconnect |
-| Silent Drive conflict overwrite | user data loss | revision precondition, durable queue, conflict copy, explicit resolution |
-| Process kill, disk-full, or DB lock during autosave | note/annotation loss | WAL, write-ahead recovery journal, transactional row write, surfaced recovery copy |
-| Native sidecar compromise | host file access | no shell interpolation, allowlisted arguments, resource limits, OS sandbox, signed binary |
-| Sensitive diagnostics | private content disclosure | diagnostics off by default and content/path/token fields prohibited |
-| Stolen unlocked device | local content disclosure | OS app sandbox and device protection; document-level encryption is not yet provided |
+The two right-hand columns used to be one, headed "Controls / release requirement",
+which let a control that exists and a control that is merely intended sit side by side
+in the same cell. A security document that reads as though a mitigation is in place
+when it is not is worse than one that admits the gap, so they are separated here. Only
+things that can be pointed at in the source and are exercised by a test are in the
+first column.
+
+| Threat | Impact | In place | Required before a hardened release |
+|---|---|---|---|
+| Malformed or decompression-bomb PDF | crash, OOM, native-code exploit | mobile refuses flatten/print over 64 MiB before allocating in JS memory; malicious-fixture suite (encrypted refused visibly, broken cross-reference repaired, AcroForm preserved through a round trip); vendored engine patches verified in CI | byte budget on rendered pages — `BoundedLruCache` exists with tests but has no caller, so it bounds nothing today (#52, #18); a processing timeout, which does not exist; sandboxing (#57) |
+| PDF JavaScript or external link | unexpected execution or exfiltration | — | confirm whether the bundled pdfium is built without a JavaScript engine, rather than assuming it; make external navigation an explicit user action |
+| Path traversal / unsafe output name | overwrite or disclose local files | mobile writes only into app-private directories; desktop output names come from the dialog, and the two names a save derives are validated in Rust against the picked path before the scope is widened | never trusting a file name embedded in a document, which nothing reads yet |
+| OAuth token disclosure | Drive account access | scopes limited to `drive.file` and `drive.appdata`; no connect action offered when no client ID is configured | secure storage, PKCE/system browser (#32), token and log redaction, revoke on disconnect — none exercised, because nothing has talked to Google yet (#31) |
+| Silent Drive conflict overwrite | user data loss | — | revision precondition, durable queue, conflict copy, explicit resolution. `DurableSyncQueue` exists with tests and no caller; upload is not wired to any screen; the resolution UI is #39. |
+| Process kill, disk-full, or DB lock during autosave | note/annotation loss | WAL; write-ahead recovery journal reconciled at launch; transactional row write; recovery copies surfaced, and an honest message when one could not be kept. Desktop saves atomically — bytes assembled beside the document and renamed over it — so an interrupted save cannot truncate it. All three failures are injected in tests. | the same three injected on real hardware (#51) |
+| Native sidecar compromise | host file access | no sidecar exists | everything in this row, if #25 lands |
+| Sensitive diagnostics | private content disclosure | no diagnostics are collected or transmitted | the prohibitions themselves, once #66 adds anything |
+| Stolen unlocked device | local content disclosure | OS app sandbox and device protection | document-level encryption, which is not provided |
 
 Residual risks that block a hardened release are tracked in the security,
 sandbox, performance, and full-device release-gate issues.
