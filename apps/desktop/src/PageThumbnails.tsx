@@ -14,7 +14,12 @@ import { useRenderCapability } from '@embedpdf/plugin-render/react';
 import { t } from './i18n';
 import { ThumbnailStore } from './thumbnails';
 
-/** Rendered width. Small enough to be cheap, large enough to recognise a page by. */
+/**
+ * Rendered width. Small enough to be cheap, large enough to recognise a page by, and
+ * the same number as the `--thumbnail-width` token the strip lays out with. They drift
+ * harmlessly — `object-fit` rescales whatever arrives — but a thumbnail is sharpest
+ * when the bitmap is the size it will be shown at.
+ */
 const THUMBNAIL_WIDTH = 120;
 
 /**
