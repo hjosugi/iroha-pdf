@@ -5,6 +5,10 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { fixturePath, type FixtureName } from './fixtures';
 import { installTauriStub } from './tauri-stub';
 
+// The app's own rules, not a second copy of them: a rename in the app has to fail a
+// test here rather than move both onto the same different file.
+export { backupPathFor, partPathFor } from '../src/paths';
+
 export const OPEN_PATH = '/virtual/documents/complex.pdf';
 
 export type BootOptions = {
@@ -136,15 +140,6 @@ export async function save(page: Page): Promise<void> {
 export async function saveAs(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Save as…' }).click();
   await expect(page.locator('.save-state')).toContainText(/Saved to|Save failed/);
-}
-
-export function backupPathFor(path: string): string {
-  return path.replace(/\.pdf$/i, '') + '.iroha-original.pdf';
-}
-
-/** Where a save assembles its bytes before they become the document. */
-export function partPathFor(path: string): string {
-  return path.replace(/\.pdf$/i, '') + '.iroha-part.pdf';
 }
 
 /** Makes writes to `path` run out of room; null gives the disk back. */

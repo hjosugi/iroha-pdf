@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- The desktop application no longer ships pdf-lib and fontkit. It never called
+  either — its PDF work is all wasm — but it imports two i18n functions from
+  `@iroha-pdf/core`, whose barrel re-exports the module that does use them, and
+  nothing told the bundler it was free to drop that graph. Application
+  JavaScript went from 1.80 MB to 0.63 MB, and pdf-lib leaves the desktop's
+  installed dependencies and its SBOM. First contentful paint did not measurably
+  change; the shell already paints before the engine loads.
+- The rules that turn a document's path into the names a save works with live in
+  one module now. The e2e suite carried its own copy, because the module they
+  were in reaches for Tauri at import time, so renaming one in the application
+  moved the assertions onto the same different file instead of failing.
+
 ### Fixed
 
 - A save that fails now takes its own half-written bytes with it, instead of

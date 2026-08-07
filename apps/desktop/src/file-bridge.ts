@@ -2,6 +2,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { ask, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { copyFile, exists, readFile, rename, writeFile } from '@tauri-apps/plugin-fs';
 
+import { backupPathFor, basename, partPathFor } from './paths';
+
+// Re-exported so callers keep one import for "the desktop file layer"; the rules
+// themselves live in ./paths, which a test can import without a Tauri runtime.
+export { backupPathFor, basename, partPathFor };
+
 const PDF_FILTERS = [{ name: 'PDF', extensions: ['pdf'] }];
 
 /**
@@ -10,30 +16,6 @@ const PDF_FILTERS = [{ name: 'PDF', extensions: ['pdf'] }];
  */
 export function isDesktopRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
-export function basename(path: string): string {
-  const segments = path.split(/[\\/]/);
-  return segments[segments.length - 1] || path;
-}
-
-/**
- * The pristine copy taken the first time a given file is overwritten. It is written
- * once and never replaced, so the bytes the user originally opened stay recoverable
- * no matter how many times they save afterwards.
- */
-export function backupPathFor(path: string): string {
-  return path.replace(/\.pdf$/i, '') + '.iroha-original.pdf';
-}
-
-/**
- * Where a save assembles its bytes before they become the document. Beside the target
- * rather than in a temporary directory, so that turning it into the document stays a
- * rename within one filesystem — across two, it would be a copy, and a copy is exactly
- * the half-written window this exists to close.
- */
-export function partPathFor(path: string): string {
-  return path.replace(/\.pdf$/i, '') + '.iroha-part.pdf';
 }
 
 /**

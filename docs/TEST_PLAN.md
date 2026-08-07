@@ -224,8 +224,22 @@ machine noise does not fail the suite. Update this table when the numbers move.
 | 41.6 MB scan first page interactive | ~2.1 s |
 | 41.6 MB scan live JS heap | ~5.2 MB |
 | 41.6 MB scan save | ~0.9 s |
-| Shipped bundle | 5.96 MB total, 4.42 MB of it pdfium wasm |
+| Shipped bundle | 6.00 MB total, 4.42 MB of it pdfium wasm |
+| Application JavaScript | 0.63 MB, down from 1.80 MB |
 | First contentful paint | ~130–230 ms |
+
+The application JavaScript figure is everything except the engine. It halved and then
+some when `@iroha-pdf/core` was marked side-effect free: the desktop imports two i18n
+functions from that package, its barrel re-exports `pdf.ts`, and the bundler had no
+licence to drop the pdf-lib and fontkit graph behind it — a megabyte of PDF library in
+an application whose PDF work is all wasm. `appJsMb` is now 1, so the same thing
+arriving through some other barrel breaches the budget instead of passing quietly.
+
+This did **not** measurably move first contentful paint. Three runs each way gave 604 /
+424 / 576 ms before and 1184 / 360 / 480 ms after: the shell already paints before the
+engine loads, and run-to-run variance here is larger than the parse cost of the bytes
+removed. The win is bytes shipped and one fewer library in what gets installed, not a
+startup number.
 
 Heap is measured over CDP, after a forced collection. `performance.memory` is quantised
 and cached for ~30 seconds, so reading it repeatedly in one session returns the same
