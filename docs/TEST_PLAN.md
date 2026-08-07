@@ -22,7 +22,7 @@ remain part of the device/desktop E2E gate because `pdf-lib` does not render.
 
 `e2e:tauri` drives the real Tauri runtime — a real window, the real webview,
 real filesystem writes and real Tauri plugin calls — rather than the Playwright
-stub, and runs 27 checks. The native file dialog itself remains a manual gate. It needs
+stub, and runs 31 checks. The native file dialog itself remains a manual gate. It needs
 `cargo install tauri-driver`, a `WebKitWebDriver` binary (Debian: `webkit2gtk-driver`),
 a graphical session, and a **debug** app build from
 `frost build desktop-app-linux-debug --no-tui`.
@@ -194,6 +194,15 @@ files on disk.
   the partial a save is assembled in are reachable only through `allow_derived_file`, and
   that command is exercised refusing an underived name, a path outside the folder, and a
   source the user never picked
+- `discard_part_file` really removes a partial, reports one that was not there, refuses a
+  source the user never picked, and leaves the document itself untouched. It derives the
+  path it deletes rather than accepting one, so this is also what catches its suffix
+  drifting from `partPathFor`
+- the run clears the webview's storage before it opens anything. The working directory is
+  recreated each time but the webview's is not, and drafts are keyed by the fixture's
+  path, so a run that ended mid-edit used to leave the next one opening into a recovery
+  banner — where the Save button is no longer the last `.primary-button` and every later
+  check reads the wrong control
 
 One thing it does not cover: the native file dialog is a portal window under Wayland and
 no scripting tool available here can drive it, so the suite opens by path through a

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A save that fails now takes its own half-written bytes with it, instead of
+  leaving a `.iroha-part.pdf` beside the document. Those bytes are never what an
+  interrupted edit is recovered from — the draft is — so a file named almost
+  like the document was only ever going to be mistaken for it. The webview still
+  cannot delete anything: the app derives the one path it may remove on the Rust
+  side, so it can reach a document's partial and nothing else. If the clean-up
+  itself fails, the file stays and the error says where.
+
 ## 0.5.0 - 2026-08-07
 
 A desktop save can no longer be interrupted into losing the document. The new
