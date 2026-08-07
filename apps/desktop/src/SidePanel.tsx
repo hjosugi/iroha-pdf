@@ -9,6 +9,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Note } from '@iroha-pdf/core';
 
+import { PageThumbnails } from './PageThumbnails';
+
 import { basename } from './file-bridge';
 import { t, timeFormat } from './i18n';
 import { storageKey } from './local-storage';
@@ -160,7 +162,7 @@ function NotePanel({ documentId }: { documentId: string }) {
 }
 
 export function SidePanel({ documentId }: { documentId: string }) {
-  const [tab, setTab] = useState<'history' | 'note'>('history');
+  const [tab, setTab] = useState<'history' | 'pages' | 'note'>('history');
   const file = useDocumentFile(documentId);
 
   return (
@@ -173,6 +175,14 @@ export function SidePanel({ documentId }: { documentId: string }) {
           aria-selected={tab === 'history'}
         >
           {t('edit.history')}
+        </button>
+        <button
+          className={tab === 'pages' ? 'panel-tab active' : 'panel-tab'}
+          onClick={() => setTab('pages')}
+          role="tab"
+          aria-selected={tab === 'pages'}
+        >
+          {t('thumbnails.label')}
         </button>
         <button
           className={tab === 'note' ? 'panel-tab active' : 'panel-tab'}
@@ -188,7 +198,11 @@ export function SidePanel({ documentId }: { documentId: string }) {
           {file.path}
         </p>
       )}
-      {tab === 'history' ? <HistoryPanel documentId={documentId} /> : <NotePanel documentId={documentId} />}
+      {tab === 'history' && <HistoryPanel documentId={documentId} />}
+      {/* Mounted only while the tab is open: the strip holds rendered bitmaps, and a
+          panel nobody is looking at should not be holding any. */}
+      {tab === 'pages' && <PageThumbnails documentId={documentId} />}
+      {tab === 'note' && <NotePanel documentId={documentId} />}
     </aside>
   );
 }
