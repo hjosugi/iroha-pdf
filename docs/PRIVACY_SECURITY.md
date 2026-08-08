@@ -49,7 +49,30 @@ developer-operated account identifier is used by the current build.
 
 ## Untrusted PDFs
 
-PDFs are untrusted input. Production releases must keep PDFium, `pdf-lib`, and native processors patched; disable PDF JavaScript; confirm external links; apply memory and time limits; and isolate native sidecars. Passwords and document content must not be written to logs or crash reports.
+PDFs are untrusted input. Production releases must keep PDFium, `pdf-lib`, and native processors patched; confirm external links; apply memory and time limits; and isolate native sidecars. Passwords and document content must not be written to logs or crash reports.
+
+### Document JavaScript
+
+A PDF can carry scripts. This one cannot run them, and the reason is worth writing down
+rather than repeating as an assumption — an earlier version of this document simply
+asserted "JavaScript disabled", which nothing here configures.
+
+The bundled `@embedpdf/pdfium` wasm exports PDFium's API for *reading* a document's
+scripts — `FPDFDoc_GetJavaScriptAction`, `FPDFJavaScriptAction_GetScript` and
+neighbours — which is present in every PDFium build. What a build with `pdf_enable_v8`
+also carries is the runtime: the `fxjs` layer, the `CJS_*` and `IJS_*` classes, and the
+Acrobat built-ins it registers by name — `AFNumber_Format`, `AFSimple_Calculate`,
+`util.printf`, `app.alert`, `event.value`. **None of those strings appears in the
+shipped wasm.** There is an interface for looking at a script and no interpreter behind
+it.
+
+The second half is the application's own: nothing in either app calls
+`getDocumentJavaScriptActions`, and neither uses `eval` or `new Function` on anything
+from a document. So a script in a PDF is never read, never passed anywhere, and could
+not be executed if it were.
+
+Recheck this when the engine is upgraded. A future `@embedpdf/pdfium` built with V8
+would change the answer silently, and the same string search settles it in a minute.
 
 ## Threat model
 
@@ -73,7 +96,7 @@ first column.
 | Threat | Impact | In place | Required before a hardened release |
 |---|---|---|---|
 | Malformed or decompression-bomb PDF | crash, OOM, native-code exploit | mobile refuses flatten/print over 64 MiB before allocating in JS memory; malicious-fixture suite (encrypted refused visibly, broken cross-reference repaired, AcroForm preserved through a round trip); vendored engine patches verified in CI | byte budget on rendered pages — `BoundedLruCache` exists with tests but has no caller, so it bounds nothing today (#52, #18); a processing timeout, which does not exist; sandboxing (#57) |
-| PDF JavaScript or external link | unexpected execution or exfiltration | — | confirm whether the bundled pdfium is built without a JavaScript engine, rather than assuming it; make external navigation an explicit user action |
+| PDF JavaScript or external link | unexpected execution or exfiltration | the bundled pdfium has no JavaScript engine — see below — and nothing in either application reads or runs a document's scripts | make external navigation an explicit user action |
 | Path traversal / unsafe output name | overwrite or disclose local files | mobile writes only into app-private directories; desktop output names come from the dialog, and the two names a save derives are validated in Rust against the picked path before the scope is widened | never trusting a file name embedded in a document, which nothing reads yet |
 | OAuth token disclosure | Drive account access | scopes limited to `drive.file` and `drive.appdata`; no connect action offered when no client ID is configured | secure storage, PKCE/system browser (#32), token and log redaction, revoke on disconnect — none exercised, because nothing has talked to Google yet (#31) |
 | Silent Drive conflict overwrite | user data loss | — | revision precondition, durable queue, conflict copy, explicit resolution. `DurableSyncQueue` exists with tests and no caller; upload is not wired to any screen; the resolution UI is #39. |
