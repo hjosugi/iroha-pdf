@@ -23,7 +23,7 @@
     "@embedpdf/models": "^2.14.4",
     "@embedpdf/pdfium": "^2.14.4",
     "@embedpdf/plugin-annotation": "^2.14.4",
-    "@embedpdf/plugin-document-manager": "^2.14.4",
+    "@embedpdf/plugin-document-manager": "^2.15.0",
     "@embedpdf/plugin-export": "^2.14.4",
     "@embedpdf/plugin-history": "^2.14.4",
     "@embedpdf/plugin-interaction-manager": "^2.14.4",
