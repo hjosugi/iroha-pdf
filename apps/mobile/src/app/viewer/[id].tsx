@@ -56,7 +56,10 @@ import {
   type HistoryStep,
 } from '@/lib/annotation-history';
 import {
+  appendPressure,
   fitPageFrame,
+  highlightFromDrag,
+  pressuresForStroke,
   hasPressureAwareInk,
   normalizePagePoint,
   pointerPressure,
@@ -274,12 +277,9 @@ export default function PdfViewerScreen() {
       setHighlightPreview({ start: highlightStart.current, end: point });
     } else if (tool === 'ink') {
       inkPoints.current = [...inkPoints.current, point];
-      if (inkPressures.current.length > 0) {
-        inkPressures.current = [
-          ...inkPressures.current,
-          pointerPressure(native.pointerType, native.pressure) ?? inkPressures.current.at(-1) ?? 0.5,
-        ];
-      }
+      inkPressures.current = [
+        ...appendPressure(inkPressures.current, pointerPressure(native.pointerType, native.pressure)),
+      ];
       setInkPreview(inkPoints.current);
       setInkPreviewPressures(inkPressures.current);
     }
@@ -289,23 +289,18 @@ export default function PdfViewerScreen() {
     if (activePointer.current !== event.nativeEvent.pointerId) return;
     const point = pointFromPointer(event);
     if (tool === 'highlight' && highlightStart.current) {
-      const end = highlightEnd.current ?? point;
-      const width = Math.abs(end.x - highlightStart.current.x);
-      const height = Math.abs(end.y - highlightStart.current.y);
-      if (width < 0.01 && height < 0.01) {
+      const box = highlightFromDrag(highlightStart.current, highlightEnd.current ?? point);
+      // Null means the drag was too small to have been meant as one, so it is the tap
+      // it looks like — which places a highlight of the default size instead.
+      if (!box) {
         addAtPoint(point);
       } else {
-        void persist({
-          ...newMark(), kind: 'highlight',
-          position: { x: Math.min(highlightStart.current.x, end.x), y: Math.min(highlightStart.current.y, end.y) },
-          width: Math.max(0.01, width), height: Math.max(0.01, height),
-          opacity: 0.42,
-        });
+        void persist({ ...newMark(), kind: 'highlight', ...box, opacity: 0.42 });
       }
     } else if (tool === 'ink' && inkPoints.current.length >= 2) {
       void persist({
         ...newMark(), kind: 'ink', points: inkPoints.current,
-        pressures: inkPressures.current.length === inkPoints.current.length ? inkPressures.current : undefined,
+        pressures: pressuresForStroke(inkPoints.current, inkPressures.current),
         strokeWidth,
       });
     } else if (tool === 'text' || tool === 'eraser') {
