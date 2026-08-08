@@ -34,3 +34,9 @@ src-tauri/target/
 
 # Isolated worktrees used by background agents
 .claude/worktrees/
+.claude/skills/graphify/
+.claude/settings.local.json
+.copilot/skills/graphify/
+.codex/skills/graphify/
+.codex/hooks.json
+graphify-out/
