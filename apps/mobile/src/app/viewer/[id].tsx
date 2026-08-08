@@ -45,6 +45,17 @@ import {
   MAX_MOBILE_FLATTEN_BYTES,
 } from '@/lib/memory-policy';
 import {
+  EMPTY_HISTORY,
+  planRedo,
+  planUndo,
+  recordCreate,
+  recordDelete,
+  redoRestores,
+  undoRestores,
+  type AnnotationHistory,
+  type HistoryStep,
+} from '@/lib/annotation-history';
+import {
   fitPageFrame,
   hasPressureAwareInk,
   normalizePagePoint,
@@ -113,8 +124,7 @@ export default function PdfViewerScreen() {
   const highlightStart = useRef<Point | null>(null);
   const highlightEnd = useRef<Point | null>(null);
   const [highlightPreview, setHighlightPreview] = useState<{ start: Point; end: Point } | null>(null);
-  const [undoStack, setUndoStack] = useState<PdfAnnotation[]>([]);
-  const [redoStack, setRedoStack] = useState<PdfAnnotation[]>([]);
+  const [history, setHistory] = useState<AnnotationHistory>(EMPTY_HISTORY);
   const [busyAction, setBusyAction] = useState<'export' | 'print' | null>(null);
 
   const pageFrame = useMemo(
@@ -127,6 +137,9 @@ export default function PdfViewerScreen() {
     void Promise.all([getDocument(id), listAnnotations(id)]).then(async ([nextDocument, nextAnnotations]) => {
       setDocument(nextDocument);
       setAnnotations(nextAnnotations);
+      // Steps recorded against the document being left would undo marks in the one
+      // being opened, if this screen is reused for a different id rather than remounted.
+      setHistory(EMPTY_HISTORY);
       if (nextDocument) {
         navigation.setOptions({ title: nextDocument.title });
         await markDocumentOpened(nextDocument.id);
@@ -142,10 +155,7 @@ export default function PdfViewerScreen() {
     try {
       await saveAnnotation(annotation);
       setAnnotations((current) => [...current.filter((item) => item.id !== annotation.id), annotation]);
-      if (recordHistory) {
-        setUndoStack((current) => [...current, annotation]);
-        setRedoStack([]);
-      }
+      if (recordHistory) setHistory((current) => recordCreate(current, annotation));
       return true;
     } catch (error) {
       alertFailure(t('edit.annotationSaveFailed'), error);
@@ -153,10 +163,11 @@ export default function PdfViewerScreen() {
     }
   };
 
-  const removeAnnotation = async (annotation: PdfAnnotation): Promise<boolean> => {
+  const removeAnnotation = async (annotation: PdfAnnotation, recordHistory = false): Promise<boolean> => {
     try {
       await deleteAnnotation(annotation.id);
       setAnnotations((current) => current.filter((item) => item.id !== annotation.id));
+      if (recordHistory) setHistory((current) => recordDelete(current, annotation));
       return true;
     } catch (error) {
       alertFailure(t('edit.annotationDeleteFailed'), error);
@@ -177,30 +188,32 @@ export default function PdfViewerScreen() {
     };
   };
 
-  const undo = async () => {
-    const annotation = undoStack.at(-1);
-    if (!annotation) return;
-    if (await removeAnnotation(annotation)) {
-      setUndoStack((current) => current.slice(0, -1));
-      setRedoStack((current) => [...current, annotation]);
-    }
+  /**
+   * Applies a planned step, and moves the history only once the write has landed:
+   * a history that advanced past a failed write would describe a document that does
+   * not exist.
+   */
+  const step = async (
+    plan: { step: HistoryStep; next: AnnotationHistory } | null,
+    restores: (step: HistoryStep) => boolean,
+  ) => {
+    if (!plan) return;
+    const { annotation } = plan.step;
+    const done = restores(plan.step)
+      ? await persist({ ...annotation, updatedAt: new Date().toISOString() }, false)
+      : await removeAnnotation(annotation);
+    if (done) setHistory(plan.next);
   };
 
-  const redo = async () => {
-    const annotation = redoStack.at(-1);
-    if (!annotation) return;
-    if (await persist({ ...annotation, updatedAt: new Date().toISOString() }, false)) {
-      setRedoStack((current) => current.slice(0, -1));
-      setUndoStack((current) => [...current, annotation]);
-    }
-  };
+  const undo = () => step(planUndo(history), undoRestores);
+  const redo = () => step(planRedo(history), redoRestores);
 
   const addAtPoint = (point: Point) => {
     if (tool === 'eraser') {
       const nearest = visibleAnnotations
         .map((annotation) => ({ annotation, distance: distanceToAnnotation(point, annotation) }))
         .sort((left, right) => left.distance - right.distance)[0];
-      if (nearest && nearest.distance < 0.08) void removeAnnotation(nearest.annotation);
+      if (nearest && nearest.distance < 0.08) void removeAnnotation(nearest.annotation, true);
       return;
     }
     if (tool === 'text') {
@@ -404,8 +417,8 @@ export default function PdfViewerScreen() {
               <Text style={[styles.toolText, tool === item && styles.activeToolText]}>{toolLabel(item)}</Text>
             </Pressable>
           ))}
-          <Pressable accessibilityRole="button" accessibilityLabel={t('edit.undoLabel')} accessibilityState={{ disabled: undoStack.length === 0 }} disabled={undoStack.length === 0} style={[styles.compactTool, undoStack.length === 0 && styles.disabledButton]} onPress={() => void undo()}><Text>↶</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('edit.redoLabel')} accessibilityState={{ disabled: redoStack.length === 0 }} disabled={redoStack.length === 0} style={[styles.compactTool, redoStack.length === 0 && styles.disabledButton]} onPress={() => void redo()}><Text>↷</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('edit.undoLabel')} accessibilityState={{ disabled: history.undo.length === 0 }} disabled={history.undo.length === 0} style={[styles.compactTool, history.undo.length === 0 && styles.disabledButton]} onPress={() => void undo()}><Text>↶</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('edit.redoLabel')} accessibilityState={{ disabled: history.redo.length === 0 }} disabled={history.redo.length === 0} style={[styles.compactTool, history.redo.length === 0 && styles.disabledButton]} onPress={() => void redo()}><Text>↷</Text></Pressable>
         </ScrollView>
         <Pressable accessibilityRole="button" accessibilityLabel={t('document.exportLabel')} accessibilityState={{ disabled: busyAction !== null }} disabled={busyAction !== null} style={[styles.textButton, busyAction !== null && styles.disabledButton]} onPress={() => void exportCopy()}><Text>{t(busyAction === 'export' ? 'document.exporting' : 'document.export')}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={t('print.open')} accessibilityState={{ disabled: busyAction !== null }} disabled={busyAction !== null} style={[styles.primaryButton, busyAction !== null && styles.disabledButton]} onPress={() => void print()}><Text style={styles.primaryText}>{t(busyAction === 'print' ? 'print.preparing' : 'print.open')}</Text></Pressable>

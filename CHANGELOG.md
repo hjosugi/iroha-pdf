@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Fixed
+
+- Erasing an annotation on mobile can be undone. The undo stack recorded only
+  the marks that had been drawn, so taking a step back always meant deleting
+  something — which left the eraser, the tool whose whole purpose is fixing a
+  mistake, as the one mistake that stuck. Steps now carry what happened to them,
+  so undo knows whether to remove a mark or put it back, and the history is
+  dropped when the screen moves to another document rather than offering to undo
+  marks belonging to the previous one.
+
 ### Added
 
 - A page strip in the desktop side panel. Every page has a slot from the start,
