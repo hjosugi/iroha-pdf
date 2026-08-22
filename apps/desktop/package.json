@@ -25,7 +25,7 @@
     "@embedpdf/plugin-annotation": "^2.14.4",
     "@embedpdf/plugin-document-manager": "^2.14.4",
     "@embedpdf/plugin-export": "^2.14.4",
-    "@embedpdf/plugin-history": "^2.14.4",
+    "@embedpdf/plugin-history": "^2.15.0",
     "@embedpdf/plugin-interaction-manager": "^2.14.4",
     "@embedpdf/plugin-pan": "^2.14.4",
     "@embedpdf/plugin-print": "^2.14.4",
