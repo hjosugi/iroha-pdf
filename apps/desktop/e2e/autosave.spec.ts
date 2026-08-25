@@ -10,6 +10,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import {
   backupPathFor,
+  blockRename,
   boot,
   drawShape,
   fillDisk,
@@ -194,6 +195,52 @@ test.describe('a save that runs out of room', () => {
     expect(facts.annotationSubtypes.flat().length).toBeGreaterThan(0);
     expect(await readDraft(page, openPath), 'a completed save clears the draft').toBeNull();
     // And the partial is not left lying beside a document that saved fine.
+    expect(await listVirtualFiles(page)).not.toContain(partPathFor(openPath));
+  });
+});
+
+test.describe('a save the platform will not let finish', () => {
+  /**
+   * The other way a save fails, and the one that is not about space. Windows
+   * refuses to replace a file another process holds open, which is exactly what a
+   * PDF viewer looking at the same document is doing. The bytes are complete by
+   * then — it is only the last step, putting them in place, that is refused.
+   *
+   * The document must still be untouched, and the complete-but-unplaced copy must
+   * not be left beside it: the draft is what an interrupted edit is recovered
+   * from, so those bytes are debris under a name nobody will recognise.
+   */
+  test('leaves nothing behind when the document cannot be replaced', async ({ page }) => {
+    const { openPath, originalBytes } = await boot(page, 'complex.pdf');
+    await openPdf(page);
+    await drawShape(page);
+    await expect.poll(async () => (await readDraft(page, openPath))?.count ?? 0).toBeGreaterThan(0);
+
+    await blockRename(page, openPath);
+    await save(page);
+
+    // Classified, not the raw platform text: `describeFailure` exists so nobody is
+    // shown `os error 5`, and Windows' wording matched none of the POSIX spellings.
+    await expect(page.locator('.save-state')).toContainText('that file is not writable');
+    await expect(page.locator('.save-state')).toContainText('unchanged');
+
+    const onDisk = await readVirtualFile(page, openPath);
+    expect(onDisk!.equals(originalBytes), 'the document must be byte-identical').toBe(true);
+    expect(await listVirtualFiles(page)).not.toContain(partPathFor(openPath));
+    await expect(page.locator('.save-state')).not.toContainText('incomplete copy');
+
+    // The edit only exists in the draft, so it has to survive to be offered back.
+    expect(await readDraft(page, openPath)).not.toBeNull();
+    expect(await pendingEdits(page)).toBeGreaterThan(0);
+
+    // And once the other program lets go, the same edit saves.
+    await blockRename(page, null);
+    await save(page);
+    await expect(page.locator('.save-state')).toContainText('Saved to');
+    const saved = await readVirtualFile(page, openPath);
+    expect(saved!.equals(originalBytes)).toBe(false);
+    expect((await inspectPdf(saved!)).annotationSubtypes.flat().length).toBeGreaterThan(0);
+    expect(await readDraft(page, openPath), 'a completed save clears the draft').toBeNull();
     expect(await listVirtualFiles(page)).not.toContain(partPathFor(openPath));
   });
 });

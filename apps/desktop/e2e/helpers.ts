@@ -147,6 +147,11 @@ export async function fillDisk(page: Page, path: string | null): Promise<void> {
   await page.evaluate((target) => window.__IROHA_TEST__.setDiskFull(target), path);
 }
 
+/** Refuses to rename onto `path`, the way a viewer holding the document open does. */
+export async function blockRename(page: Page, path: string | null): Promise<void> {
+  await page.evaluate((target) => window.__IROHA_TEST__.setRenameBlocked(target), path);
+}
+
 /** A normalised rectangle over page 1, as a fraction of its rendered box. */
 export type PageBox = { x1: number; y1: number; x2: number; y2: number };
 

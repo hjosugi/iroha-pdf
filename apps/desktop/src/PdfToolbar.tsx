@@ -269,7 +269,13 @@ function reasonFor(message: string): string {
     return t('save.notAllowed');
   }
   if (/ENOSPC|no space left|disk is full/i.test(message)) return t('save.diskFull');
-  if (/EACCES|permission denied|read-only/i.test(message)) {
+  // `Access is denied` is how Windows says it, and it says it both for a file
+  // that cannot be written and for one another program is holding open — which
+  // is what a PDF viewer looking at the same document does, and what makes the
+  // final rename fail. None of the POSIX spellings above match it, so it used to
+  // fall through to the generic message on the one platform where the specific
+  // one is most likely to be what happened.
+  if (/EACCES|permission denied|read-only|access is denied|os error 5\b/i.test(message)) {
     return t('save.notWritable');
   }
   if (/not found/i.test(message)) return t('save.notOpen');
