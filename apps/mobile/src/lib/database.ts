@@ -300,7 +300,19 @@ export async function listAnnotations(documentId: string): Promise<PdfAnnotation
 
 export async function deleteAnnotation(id: string): Promise<void> {
   const db = await readyDatabase();
-  await db.runAsync('DELETE FROM annotations WHERE id = ?', id);
+  await db.withTransactionAsync(async () => {
+    // The same sweep `deleteNote` does, for the reason `deleteDocument` states:
+    // a recovery copy must not offer back work the user removed on purpose.
+    // Erasing a mark whose earlier save had failed used to leave its copy behind,
+    // and the Recovery screen would then offer to restore the very mark the
+    // eraser was used on — `restoreRecoveryCopy` puts it straight back through
+    // `saveAnnotation`.
+    await db.runAsync(
+      `DELETE FROM write_journal WHERE entity_type = 'annotation' AND entity_id = ?`,
+      id,
+    );
+    await db.runAsync('DELETE FROM annotations WHERE id = ?', id);
+  });
 }
 
 type JournalEntityType = 'note' | 'annotation';

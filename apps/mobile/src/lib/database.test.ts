@@ -353,6 +353,34 @@ describe('journaledWrite', () => {
     expect(await database.listAnnotations('doc-gone')).toEqual([]);
   });
 
+  /**
+   * Erasing is the tool for taking a mark back, so a recovery copy left over from
+   * that mark's earlier failed save has to go with it. Otherwise the Recovery
+   * screen offers to restore exactly what the eraser was used on, and
+   * `restoreRecoveryCopy` puts it back through `saveAnnotation` — the mark returns.
+   *
+   * `deleteNote` already swept the journal this way, and `deleteDocument` says why;
+   * only `deleteAnnotation` did not.
+   */
+  it('drops the recovery copy for an annotation the user erased', async () => {
+    await database.saveDocument(documentFixture());
+    await database.saveAnnotation(annotationFixture());
+    seedJournalEntry({
+      id: 'journal-ann',
+      entityType: 'annotation',
+      entityId: 'ann-1',
+      attemptedPayload: JSON.stringify(annotationFixture({ color: '#FF0000' })),
+      status: 'rolled-back',
+      createdAt: '2026-01-02T00:00:00.000Z',
+    });
+    expect(await database.listRecoveryCopies()).toMatchObject([{ entityId: 'ann-1' }]);
+
+    await database.deleteAnnotation('ann-1');
+
+    expect(await database.listAnnotations('doc-1')).toEqual([]);
+    expect(await database.listRecoveryCopies()).toEqual([]);
+  });
+
   it('says so when the interrupted edit could not even be kept as a recovery copy', async () => {
     await database.saveNote(noteFixture());
 
