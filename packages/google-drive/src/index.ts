@@ -93,6 +93,30 @@ const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const DRIVE_FILE_FIELDS = 'id,name,mimeType,modifiedTime,size,md5Checksum,version';
 const DRIVE_FILE_LIST_FIELDS = `nextPageToken,files(${DRIVE_FILE_FIELDS})`;
 
+/**
+ * Escapes a value going into a Drive query string literal.
+ *
+ * Drive's query syntax escapes with backslashes, so a backslash in the value is
+ * itself significant and has to be doubled - and doubled BEFORE the quotes are
+ * escaped, or the backslash this step adds gets doubled too and stops escaping
+ * anything. Only the quote was handled, which left two ways out of the literal:
+ *
+ *   a name ending in \       ->  name='trailing\'
+ *                                the \' reads as an escaped quote, so the
+ *                                string never closes and Drive rejects it
+ *
+ *   the name  a\' or name='b  ->  name='a\\' or name=\'b'
+ *                                the \\ is one escaped backslash, so the next
+ *                                quote closes the literal and the remainder is
+ *                                query syntax rather than part of a name
+ *
+ * Reachable through the public `readJson`, and through the operation file names
+ * `DriveAppDataRepository.appendOperations` builds from a caller's `deviceId`.
+ */
+function escapeQueryLiteral(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+}
+
 export class GoogleDriveClient {
   private readonly getAccessToken: AccessTokenProvider;
   private readonly fetchImpl: typeof fetch;
@@ -144,10 +168,7 @@ export class GoogleDriveClient {
       pageSize: '100',
       spaces: 'appDataFolder',
     });
-    if (name) {
-      const safeName = name.replaceAll("'", "\\'");
-      params.set('q', `name='${safeName}' and trashed=false`);
-    }
+    if (name) params.set('q', `name='${escapeQueryLiteral(name)}' and trashed=false`);
     if (pageToken) params.set('pageToken', pageToken);
 
     const response = await this.request(`${DRIVE_API}/files?${params.toString()}`);
