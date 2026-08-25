@@ -88,16 +88,23 @@ export async function ensureOriginalBackup(path: string): Promise<string | null>
  * half-written bytes with it. Those bytes are never worth keeping: what an interrupted
  * edit is recovered from is the draft, not this. Only when the clean-up itself fails
  * does the file stay, and then the error says where.
+ *
+ * Both steps can fail, and for different reasons — the write meets a full disk, the
+ * rename meets a document another program is holding open, which is what Windows does
+ * when the same PDF is loaded in a viewer. Only the write used to be handled, so a
+ * refused rename left a complete `.part` beside the document and reported whatever the
+ * platform said, with nothing to say the debris was there. The promise this comment
+ * makes is for the whole operation, so it is kept over both steps.
  */
 export async function writePdfToDisk(path: string, buffer: ArrayBuffer): Promise<void> {
   const part = partPathFor(path);
   try {
     await writeFile(part, new Uint8Array(buffer));
+    await rename(part, path);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`${reason}${await describePartFile(path, part)}`, { cause: error });
   }
-  await rename(part, path);
 }
 
 /**

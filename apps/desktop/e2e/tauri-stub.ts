@@ -58,6 +58,8 @@ declare global {
        * That is precisely why a save must not write straight into the document.
        */
       setDiskFull: (path: string | null) => void;
+      /** Refuses to rename onto this path, the way an open handle does on Windows. */
+      setRenameBlocked: (path: string | null) => void;
     };
   }
 }
@@ -104,6 +106,7 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
     let openPath = stub.openPath;
     let savePath = stub.savePath;
     let fullDiskPath: string | null = null;
+    let renameBlockedPath: string | null = null;
 
     const toBytes = (payload: unknown): Uint8Array => {
       if (payload instanceof Uint8Array) return payload;
@@ -127,6 +130,9 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
       },
       setDiskFull: (path) => {
         fullDiskPath = path;
+      },
+      setRenameBlocked: (path) => {
+        renameBlockedPath = path;
       },
     };
 
@@ -203,6 +209,11 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
             record.path = newPath;
             record.byteLength = bytes?.length;
             calls.push(record);
+            // Windows refuses to replace a file another process holds open, which is
+            // what a PDF viewer looking at the same document does.
+            if (newPath === renameBlockedPath) {
+              throw new Error(`failed to rename to ${newPath}: Access is denied. (os error 5)`);
+            }
             if (!bytes) throw new Error(`ENOENT: ${oldPath}`);
             files.set(newPath, bytes);
             files.delete(oldPath);
