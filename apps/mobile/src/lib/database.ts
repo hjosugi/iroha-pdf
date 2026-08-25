@@ -16,7 +16,17 @@ function createId(prefix: string): string {
 }
 
 async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  databasePromise ??= SQLite.openDatabaseAsync('iroha-pdf.db');
+  // Cleared on failure for the same reason `initializeDatabase` clears its own
+  // memo: a retry has to be able to succeed. Without this, a rejected open is
+  // cached and every later call is handed the same rejection — and because
+  // `setupDatabase` starts by asking for this handle, that defeats the retry
+  // one level up too. The library screen re-runs on focus specifically so a
+  // storage failure can be tried again, which it could not be if the disk was
+  // full or the file was locked at the moment the app opened it.
+  databasePromise ??= SQLite.openDatabaseAsync('iroha-pdf.db').catch((error: unknown) => {
+    databasePromise = undefined;
+    throw error;
+  });
   return databasePromise;
 }
 
@@ -290,7 +300,19 @@ export async function listAnnotations(documentId: string): Promise<PdfAnnotation
 
 export async function deleteAnnotation(id: string): Promise<void> {
   const db = await readyDatabase();
-  await db.runAsync('DELETE FROM annotations WHERE id = ?', id);
+  await db.withTransactionAsync(async () => {
+    // The same sweep `deleteNote` does, for the reason `deleteDocument` states:
+    // a recovery copy must not offer back work the user removed on purpose.
+    // Erasing a mark whose earlier save had failed used to leave its copy behind,
+    // and the Recovery screen would then offer to restore the very mark the
+    // eraser was used on — `restoreRecoveryCopy` puts it straight back through
+    // `saveAnnotation`.
+    await db.runAsync(
+      `DELETE FROM write_journal WHERE entity_type = 'annotation' AND entity_id = ?`,
+      id,
+    );
+    await db.runAsync('DELETE FROM annotations WHERE id = ?', id);
+  });
 }
 
 type JournalEntityType = 'note' | 'annotation';
