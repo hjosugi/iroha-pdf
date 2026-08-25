@@ -601,6 +601,15 @@ export class DriveAppDataChangesCursorStore implements DriveChangesCursorStore {
 export type DriveChangesSynchronizerOptions = {
   changes?: DriveChangesOptions;
   intervalMs?: number;
+  /**
+   * Told when a scheduled run fails. `sync` rejects to whoever called it, which
+   * suits `onForeground` and `runBackground`; the timer in `start` has no such
+   * caller, so without this a failure there is a rejection nothing handles.
+   * Given one, a caller can pause, count failures, or tell the user sync has
+   * stopped — which is the difference between "offline for a minute" and
+   * "signed out three days ago".
+   */
+  onError?: (error: unknown) => void;
 };
 
 /** Runs the entire pagination chain as one checkpoint. The cursor advances
@@ -651,7 +660,23 @@ export class DriveChangesSynchronizer {
 
   start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => { void this.sync(); }, this.options.intervalMs ?? 60_000);
+    this.timer = setInterval(() => {
+      // A scheduled run is the one caller that cannot be rejected to. Left bare,
+      // every tick against a network that is down, a token that has expired or a
+      // Drive that is refusing produced an unhandled rejection — fatal in Node,
+      // and in an app a failure nobody is told about on a schedule.
+      void this.sync().catch((error: unknown) => this.reportScheduledFailure(error));
+    }, this.options.intervalMs ?? 60_000);
+  }
+
+  /** A scheduled failure is not fatal: the next tick tries again. It is reported
+   * so that "sync has been failing all week" is something a caller can notice. */
+  private reportScheduledFailure(error: unknown): void {
+    if (this.options.onError) {
+      this.options.onError(error);
+      return;
+    }
+    console.warn('Google Drive sync failed; the next scheduled run will try again', error);
   }
 
   stop(): void {

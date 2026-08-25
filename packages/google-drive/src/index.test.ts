@@ -263,6 +263,41 @@ describe('Drive changes scheduling', () => {
     expect(cursor).toBe('new');
   });
 
+  /**
+   * `sync` rejects to its caller by design — that is what the cursor test below
+   * relies on. `start`'s timer is the one caller that cannot be rejected to, so a
+   * bare `void this.sync()` turned every tick against a down network into an
+   * unhandled rejection: fatal in Node, and in an app a repeating failure nobody
+   * is told about.
+   */
+  it('reports a scheduled run that fails instead of rejecting into nothing', async () => {
+    vi.useFakeTimers();
+    try {
+      const client = {
+        listAllChanges: async () => { throw new Error('network is down'); },
+      } as unknown as GoogleDriveClient;
+      const failures: unknown[] = [];
+      const synchronizer = new DriveChangesSynchronizer(
+        client,
+        { get: async () => 'token', set: async () => undefined },
+        async () => undefined,
+        { intervalMs: 1_000, onError: (error) => failures.push(error) },
+      );
+
+      synchronizer.start();
+      await vi.advanceTimersByTimeAsync(3_500);
+      expect(failures).toHaveLength(3);
+      expect(String(failures[0])).toContain('network is down');
+
+      // Stopping stops them; the failures were ticks, not a permanent state.
+      synchronizer.stop();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(failures).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not advance the durable cursor when applying a change fails', async () => {
     let cursor = 'old';
     const client = {
