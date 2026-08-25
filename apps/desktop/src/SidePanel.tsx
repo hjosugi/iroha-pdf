@@ -126,17 +126,43 @@ function loadLinkedNote(documentId: string): Note {
 
 function NotePanel({ documentId }: { documentId: string }) {
   const [note, setNote] = useState<Note>(() => loadLinkedNote(documentId));
+  const [storedLast, setStoredLast] = useState(true);
 
   useEffect(() => {
     setNote(loadLinkedNote(documentId));
+    setStoredLast(true);
   }, [documentId]);
 
   useEffect(() => {
     // The note of the document being left, written under the key of the one being
     // opened, would be the wrong note in the wrong file: wait for the reload above.
     if (note.linkedDocumentId !== documentId) return;
-    const save = () => localStorage.setItem(storageKey('note', documentId), JSON.stringify(note));
-    const timer = window.setTimeout(save, NOTE_SAVE_DEBOUNCE_MS);
+
+    /**
+     * Never throws, for a reason particular to where it is called from. The flush
+     * below runs in an effect cleanup, and React treats a throw there like one
+     * during render: with no error boundary in this app, a refused write would
+     * unmount the whole workspace. Storage can refuse — it is full, or disabled —
+     * and this panel unmounts on every tab switch, so that is a blank window for
+     * changing tabs, not some remote edge.
+     *
+     * Every other writer here already guards its own `setItem`; this was the one
+     * that did not.
+     */
+    const save = (): boolean => {
+      try {
+        localStorage.setItem(storageKey('note', documentId), JSON.stringify(note));
+        return true;
+      } catch (error) {
+        console.warn('Iroha PDF: the note could not be stored', error);
+        return false;
+      }
+    };
+
+    // Only the debounced write reports: the flush on the way out may be running
+    // because this panel is going away, and a component being unmounted has no
+    // business setting state.
+    const timer = window.setTimeout(() => setStoredLast(save()), NOTE_SAVE_DEBOUNCE_MS);
     return () => {
       window.clearTimeout(timer);
       save();
@@ -156,7 +182,12 @@ function NotePanel({ documentId }: { documentId: string }) {
         placeholder={t('note.placeholder')}
         aria-label={t('note.linked')}
       />
-      <span className="saved-indicator">{t('autosave.saved')}</span>
+      {/* A note nobody can store is the case this label must not sleep through:
+          it is the only copy of what was typed, and someone who reads "Saved"
+          will keep typing into a panel that is keeping nothing. */}
+      <span className={storedLast ? 'saved-indicator' : 'saved-indicator failed'} role={storedLast ? undefined : 'alert'}>
+        {t(storedLast ? 'autosave.saved' : 'note.saveFailed')}
+      </span>
     </>
   );
 }

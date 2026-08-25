@@ -103,6 +103,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .panel-tab.active { color: #16306e; background: #e6ecfb; }
 .side-panel-path { overflow: hidden; margin: 0; padding: var(--space-4) var(--space-7); border-bottom: var(--line) solid #f2f4f7; color: #8c929c; font-size: var(--type-caption); text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
 .saved-indicator { padding: var(--space-4) var(--space-7) var(--space-6); color: #8c929c; font-size: var(--type-caption); font-weight: 500; }
+.saved-indicator.failed { color: #a4372a; font-weight: 700; }
 .note-body { width: 100%; flex: 1; resize: none; border: 0; outline: 0; padding: var(--space-7); color: #262b34; background: #fffefb; line-height: var(--leading-copy); }
 
 .history-empty { margin: 0; padding: var(--space-8) var(--space-7); color: #8c929c; font-size: var(--type-label); line-height: var(--leading-copy); }
