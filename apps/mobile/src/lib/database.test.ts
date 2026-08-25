@@ -221,6 +221,22 @@ describe('initializeDatabase', () => {
     expect(schemaRuns()).toBe(1);
   });
 
+  /**
+   * The other way setup fails: not while laying the schema down, but before that,
+   * when the file itself will not open — a full disk, a corrupt database, another
+   * process holding it. `initializeDatabase` clearing its own memo is not enough,
+   * because the retry it allows begins by asking for the same connection handle,
+   * and a rejected open cached there hands back the identical error forever.
+   */
+  it('reopens the database after a failed open instead of caching the rejection', async () => {
+    sqlite.failNextOpen('unable to open database file');
+    await expect(database.initializeDatabase()).rejects.toThrow(/unable to open/);
+
+    await expect(database.initializeDatabase()).resolves.toBeUndefined();
+    expect(schemaObjects('table')).toContain('write_journal');
+    await expect(database.listDocuments()).resolves.toEqual([]);
+  });
+
   it('runs setup again after a failure instead of handing the retry the same error', async () => {
     // Laying the schema down needs the database to itself, and another connection has
     // it. Reconciling an interrupted edit deliberately does not fail this way — see
@@ -335,6 +351,34 @@ describe('journaledWrite', () => {
     expect(copies[0]).toMatchObject({ entityType: 'annotation', entityId: 'ann-1', status: 'failed' });
     expect(copies[0]?.payload).toEqual(annotation);
     expect(await database.listAnnotations('doc-gone')).toEqual([]);
+  });
+
+  /**
+   * Erasing is the tool for taking a mark back, so a recovery copy left over from
+   * that mark's earlier failed save has to go with it. Otherwise the Recovery
+   * screen offers to restore exactly what the eraser was used on, and
+   * `restoreRecoveryCopy` puts it back through `saveAnnotation` — the mark returns.
+   *
+   * `deleteNote` already swept the journal this way, and `deleteDocument` says why;
+   * only `deleteAnnotation` did not.
+   */
+  it('drops the recovery copy for an annotation the user erased', async () => {
+    await database.saveDocument(documentFixture());
+    await database.saveAnnotation(annotationFixture());
+    seedJournalEntry({
+      id: 'journal-ann',
+      entityType: 'annotation',
+      entityId: 'ann-1',
+      attemptedPayload: JSON.stringify(annotationFixture({ color: '#FF0000' })),
+      status: 'rolled-back',
+      createdAt: '2026-01-02T00:00:00.000Z',
+    });
+    expect(await database.listRecoveryCopies()).toMatchObject([{ entityId: 'ann-1' }]);
+
+    await database.deleteAnnotation('ann-1');
+
+    expect(await database.listAnnotations('doc-1')).toEqual([]);
+    expect(await database.listRecoveryCopies()).toEqual([]);
   });
 
   it('says so when the interrupted edit could not even be kept as a recovery copy', async () => {

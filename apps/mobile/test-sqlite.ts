@@ -92,8 +92,24 @@ class FakeDatabase {
   }
 }
 
+let openFailure: Error | undefined;
+
 export async function openDatabaseAsync(_databaseName: string): Promise<FakeDatabase> {
+  if (openFailure) {
+    const failure = openFailure;
+    openFailure = undefined;
+    throw failure;
+  }
   return new FakeDatabase();
+}
+
+/**
+ * Fails the next open, once. A device can refuse to open the file — a full disk,
+ * a corrupt database, another process holding it — and that is a different path
+ * from a failure while laying the schema down.
+ */
+export function failNextOpen(message = 'unable to open database file'): void {
+  openFailure = new Error(message);
 }
 
 /**
@@ -102,6 +118,7 @@ export async function openDatabaseAsync(_databaseName: string): Promise<FakeData
  */
 export function useDatabaseFile(file: string): void {
   closeDatabase();
+  openFailure = undefined;
   path = file;
   beforeTransaction = undefined;
   statements.length = 0;
