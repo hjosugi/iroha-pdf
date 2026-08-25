@@ -5,6 +5,15 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # The @embedpdf packages are one library published as many packages, and
+    # they are only type-compatible with their own release. Bumped one at a
+    # time they land a 2.15.0 plugin next to a 2.14.4 core, which fails the
+    # desktop typecheck every time — three such pull requests were open and
+    # red at once. Grouping makes it a single upgrade, which is what it is.
+    groups:
+      embedpdf:
+        patterns:
+          - "@embedpdf/*"
   - package-ecosystem: cargo
     directory: /apps/desktop/src-tauri
     schedule:
