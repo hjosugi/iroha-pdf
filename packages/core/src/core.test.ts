@@ -139,6 +139,43 @@ describe('PDF page operations', () => {
     const rotated = await PDFDocument.load(await rotatePdfPages(source, [0], 90));
     expect(rotated.getPage(0).getRotation().angle).toBe(90);
   });
+
+  /**
+   * The Tools screen hands these functions page numbers a person typed, and it
+   * cannot check the upper bound itself — the PDF is not open yet. So the rejection
+   * is this layer's job, and `assertPageIndex` exists so every entry point words it
+   * the same way. Rotate was the one that did not call it, and pdf-lib's own message
+   * reached the alert instead.
+   */
+  it('rejects an out-of-range page the same way whichever operation was asked for', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([100, 100]);
+    input.addPage([200, 200]);
+    const source = await input.save();
+
+    for (const [name, run] of [
+      ['reorder', () => reorderPdf(source, [5])],
+      ['extract', () => extractPdfPages(source, [5])],
+      ['remove', () => removePdfPages(source, [5])],
+      ['rotate', () => rotatePdfPages(source, [5], 90)],
+    ] as const) {
+      await expect(run(), name).rejects.toThrow('Invalid zero-based page index: 5');
+    }
+
+    await expect(rotatePdfPages(source, [-1], 90)).rejects.toThrow('Invalid zero-based page index');
+    await expect(rotatePdfPages(source, [1.5], 90)).rejects.toThrow('Invalid zero-based page index');
+  });
+
+  /** Naming a page twice means the page, not two turns of it. */
+  it('turns a page named twice only once', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([100, 100]);
+    input.addPage([200, 200]);
+    const source = await input.save();
+
+    const rotated = await PDFDocument.load(await rotatePdfPages(source, [1, 1, 1], 90));
+    expect(rotated.getPage(1).getRotation().angle).toBe(90);
+  });
 });
 
 describe('PDF output safety', () => {
