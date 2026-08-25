@@ -43,7 +43,15 @@ fn allow_e2e_scope(app: &tauri::App) {
 ///
 /// The grant is kept as narrow as the derivation it exists for: the source has to be in
 /// scope already, which only the user picking it can arrange, and the derived file has
-/// to sit beside it under a name that starts with its own.
+/// to be one of the exactly two names a save derives from it.
+///
+/// Those two names are spelled out here rather than pattern-matched, for the reason
+/// `PART_SUFFIX` is spelled out below: what the app may write must not depend on what
+/// the webview asks for. Accepting any sibling `<stem>*.pdf` was wider than the
+/// derivation — opening `report.pdf` also handed out write scope for `report-final.pdf`
+/// and anything else in that folder starting with `report`, which are ordinary names
+/// for files the user never offered. The PDFs this parses are untrusted (#57), so the
+/// webview is not the right place to decide which files it may write.
 #[tauri::command]
 fn allow_derived_file(app: tauri::AppHandle, source: String, derived: String) -> Result<(), String> {
     use tauri_plugin_fs::FsExt;
@@ -64,19 +72,30 @@ fn allow_derived_file(app: tauri::AppHandle, source: String, derived: String) ->
     ) else {
         return Err("not allowed: both paths need a file name".into());
     };
-    if !name.starts_with(stem) || !name.to_ascii_lowercase().ends_with(".pdf") {
-        return Err("not allowed: a derived file has to be a PDF named after its source".into());
+    if !is_derived_name(stem, name) {
+        return Err("not allowed: a derived file has to be one a save writes".into());
     }
 
     scope.allow_file(&derived).map_err(|error| error.to_string())
 }
 
-/// The suffix a save assembles its bytes under, spelled out here rather than taken from
-/// the caller: this is the one path the command below deletes, and what it can delete
-/// must not depend on what the webview asks for. `partPathFor` in `file-bridge.ts`
-/// builds the same name, and `discards only the partial file` in the real-runtime suite
-/// fails if the two ever drift.
+/// The two names a save derives from a document, spelled out here rather than taken
+/// from the caller: these are the only paths the app may write beside a document and
+/// the only one it may delete, and neither may depend on what the webview asks for.
+/// `backupPathFor` and `partPathFor` in `paths.ts` build the same names, and the
+/// real-runtime suite fails if the two sides ever drift.
+const BACKUP_SUFFIX: &str = ".iroha-original.pdf";
 const PART_SUFFIX: &str = ".iroha-part.pdf";
+
+/// Whether `name` is one of the two files a save derives from a document called
+/// `stem`. Separated out so the rule can be tested without a webview, a display or
+/// a driver — the real-runtime suite needs all three, which is why this rule went
+/// unexercised for the case that mattered.
+fn is_derived_name(stem: &str, name: &str) -> bool {
+    [BACKUP_SUFFIX, PART_SUFFIX]
+        .iter()
+        .any(|suffix| name.len() == stem.len() + suffix.len() && name == format!("{stem}{suffix}"))
+}
 
 /// Removes the partial file left behind when a save could not finish.
 ///
@@ -127,4 +146,34 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Iroha PDF");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_derived_name;
+
+    #[test]
+    fn accepts_exactly_the_two_files_a_save_writes() {
+        assert!(is_derived_name("report", "report.iroha-part.pdf"));
+        assert!(is_derived_name("report", "report.iroha-original.pdf"));
+    }
+
+    /// The rule used to be "starts with the stem and ends in .pdf", which is wider
+    /// than the derivation it exists for. Opening `report.pdf` then handed out write
+    /// scope for every neighbouring PDF named after it — ordinary names for files the
+    /// user never offered.
+    #[test]
+    fn refuses_a_sibling_that_merely_starts_with_the_document_name() {
+        assert!(!is_derived_name("report", "report-final.pdf"));
+        assert!(!is_derived_name("report", "reportcard.pdf"));
+        assert!(!is_derived_name("report", "report.pdf"));
+        assert!(!is_derived_name("report", "report.iroha-part.pdf.pdf"));
+    }
+
+    /// And the suffix alone is not enough either: it has to be this document's.
+    #[test]
+    fn refuses_the_right_suffix_on_another_document() {
+        assert!(!is_derived_name("report", "payroll.iroha-part.pdf"));
+        assert!(!is_derived_name("report", ".iroha-part.pdf"));
+    }
 }
