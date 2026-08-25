@@ -327,6 +327,13 @@ export class GoogleDriveClient {
     if (chunkSize < bytes.byteLength - session.offset && chunkSize % (256 * 1024) !== 0) {
       throw new Error('Non-final Google Drive upload chunks must be multiples of 256 KiB');
     }
+    // A chunk that comes back reporting no progress is not an error to Drive: a
+    // 308 whose Range still ends where this chunk began, or a resync that moves
+    // the session back to where it already was, both leave `offset` untouched.
+    // The retry counter is per chunk and resets when the inner loop breaks, so
+    // nothing bounded the outer loop — it would resend the same bytes forever,
+    // succeeding every time. Count the rounds that make no progress instead.
+    let stalledRounds = 0;
     while (session.offset < bytes.byteLength) {
       const start = session.offset;
       const endExclusive = Math.min(start + chunkSize, bytes.byteLength);
@@ -371,6 +378,18 @@ export class GoogleDriveClient {
         }
         await this.throwResponseError(response);
       }
+
+      if (session.offset > start) {
+        stalledRounds = 0;
+        continue;
+      }
+      stalledRounds += 1;
+      if (stalledRounds > maxRetries) {
+        throw new Error(
+          `Google Drive stopped accepting the resumable upload at byte ${session.offset} of ${bytes.byteLength}`,
+        );
+      }
+      await delay(options?.retryDelayMs?.(stalledRounds) ?? retryDelay(stalledRounds), options?.signal);
     }
     throw new Error('Resumable upload completed without file metadata');
   }
@@ -648,10 +667,19 @@ async function collectAllPages(
 ): Promise<DriveFile[]> {
   const files: DriveFile[] = [];
   let pageToken: string | undefined;
+  // `listAllChanges` already refuses a page token it has followed once, because
+  // a paginator that is handed the same token forever does not fail — it keeps
+  // succeeding, accumulating the same page until the process runs out of memory.
+  // This loop had the same shape and no such guard, and it is the one behind
+  // `listAllPdfFiles`, so it is the one a user's library actually goes through.
+  const visited = new Set<string>();
   do {
     const page = await readPage(pageToken);
     files.push(...page.files);
     pageToken = page.nextPageToken;
+    if (!pageToken) break;
+    if (visited.has(pageToken)) throw new Error('Google Drive returned a repeated files page token');
+    visited.add(pageToken);
   } while (pageToken);
   return files;
 }

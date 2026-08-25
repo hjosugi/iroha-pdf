@@ -61,6 +61,52 @@ describe('GoogleDriveClient', () => {
     }
   });
 
+  /**
+   * A paginator handed the same token forever does not fail — it succeeds every
+   * time, accumulating the same page until the process runs out of memory.
+   * `listAllChanges` already refused this; the loop behind `listAllPdfFiles`,
+   * which is the one a user's library goes through, did not.
+   */
+  it('refuses a files page token Drive has already handed out', async () => {
+    const fetchImpl = vi.fn(async () =>
+      Response.json({ files: [{ id: 'a', name: 'a.pdf', mimeType: 'application/pdf' }], nextPageToken: 'same' }));
+    const client = new GoogleDriveClient({
+      getAccessToken: async () => 'token',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(client.listAllPdfFiles()).rejects.toThrow('repeated files page token');
+    // Two reads: the first page, then the one that repeats its token.
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * A 308 whose Range still ends where the chunk began is not an error to Drive,
+   * and the retry counter resets whenever the inner loop breaks — so nothing
+   * bounded the outer loop and it resent the same bytes forever.
+   */
+  it('gives up when Drive keeps reporting the same upload offset', async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return new Response(null, { status: 200, headers: { Location: 'https://upload.test/session' } });
+      }
+      // Always 308, always "I have nothing", however many times the chunk is sent.
+      return new Response(null, { status: 308, headers: { Range: 'bytes=0-0' } });
+    });
+    const client = new GoogleDriveClient({
+      getAccessToken: async () => 'token',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(
+      client.uploadPdfResumable({
+        name: 'a.pdf',
+        bytes: new Uint8Array(1024),
+        options: { chunkSize: 256 * 1024, maxRetries: 2, retryDelayMs: () => 0 },
+      }),
+    ).rejects.toThrow('stopped accepting the resumable upload');
+  });
+
   it('paginates every app-visible PDF and stores a download in the offline cache', async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
