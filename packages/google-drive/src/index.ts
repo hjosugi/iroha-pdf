@@ -93,6 +93,30 @@ const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const DRIVE_FILE_FIELDS = 'id,name,mimeType,modifiedTime,size,md5Checksum,version';
 const DRIVE_FILE_LIST_FIELDS = `nextPageToken,files(${DRIVE_FILE_FIELDS})`;
 
+/**
+ * Escapes a value going into a Drive query string literal.
+ *
+ * Drive's query syntax escapes with backslashes, so a backslash in the value is
+ * itself significant and has to be doubled - and doubled BEFORE the quotes are
+ * escaped, or the backslash this step adds gets doubled too and stops escaping
+ * anything. Only the quote was handled, which left two ways out of the literal:
+ *
+ *   a name ending in \       ->  name='trailing\'
+ *                                the \' reads as an escaped quote, so the
+ *                                string never closes and Drive rejects it
+ *
+ *   the name  a\' or name='b  ->  name='a\\' or name=\'b'
+ *                                the \\ is one escaped backslash, so the next
+ *                                quote closes the literal and the remainder is
+ *                                query syntax rather than part of a name
+ *
+ * Reachable through the public `readJson`, and through the operation file names
+ * `DriveAppDataRepository.appendOperations` builds from a caller's `deviceId`.
+ */
+function escapeQueryLiteral(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+}
+
 export class GoogleDriveClient {
   private readonly getAccessToken: AccessTokenProvider;
   private readonly fetchImpl: typeof fetch;
@@ -144,10 +168,7 @@ export class GoogleDriveClient {
       pageSize: '100',
       spaces: 'appDataFolder',
     });
-    if (name) {
-      const safeName = name.replaceAll("'", "\\'");
-      params.set('q', `name='${safeName}' and trashed=false`);
-    }
+    if (name) params.set('q', `name='${escapeQueryLiteral(name)}' and trashed=false`);
     if (pageToken) params.set('pageToken', pageToken);
 
     const response = await this.request(`${DRIVE_API}/files?${params.toString()}`);
@@ -306,6 +327,13 @@ export class GoogleDriveClient {
     if (chunkSize < bytes.byteLength - session.offset && chunkSize % (256 * 1024) !== 0) {
       throw new Error('Non-final Google Drive upload chunks must be multiples of 256 KiB');
     }
+    // A chunk that comes back reporting no progress is not an error to Drive: a
+    // 308 whose Range still ends where this chunk began, or a resync that moves
+    // the session back to where it already was, both leave `offset` untouched.
+    // The retry counter is per chunk and resets when the inner loop breaks, so
+    // nothing bounded the outer loop — it would resend the same bytes forever,
+    // succeeding every time. Count the rounds that make no progress instead.
+    let stalledRounds = 0;
     while (session.offset < bytes.byteLength) {
       const start = session.offset;
       const endExclusive = Math.min(start + chunkSize, bytes.byteLength);
@@ -350,6 +378,18 @@ export class GoogleDriveClient {
         }
         await this.throwResponseError(response);
       }
+
+      if (session.offset > start) {
+        stalledRounds = 0;
+        continue;
+      }
+      stalledRounds += 1;
+      if (stalledRounds > maxRetries) {
+        throw new Error(
+          `Google Drive stopped accepting the resumable upload at byte ${session.offset} of ${bytes.byteLength}`,
+        );
+      }
+      await delay(options?.retryDelayMs?.(stalledRounds) ?? retryDelay(stalledRounds), options?.signal);
     }
     throw new Error('Resumable upload completed without file metadata');
   }
@@ -627,10 +667,19 @@ async function collectAllPages(
 ): Promise<DriveFile[]> {
   const files: DriveFile[] = [];
   let pageToken: string | undefined;
+  // `listAllChanges` already refuses a page token it has followed once, because
+  // a paginator that is handed the same token forever does not fail — it keeps
+  // succeeding, accumulating the same page until the process runs out of memory.
+  // This loop had the same shape and no such guard, and it is the one behind
+  // `listAllPdfFiles`, so it is the one a user's library actually goes through.
+  const visited = new Set<string>();
   do {
     const page = await readPage(pageToken);
     files.push(...page.files);
     pageToken = page.nextPageToken;
+    if (!pageToken) break;
+    if (visited.has(pageToken)) throw new Error('Google Drive returned a repeated files page token');
+    visited.add(pageToken);
   } while (pageToken);
   return files;
 }
