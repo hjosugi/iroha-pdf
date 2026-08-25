@@ -14,6 +14,44 @@ updates:
       embedpdf:
         patterns:
           - "@embedpdf/*"
+    # An Expo SDK is a tested set of native module versions, not a floor.
+    # `node_modules/expo/bundledNativeModules.json` names the version of each
+    # one that SDK 57 was built and tested against, and `npx expo install --fix`
+    # is what moves them — as a set, when the SDK itself moves.
+    #
+    # Dependabot cannot see that file, so it offers each module the newest
+    # release on npm and every acceptance is a step out of the supported
+    # combination. It had already produced react-native 0.86.2 → 0.87.0 and
+    # react-native-screens ~4.26.0 → 4.27.0, both outside what SDK 57 pins, and
+    # react-native-safe-area-context ~5.7.0 → 5.9.0 was merged before anyone
+    # noticed.
+    #
+    # Patch updates still come through: Expo's own ranges for these are `~x.y.z`,
+    # so this gives dependabot exactly the latitude Expo already allows, and no
+    # more. Anything wider belongs to an SDK upgrade.
+    ignore:
+      - dependency-name: "expo"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "expo-*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@expo/*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native-gesture-handler"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native-safe-area-context"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native-screens"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native-svg"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "react-native-web"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: cargo
     directory: /apps/desktop/src-tauri
     schedule:
