@@ -4,6 +4,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 
 import {
+  denormalizePoint,
   extractPdfPages,
   flattenAnnotations,
   imagesToPdf,
@@ -47,7 +48,17 @@ function hasEmbeddedFontFile(document: PDFDocument): boolean {
 
 describe('coordinate helpers', () => {
   it('normalizes and clamps page coordinates', () => {
-    expect(normalizePoint({ x: 50, y: 300 }, 100, 200)).toEqual({ x: 0.5, y: 1 });
+    expect(normalizePoint({ x: 50, y: 300 }, { width: 100, height: 200 })).toEqual({ x: 0.5, y: 1 });
+    expect(normalizePoint({ x: -20, y: 50 }, { width: 100, height: 200 })).toEqual({ x: 0, y: 0.25 });
+  });
+
+  it('refuses a page frame that has not been measured yet', () => {
+    expect(() => normalizePoint({ x: 5, y: 5 }, { width: 0, height: 200 })).toThrow('measurable');
+  });
+
+  it('places a normalized point back onto a page, clamping as it goes', () => {
+    expect(denormalizePoint({ x: 0.5, y: 1 }, { width: 100, height: 200 })).toEqual({ x: 50, y: 200 });
+    expect(denormalizePoint({ x: -1, y: 4 }, { width: 100, height: 200 })).toEqual({ x: 0, y: 200 });
   });
 
   it('maps normalized pressure to a bounded readable width', () => {

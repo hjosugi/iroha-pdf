@@ -112,7 +112,3 @@ export function clearDraft(path: string): void {
     // Nothing to do; a stale draft only costs one recovery prompt.
   }
 }
-
-export function hasDraft(path: string): boolean {
-  return loadDraft(path) !== null;
-}

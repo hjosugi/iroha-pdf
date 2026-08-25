@@ -1,33 +1,40 @@
-import type { PdfAnnotation, Point, SyncOperation } from './types';
+import type { PdfAnnotation, Point, Size, SyncOperation } from './types';
 
 export function clampNormalized(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
 /**
- * Not in service. `apps/mobile/src/lib/annotation-input.ts` has `normalizePagePoint`,
- * which is this computation with the page frame passed as one argument instead of two,
- * and that is the one the overlay actually calls. This pair predates it and nothing
- * outside this file's tests references either function.
+ * Maps a coordinate measured in `size` into the 0..1 page space annotations are
+ * stored in, and back again.
  *
- * Left in place rather than deleted or merged: the mobile signature suits its call site,
- * and picking a winner is work for whoever needs both platforms to agree — #10.
+ * There were two of these. This pair took the extent as two numbers and had no
+ * caller; `normalizePagePoint` in the mobile overlay took it as one frame and
+ * had all of them, while the same overlay multiplied back out by hand in four
+ * places rather than reaching for the inverse sitting here. One page-space
+ * convention shared by both platforms is the point of storing marks normalized
+ * at all, so it is defined once, here, in the shape the call sites wanted.
+ *
+ * Refusing a zero extent rather than dividing by it is deliberate: a frame is
+ * unmeasured until the page has laid out, and a point taken against one is not
+ * a point at the origin, it is a point nobody can place.
  */
-export function normalizePoint(point: Point, width: number, height: number): Point {
-  if (width <= 0 || height <= 0) {
-    throw new Error('Page dimensions must be positive');
+export function normalizePoint(point: Point, size: Size): Point {
+  if (size.width <= 0 || size.height <= 0) {
+    throw new Error('The PDF page frame must be measurable before accepting input');
   }
 
   return {
-    x: clampNormalized(point.x / width),
-    y: clampNormalized(point.y / height),
+    x: clampNormalized(point.x / size.width),
+    y: clampNormalized(point.y / size.height),
   };
 }
 
-export function denormalizePoint(point: Point, width: number, height: number): Point {
+/** The inverse: a stored point placed back onto a page of `size`. */
+export function denormalizePoint(point: Point, size: Size): Point {
   return {
-    x: clampNormalized(point.x) * width,
-    y: clampNormalized(point.y) * height,
+    x: clampNormalized(point.x) * size.width,
+    y: clampNormalized(point.y) * size.height,
   };
 }
 

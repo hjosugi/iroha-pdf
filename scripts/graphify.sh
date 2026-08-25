@@ -152,6 +152,22 @@ localize_hooks
 # either restored below or tracked by git, so the copies are noise.
 find . -name '*.graphify-bak' -not -path './.git/*' -delete 2>/dev/null || true
 
+# `graphify install` rewrites its own section of the instruction files, which throws
+# away anything hand-written inside it. This repository keeps prose there on purpose —
+# the note saying the skill is not in the clone lives in AGENTS.md, and running setup
+# deleted it. The committed text is the authority for a repository that already carries
+# the section, so anything git reports as changed goes back. A clone that does not have
+# the section yet has nothing tracked to restore, and keeps what graphify just wrote.
+if [ -e .git ] && command -v git >/dev/null 2>&1; then
+    for doc in AGENTS.md CLAUDE.md .claude/CLAUDE.md .github/copilot-instructions.md; do
+        [ -f "$doc" ] || continue
+        git ls-files --error-unmatch "$doc" >/dev/null 2>&1 || continue
+        git diff --quiet -- "$doc" 2>/dev/null && continue
+        git checkout -- "$doc" 2>/dev/null &&
+            echo "graphify: kept the committed $doc"
+    done
+fi
+
 if [ -n "$SETTINGS_BEFORE" ] && [ -f .claude/settings.json ] && command -v python3 >/dev/null 2>&1; then
     if python3 -c 'import json,sys
 a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2]))

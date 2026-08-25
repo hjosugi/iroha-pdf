@@ -18,6 +18,17 @@ export type Point = {
   y: number;
 };
 
+/**
+ * The extent a normalized point is measured against. Annotations are stored in
+ * 0..1 page space so that a mark survives a zoom, a rotation and a different
+ * screen; turning one back into something drawable always needs a size, and
+ * both platforms need the same one.
+ */
+export type Size = {
+  width: number;
+  height: number;
+};
+
 type AnnotationBase = {
   id: string;
   documentId: string;

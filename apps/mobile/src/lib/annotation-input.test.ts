@@ -7,7 +7,6 @@ import {
   fitPageFrame,
   hasPressureAwareInk,
   highlightFromDrag,
-  normalizePagePoint,
   pointerPressure,
   pressuresForStroke,
 } from './annotation-input';
@@ -29,11 +28,6 @@ describe('annotation page coordinates', () => {
       width: 450,
       height: 600,
     });
-  });
-
-  it('normalizes and clamps points against the page itself', () => {
-    expect(normalizePagePoint(375, 500, { width: 750, height: 1000 })).toEqual({ x: 0.5, y: 0.5 });
-    expect(normalizePagePoint(-20, 1100, { width: 750, height: 1000 })).toEqual({ x: 0, y: 1 });
   });
 });
 

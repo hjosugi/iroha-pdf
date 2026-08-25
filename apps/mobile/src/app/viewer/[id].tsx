@@ -19,7 +19,9 @@ import Pdf from 'react-native-pdf';
 import Svg, { G, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import {
+  denormalizePoint,
   flattenAnnotations,
+  normalizePoint,
   pressureStrokeWidth,
   type PdfAnnotation,
   type Point,
@@ -61,7 +63,6 @@ import {
   highlightFromDrag,
   pressuresForStroke,
   hasPressureAwareInk,
-  normalizePagePoint,
   pointerPressure,
   type Size,
 } from '@/lib/annotation-input';
@@ -81,6 +82,18 @@ function toolLabel(tool: Tool): string {
     case 'text': return t('edit.text');
     case 'eraser': return t('edit.eraser');
   }
+}
+
+/**
+ * A stored point as the `x,y` pair an SVG polyline wants, placed back onto the page.
+ *
+ * Annotations are held in 0..1 page space, so every one of them has to be multiplied
+ * back out before it can be drawn. That was written out at each of the four places
+ * that draw ink, which is four chances for one of them to drift from the others.
+ */
+function svgPoint(point: Point, frame: Size): string {
+  const { x, y } = denormalizePoint(point, frame);
+  return `${x},${y}`;
 }
 
 function distanceToAnnotation(point: Point, annotation: PdfAnnotation): number {
@@ -236,7 +249,7 @@ export default function PdfViewerScreen() {
   };
 
   const pointFromPointer = (event: NativePointerEvent): Point =>
-    normalizePagePoint(event.nativeEvent.offsetX, event.nativeEvent.offsetY, pageFrame);
+    normalizePoint({ x: event.nativeEvent.offsetX, y: event.nativeEvent.offsetY }, pageFrame);
 
   const clearPointerGesture = () => {
     activePointer.current = null;
@@ -533,7 +546,7 @@ export default function PdfViewerScreen() {
                 return <SvgText key={annotation.id} x={`${annotation.position.x * 100}%`} y={`${annotation.position.y * 100}%`} fill={annotation.color} fontSize={annotation.fontSize}>{annotation.text}</SvgText>;
               }
               if (!annotation.pressures || annotation.pressures.length !== annotation.points.length) {
-                return <Polyline key={annotation.id} points={annotation.points.map((point) => `${point.x * pageFrame.width},${point.y * pageFrame.height}`).join(' ')} fill="none" stroke={annotation.color} strokeWidth={annotation.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
+                return <Polyline key={annotation.id} points={annotation.points.map((point) => svgPoint(point, pageFrame)).join(' ')} fill="none" stroke={annotation.color} strokeWidth={annotation.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />;
               }
               return (
                 <G key={annotation.id}>
@@ -543,7 +556,7 @@ export default function PdfViewerScreen() {
                     return (
                       <Polyline
                         key={`${annotation.id}-${index}`}
-                        points={`${previous.x * pageFrame.width},${previous.y * pageFrame.height} ${point.x * pageFrame.width},${point.y * pageFrame.height}`}
+                        points={`${svgPoint(previous, pageFrame)} ${svgPoint(point, pageFrame)}`}
                         fill="none"
                         stroke={annotation.color}
                         strokeWidth={pressureStrokeWidth(annotation.strokeWidth, annotation.pressures?.[index + 1])}
