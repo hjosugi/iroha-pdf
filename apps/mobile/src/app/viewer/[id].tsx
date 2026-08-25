@@ -20,7 +20,6 @@ import Svg, { G, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import {
   denormalizePoint,
-  flattenAnnotations,
   normalizePoint,
   pressureStrokeWidth,
   type PdfAnnotation,
@@ -41,11 +40,12 @@ import { createOutputPdf, sharePdf } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 import { COLOR, CONTROL, LAYOUT, LINE_HEIGHT, RADIUS, SPACE, TYPE } from '@/lib/theme';
+import { canFlattenOnMobile } from '@/lib/memory-policy';
 import {
-  bytesToWholeMiB,
-  canFlattenOnMobile,
-  MAX_MOBILE_FLATTEN_BYTES,
-} from '@/lib/memory-policy';
+  flattenForDelivery,
+  tooLargeToFlattenMessage,
+  type FlattenSource,
+} from '@/lib/flatten';
 import {
   EMPTY_HISTORY,
   planRedo,
@@ -337,31 +337,27 @@ export default function PdfViewerScreen() {
     setPendingTextPoint(null);
   };
 
-  const createFlattenedCopy = async (): Promise<File> => {
-    if (!document) throw new Error(t('document.notFound'));
+  /**
+   * The size a flatten would have to hold: the catalogue's if the row carries one,
+   * the file's otherwise. Both guards below ask this, so neither can decide a
+   * document is safe while the other refuses it.
+   */
+  const flattenSource = (): FlattenSource | null => {
+    if (!document) return null;
     const input = new File(document.localUri);
-    const inputSize = document.sizeBytes ?? input.size;
-    if (!canFlattenOnMobile(inputSize)) {
-      throw new Error(t('document.largeExportBody', {
-        limit: bytesToWholeMiB(MAX_MOBILE_FLATTEN_BYTES),
-      }));
-    }
-    const source = await input.bytes();
-    // Loaded only when there is text to draw: the face is several megabytes and
-    // highlight- or ink-only exports have no glyphs to encode.
-    const textFont = annotations.some((item) => item.kind === 'text')
-      ? await loadAnnotationFont()
-      : undefined;
-    const output = await flattenAnnotations(source, annotations, { textFont });
+    return { sizeBytes: document.sizeBytes ?? input.size, bytes: () => input.bytes() };
+  };
+
+  const createFlattenedCopy = async (): Promise<File> => {
+    const source = flattenSource();
+    if (!document || !source) throw new Error(t('document.notFound'));
+    const output = await flattenForDelivery(source, annotations, loadAnnotationFont);
     return createOutputPdf(`${document.title}-edited.pdf`, output);
   };
 
   const warnIfFlatteningIsUnsafe = (): boolean => {
-    const inputSize = document?.sizeBytes ?? (document ? new File(document.localUri).size : undefined);
-    if (canFlattenOnMobile(inputSize)) return false;
-    Alert.alert(t('document.largeExportTitle'), t('document.largeExportBody', {
-      limit: bytesToWholeMiB(MAX_MOBILE_FLATTEN_BYTES),
-    }));
+    if (canFlattenOnMobile(flattenSource()?.sizeBytes)) return false;
+    Alert.alert(t('document.largeExportTitle'), tooLargeToFlattenMessage());
     return true;
   };
 

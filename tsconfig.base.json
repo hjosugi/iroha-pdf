@@ -6,6 +6,17 @@
     "isolatedModules": true,
     "moduleResolution": "Bundler",
     "noFallthroughCasesInSwitch": true,
+    // Dead imports and dead locals are how a refactor leaves a mess that still
+    // looks tidy: nothing fails, so nobody finds them until someone greps. Three
+    // had already collected in the e2e suite. The compiler can run that grep on
+    // every build, so it does.
+    //
+    // apps/mobile does not extend this file and cannot: expo/tsconfig.base owns
+    // its module, target and jsx, and those conflict with the values here. It
+    // therefore repeats these quality flags in its own compilerOptions, and a
+    // flag added here has to be added there too.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
