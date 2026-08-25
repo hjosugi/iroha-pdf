@@ -276,11 +276,25 @@ async function main() {
     check('a file beside the document is forbidden until it is granted', beforeGrant.ok === false);
     for (const [label, args] of [
       ['a name not derived from the document', { source: target, derived: join(WORK, 'payroll.pdf') }],
+      // A sibling PDF that happens to start with the document's own name. The checks
+      // above step around this one: `payroll.pdf` shares no prefix, so a rule that only
+      // asked for `<stem>*.pdf` passed them all while handing out write scope for every
+      // neighbouring file named after the same document.
+      ['a sibling that merely starts with the document name', { source: target, derived: join(WORK, 'complex-payroll.pdf') }],
+      ['a sibling with the right suffix on the wrong stem', { source: target, derived: join(WORK, 'payroll.iroha-part.pdf') }],
       ['a file outside the document folder', { source: target, derived: '/tmp/complex.iroha-part.pdf' }],
       ['a source the user never picked', { source: '/etc/passwd', derived: '/etc/passwd.pdf' }],
     ]) {
       const refused = await invoke('allow_derived_file', args);
       check(`the grant refuses ${label}`, refused.ok === false && /not allowed/.test(refused.error ?? ''), refused.error);
+    }
+
+    for (const [label, derived] of [
+      ['the partial', join(WORK, 'complex.iroha-part.pdf')],
+      ['the pristine copy', join(WORK, 'complex.iroha-original.pdf')],
+    ]) {
+      const granted = await invoke('allow_derived_file', { source: target, derived });
+      check(`the grant still allows ${label}`, granted.ok === true, granted.error);
     }
 
     // Clearing the partial is the one deletion this app can perform, and it derives the

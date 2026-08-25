@@ -248,6 +248,17 @@ jobs:
           libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
       - name: Install locked dependencies
         run: npm ci
+      # The Rust side had no test run anywhere. `src-tauri/src/lib.rs` decides
+      # which files the webview may be granted write access to and which one it
+      # may delete, and that rule was reachable only through the real-runtime
+      # suite — which needs a driver, a webview and a display, so it is the one
+      # place a rule is least likely to be exercised for every case. Run on Linux
+      # only: the logic is platform-independent, and this job has already
+      # compiled the crate's dependencies by the time it gets here.
+      - name: Test the Rust commands
+        if: runner.os == 'Linux'
+        working-directory: apps/desktop/src-tauri
+        run: cargo test
       # Builds the desktop-web tree through the graph and then bundles it. The
       # Vite build is a Frost dependency of the packaging target, so there is no
       # separate web-asset step here any more.
