@@ -35,8 +35,24 @@ function summarize(copy: RecoveryCopy): string {
 export default function RecoveryScreen() {
   const [copies, setCopies] = useState<RecoveryCopy[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [unreadable, setUnreadable] = useState(false);
 
-  const refresh = useCallback(async () => setCopies(await listRecoveryCopies()), []);
+  /**
+   * The read is guarded the way the library screen guards its own. Unguarded, a
+   * storage failure left `copies` empty and the rejection unhandled, so this
+   * screen answered "no interrupted edits need recovery" — a reassurance, on the
+   * one screen whose entire job is to say whether interrupted work survived, at
+   * the moment it had not managed to look.
+   */
+  const refresh = useCallback(async () => {
+    try {
+      setCopies(await listRecoveryCopies());
+      setUnreadable(false);
+    } catch (error) {
+      setUnreadable(true);
+      alertFailure(t('error.storage'), error);
+    }
+  }, []);
   useEffect(() => { void refresh(); }, [refresh]);
 
   const act = async (copy: RecoveryCopy, action: 'restore' | 'discard') => {
@@ -75,7 +91,25 @@ export default function RecoveryScreen() {
             </View>
           </ContentColumn>
         }
-        ListEmptyComponent={<ContentColumn><Text style={styles.empty}>{t('recovery.empty')}</Text></ContentColumn>}
+        ListEmptyComponent={
+          <ContentColumn>
+            {unreadable ? (
+              <View accessibilityRole="alert" style={styles.unreadable}>
+                <Text style={styles.unreadableText}>{t('recovery.unavailable')}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('recovery.retry')}
+                  style={styles.retry}
+                  onPress={() => void refresh()}
+                >
+                  <Text style={styles.retryText}>{t('recovery.retry')}</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Text style={styles.empty}>{t('recovery.empty')}</Text>
+            )}
+          </ContentColumn>
+        }
         renderItem={({ item }) => {
           const entityLabel = t(item.entityType === 'note' ? 'recovery.note' : 'recovery.annotation');
           const busy = busyId === item.journalId;
@@ -123,6 +157,10 @@ const styles = StyleSheet.create({
   title: { color: COLOR.text, fontSize: TYPE.title, fontWeight: '800' },
   description: { marginTop: SPACE.sm, color: '#6F7682', lineHeight: SPACE.xl },
   empty: { borderRadius: RADIUS.md, padding: SPACE.xl, color: '#6F7682', backgroundColor: COLOR.surface },
+  unreadable: { borderRadius: RADIUS.md, padding: SPACE.xl, backgroundColor: '#FFF3F0', borderWidth: SPACE.hairline, borderColor: '#E9BCB1' },
+  unreadableText: { color: '#7A3A2C', lineHeight: SPACE.xl },
+  retry: { minHeight: CONTROL.minimum, alignSelf: 'flex-start', justifyContent: 'center', marginTop: SPACE.md, borderRadius: RADIUS.sm, paddingHorizontal: SPACE.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E9BCB1' },
+  retryText: { color: '#7A3A2C', fontWeight: '700' },
   card: { borderRadius: RADIUS.lg, padding: SPACE.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E6E8ED' },
   cardTitle: { color: '#252A34', fontWeight: '800', textTransform: 'capitalize' },
   summary: { marginTop: SPACE.sm, color: '#606875', lineHeight: SPACE.xl },

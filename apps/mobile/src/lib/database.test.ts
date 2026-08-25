@@ -228,6 +228,17 @@ describe('initializeDatabase', () => {
    * because the retry it allows begins by asking for the same connection handle,
    * and a rejected open cached there hands back the identical error forever.
    */
+  /**
+   * The Recovery screen renders "no interrupted edits need recovery" whenever this
+   * resolves to an empty list, so what it does when storage is unreachable decides
+   * whether that sentence can be a lie. It has to reject — an empty resolve would
+   * be indistinguishable from having looked and found nothing.
+   */
+  it('rejects rather than resolving empty when the copies cannot be read', async () => {
+    sqlite.failNextOpen('unable to open database file');
+    await expect(database.listRecoveryCopies()).rejects.toThrow(/unable to open/);
+  });
+
   it('reopens the database after a failed open instead of caching the rejection', async () => {
     sqlite.failNextOpen('unable to open database file');
     await expect(database.initializeDatabase()).rejects.toThrow(/unable to open/);

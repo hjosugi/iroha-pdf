@@ -153,6 +153,12 @@ const MESSAGES = {
   'recovery.bannerHint': { ja: '復旧コピーを確認します', en: 'Review recovery copies' },
   'recovery.description': { ja: '最後に正常保存できた状態を保持しています。復元する前に、中断された編集内容を確認してください。', en: 'The last valid saved state was kept. Review the interrupted edit before restoring it.' },
   'recovery.empty': { ja: '復旧が必要な中断編集はありません。', en: 'No interrupted edits need recovery.' },
+  // Said instead of `recovery.empty` when the list could not be read at all. The
+  // difference matters more here than anywhere: this screen exists to answer
+  // whether interrupted work survived, and "there is none" is the one answer it
+  // must never give when it simply failed to look.
+  'recovery.unavailable': { ja: '中断編集を読み込めませんでした。保存領域が使えないため、復旧できる編集があるかどうかは不明です。', en: 'The interrupted edits could not be read. Storage is unavailable, so whether anything can be recovered is unknown.' },
+  'recovery.retry': { ja: '再試行', en: 'Try again' },
   'recovery.discardTitle': { ja: '復旧コピーを破棄しますか？', en: 'Discard recovery copy?' },
   'recovery.discardBody': { ja: '破棄すると、この中断された編集は復元できません。', en: 'This interrupted edit cannot be recovered after it is discarded.' },
   'recovery.discardLabel': { ja: '復旧コピーを破棄', en: 'Discard recovery copy' },
