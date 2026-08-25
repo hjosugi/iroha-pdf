@@ -221,6 +221,22 @@ describe('initializeDatabase', () => {
     expect(schemaRuns()).toBe(1);
   });
 
+  /**
+   * The other way setup fails: not while laying the schema down, but before that,
+   * when the file itself will not open — a full disk, a corrupt database, another
+   * process holding it. `initializeDatabase` clearing its own memo is not enough,
+   * because the retry it allows begins by asking for the same connection handle,
+   * and a rejected open cached there hands back the identical error forever.
+   */
+  it('reopens the database after a failed open instead of caching the rejection', async () => {
+    sqlite.failNextOpen('unable to open database file');
+    await expect(database.initializeDatabase()).rejects.toThrow(/unable to open/);
+
+    await expect(database.initializeDatabase()).resolves.toBeUndefined();
+    expect(schemaObjects('table')).toContain('write_journal');
+    await expect(database.listDocuments()).resolves.toEqual([]);
+  });
+
   it('runs setup again after a failure instead of handing the retry the same error', async () => {
     // Laying the schema down needs the database to itself, and another connection has
     // it. Reconciling an interrupted edit deliberately does not fail this way — see

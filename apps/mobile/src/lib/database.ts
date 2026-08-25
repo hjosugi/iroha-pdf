@@ -16,7 +16,17 @@ function createId(prefix: string): string {
 }
 
 async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  databasePromise ??= SQLite.openDatabaseAsync('iroha-pdf.db');
+  // Cleared on failure for the same reason `initializeDatabase` clears its own
+  // memo: a retry has to be able to succeed. Without this, a rejected open is
+  // cached and every later call is handed the same rejection — and because
+  // `setupDatabase` starts by asking for this handle, that defeats the retry
+  // one level up too. The library screen re-runs on focus specifically so a
+  // storage failure can be tried again, which it could not be if the disk was
+  // full or the file was locked at the moment the app opened it.
+  databasePromise ??= SQLite.openDatabaseAsync('iroha-pdf.db').catch((error: unknown) => {
+    databasePromise = undefined;
+    throw error;
+  });
   return databasePromise;
 }
 
