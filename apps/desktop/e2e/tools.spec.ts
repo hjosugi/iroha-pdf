@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boot, dragOn, firstPage, openPdf, pendingEdits, save, useTool } from './helpers';
+import { boot, dragOn, openPdf, pendingEdits, save, useTool } from './helpers';
 import { inspectPdf } from './inspect';
 import { readVirtualFile } from './tauri-stub';
 

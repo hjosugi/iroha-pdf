@@ -4,9 +4,9 @@
  * A picker that changes the preview but writes the default colour would look right and
  * be wrong, and nobody would notice until they opened the PDF somewhere else.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { boot, dragOn, firstPage, openPdf, save, useTool } from './helpers';
+import { boot, dragOn, openPdf, save, useTool } from './helpers';
 import { inspectPdf } from './inspect';
 import { readVirtualFile } from './tauri-stub';
 

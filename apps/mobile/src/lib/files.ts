@@ -102,11 +102,3 @@ export async function sharePdf(file: File): Promise<void> {
 export function baseName(fileName: string): string {
   return fileName.replace(/\.pdf$/i, '');
 }
-
-export function createPermanentPdf(name: string, bytes: Uint8Array): File {
-  const safeName = name.replace(/[^a-zA-Z0-9._-]+/g, '-');
-  const output = new File(documentsDirectory(), `${Date.now()}-${safeName}`);
-  output.create({ overwrite: false, intermediates: true });
-  output.write(bytes);
-  return output;
-}

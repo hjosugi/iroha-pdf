@@ -1,6 +1,7 @@
-import { clampNormalized, type PdfAnnotation, type Point } from '@iroha-pdf/core';
+import { clampNormalized, type PdfAnnotation, type Point, type Size } from '@iroha-pdf/core';
 
-export type Size = { width: number; height: number };
+/** Re-exported so the overlay keeps reaching for its page geometry in one place. */
+export type { Size };
 
 export type PageFrame = Size & {
   left: number;
@@ -25,17 +26,6 @@ export function fitPageFrame(container: Size, page: Size): PageFrame {
     top: (container.height - height) / 2,
     width,
     height,
-  };
-}
-
-/** Maps a coordinate relative to the page overlay into the persisted page space. */
-export function normalizePagePoint(x: number, y: number, frame: Size): Point {
-  if (frame.width <= 0 || frame.height <= 0) {
-    throw new Error('The PDF page frame must be measurable before accepting input');
-  }
-  return {
-    x: clampNormalized(x / frame.width),
-    y: clampNormalized(y / frame.height),
   };
 }
 

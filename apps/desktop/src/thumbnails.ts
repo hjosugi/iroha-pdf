@@ -115,7 +115,10 @@ export class ThumbnailStore {
   /** Releases every rendered page. Called when the panel closes or the document changes. */
   dispose(): void {
     this.disposed = true;
-    this.cache.handleMemoryWarning();
+    // 'delete', not 'memory-warning': the panel is going away, and nothing has
+    // asked for memory back. Reporting otherwise would make a routine teardown
+    // indistinguishable from real pressure to anyone reading the reason.
+    this.cache.releaseAll('delete');
     this.listeners.clear();
   }
 

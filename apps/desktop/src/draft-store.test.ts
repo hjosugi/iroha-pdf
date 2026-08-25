@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AnnotationTransferItem } from '@embedpdf/plugin-annotation';
 
-import { clearDraft, hasDraft, loadDraft, saveDraft } from './draft-store';
+import { clearDraft, loadDraft, saveDraft } from './draft-store';
 
 const PATH = '/tmp/doc.pdf';
 
@@ -53,7 +53,6 @@ beforeEach(() => {
 describe('draft store', () => {
   it('reports nothing for a path that was never drafted', () => {
     expect(loadDraft(PATH)).toBeNull();
-    expect(hasDraft(PATH)).toBe(false);
   });
 
   it('round-trips annotations', () => {
@@ -92,9 +91,9 @@ describe('draft store', () => {
 
   it('clears a draft', () => {
     saveDraft(PATH, [item()]);
-    expect(hasDraft(PATH)).toBe(true);
+    expect(loadDraft(PATH)).not.toBeNull();
     clearDraft(PATH);
-    expect(hasDraft(PATH)).toBe(false);
+    expect(loadDraft(PATH)).toBeNull();
   });
 
   it('treats corrupt storage as no draft rather than throwing', () => {
@@ -123,7 +122,7 @@ describe('draft store', () => {
     });
     // Silence here is the data-loss path: nothing was written, so nobody may be told
     // that anything was.
-    expect(hasDraft(PATH)).toBe(false);
+    expect(loadDraft(PATH)).toBeNull();
   });
 
   it('keeps the last draft that fit when a later one is refused', () => {
