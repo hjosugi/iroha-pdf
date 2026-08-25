@@ -45,4 +45,23 @@ describe('BoundedLruCache', () => {
       'memory-warning',
     );
   });
+
+  /**
+   * A caller shutting a panel down and a caller the platform has asked for memory
+   * back leave the cache identical, and mean different things by it. `onEvict` is
+   * where that difference gets acted on, so the reason has to be the caller's.
+   */
+  it('releases in bulk under the reason the caller gives, not one fixed reason', () => {
+    const onEvict = vi.fn();
+    const cache = new BoundedLruCache<Uint8Array>({
+      maxBytes: 16,
+      sizeOf: (value) => value.byteLength,
+      onEvict,
+    });
+    cache.set('thumbnail', new Uint8Array(4));
+    cache.releaseAll('delete');
+
+    expect(cache.usedBytes).toBe(0);
+    expect(onEvict).toHaveBeenCalledWith('thumbnail', expect.any(Uint8Array), 'delete');
+  });
 });

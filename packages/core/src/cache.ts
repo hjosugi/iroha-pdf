@@ -89,10 +89,24 @@ export class BoundedLruCache<Value> {
     return true;
   }
 
-  handleMemoryWarning(): void {
+  /**
+   * Drops everything, recording why.
+   *
+   * The reason is the whole point of releasing in bulk: a caller that is shutting
+   * a panel and a caller the platform has asked for memory back leave the cache in
+   * the same state but mean different things by it, and `onEvict` is where that
+   * difference is acted on. This used to be `handleMemoryWarning`, which meant a
+   * store tearing itself down had to report a memory warning that had not happened.
+   */
+  releaseAll(reason: CacheEvictionReason): void {
     for (const [key, entry] of [...this.entries]) {
-      this.evict(key, entry, 'memory-warning');
+      this.evict(key, entry, reason);
     }
+  }
+
+  /** The platform has asked for memory back. */
+  handleMemoryWarning(): void {
+    this.releaseAll('memory-warning');
   }
 
   keysByRecency(): string[] {
