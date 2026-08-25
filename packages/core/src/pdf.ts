@@ -157,7 +157,17 @@ export async function rotatePdfPages(
   clockwiseDegrees: 90 | 180 | 270,
 ): Promise<Uint8Array> {
   const document = await PDFDocument.load(source);
-  for (const pageIndex of pageIndices) {
+  // Checked here like every sibling, rather than left to pdf-lib. It does reject
+  // an out-of-range index, but in its own words — "`index` must be at least 0 and
+  // at most 1" — which reached the Tools screen's alert untranslated while Extract
+  // and Remove, given the same typed page number, said what this app says.
+  for (const pageIndex of pageIndices) assertPageIndex(pageIndex, document.getPageCount());
+
+  // A page named twice was turned twice, so "2,2" came back upside down. Rotating
+  // is not reordering: there, naming a page twice is how a page gets duplicated and
+  // the repetition is the point. `removePdfPages` collapses its input for the same
+  // reason this does.
+  for (const pageIndex of new Set(pageIndices)) {
     const page = document.getPage(pageIndex);
     page.setRotation(degrees((page.getRotation().angle + clockwiseDegrees) % 360));
   }
