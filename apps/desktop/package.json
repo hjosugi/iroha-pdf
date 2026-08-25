@@ -50,7 +50,7 @@
     "@playwright/test": "^1.61.1",
     "@tauri-apps/cli": "2.11.4",
     "@types/react": "~19.2.18",
-    "@types/react-dom": "~19.2.2",
+    "@types/react-dom": "~19.2.4",
     "@vitejs/plugin-react": "6.0.3",
     "esbuild": "0.28.1",
     "pdf-lib": "1.17.1",
