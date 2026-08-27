@@ -27,7 +27,7 @@ import path from 'node:path';
 import { argv, execPath, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { DOCUMENTS } from './catalog.mjs';
+import { DEFAULT_BASE_URL, DOCUMENTS } from './catalog.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 
@@ -75,10 +75,28 @@ try {
     privacy.includes('Iroha PDF privacy policy'),
     '/privacy/ must render docs/PRIVACY_POLICY.md, not a placeholder',
   );
+
+  /**
+   * The exact address written into App Store Connect, Play Console and the OAuth
+   * consent screen — see docs/STORE_PRIVACY_CHECKLIST.md, which names this URL
+   * three times.
+   *
+   * This used to accept any canonical at all: the specific URL was one arm of an
+   * `||` whose other arm was "there is a canonical link", which is weaker and
+   * therefore always decided it. A site built with `SITE_BASE_URL` pointing
+   * somewhere else passed. That is not hypothetical — .github/workflows/pages.yml
+   * builds with `SITE_BASE_URL: ${steps.pages.outputs.base_url}`, whatever GitHub
+   * reports, so a custom domain, a repository rename or an organisation transfer
+   * moves it. The three store listings would then point at a 404, and the check
+   * whose header says it pins this URL would have said the site was clean.
+   */
+  const storePrivacyUrl = `${DEFAULT_BASE_URL}/privacy/`;
+  const canonical = /<link rel="canonical" href="([^"]*)">/.exec(privacy)?.[1];
   check(
-    privacy.includes('<link rel="canonical" href="https://hjosugi.github.io/iroha-pdf/privacy/">')
-      || privacy.includes('<link rel="canonical" href="'),
-    '/privacy/ must declare a canonical URL',
+    canonical === storePrivacyUrl,
+    `/privacy/ must be canonical at ${storePrivacyUrl}, the address entered in the store`
+      + ` consoles, but this build declares ${canonical ?? 'no canonical URL at all'}.`
+      + ' Change both together, or not at all.',
   );
 
   const pages = [...files].filter((file) => file.endsWith('.html'));
