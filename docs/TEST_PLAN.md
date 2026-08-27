@@ -137,6 +137,22 @@ relaunching over the file the previous launch left behind, and the write journal
 `SQLITE_BUSY` path by a second connection actually taking the write lock. The font
 `annotation-font.ts` caches is the one the repository really ships.
 
+Mobile screens are now rendered in `iroha-pdf-mobile-test` too, as a second Vitest
+project. `react-native` is aliased to `react-native-web` — which this app already ships
+for its web build — so a `View` becomes a `div` and `@testing-library/react` can query
+it. Only the modules that reach for a native binary are replaced: navigation, safe-area
+insets, and whichever of `src/lib` the screen under test is about. The catalogue, theme
+and layout components are the real ones, because a test against a double of those would
+only be checking the double.
+
+What that buys is the component's own decisions — which branch renders, what a failure
+does to the screen, what a control is called. The two it was built for are the Recovery
+screen distinguishing "nothing to recover" from "could not look", and the note editor's
+label no longer claiming a refused write was saved; reverting either fix fails these
+tests. What it does **not** buy is anything about React Native itself: no native
+renderer, no gesture system, no platform behaviour. It is not a substitute for the
+device coverage in #60, and a screen passing here has not been run on a phone.
+
 The release-configured Android/iOS screenshot matrix now exercises the ordinary screens
 and PDF view with a deterministic bundled fixture. What still needs physical devices is
 document/photo provider resolution, share and print sheets, production OAuth, stylus,
