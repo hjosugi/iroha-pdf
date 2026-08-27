@@ -22,6 +22,7 @@ export default function NoteEditorScreen() {
   const navigation = useNavigation();
   const [note, setNote] = useState<Note | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [storedLast, setStoredLast] = useState(true);
   const noteRef = useRef<Note | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,7 +57,19 @@ export default function NoteEditorScreen() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
-      void saveNote(updated).catch(showSaveError);
+      // Reported, not just alerted. An alert is dismissed and gone; the label
+      // below is what someone glances at before deciding the note is safe, and
+      // it said "Autosaved locally" whether or not anything had been stored.
+      // Desktop had the same lie, fixed in #145 — with the same reasoning this
+      // codebase already gives for drafts: autosave failing quietly is worse
+      // than autosave failing loudly.
+      void saveNote(updated).then(
+        () => setStoredLast(true),
+        (error: unknown) => {
+          setStoredLast(false);
+          showSaveError(error);
+        },
+      );
     }, 250);
   };
 
@@ -87,7 +100,13 @@ export default function NoteEditorScreen() {
           textAlignVertical="top"
           style={styles.body}
         />
-        <Text accessibilityLiveRegion="polite" style={styles.saved}>{t('autosave.saved')}</Text>
+        <Text
+          accessibilityLiveRegion="polite"
+          accessibilityRole={storedLast ? undefined : 'alert'}
+          style={[styles.saved, !storedLast && styles.saveFailed]}
+        >
+          {t(storedLast ? 'autosave.saved' : 'note.saveFailed')}
+        </Text>
       </ContentColumn>
     </SafeAreaView>
   );
@@ -106,4 +125,5 @@ const styles = StyleSheet.create({
   title: { color: '#1D211E', fontSize: TYPE.title, fontWeight: '800', paddingVertical: SPACE.md, borderRadius: RADIUS.sm },
   body: { flex: 1, color: '#30342F', fontSize: TYPE.heading, lineHeight: SPACE.xxl, paddingTop: SPACE.md },
   saved: { paddingVertical: SPACE.md, color: '#858A83', fontSize: TYPE.label },
+  saveFailed: { color: '#A4372A', fontWeight: '700' },
 });
