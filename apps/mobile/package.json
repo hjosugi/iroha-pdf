@@ -9,7 +9,7 @@
     "@iroha-pdf/google-drive": "*",
     "@react-native-google-signin/google-signin": "16.1.4",
     "expo": "~57.0.9",
-    "expo-asset": "~57.0.7",
+    "expo-asset": "~57.0.14",
     "expo-constants": "~57.0.3",
     "expo-dev-client": "~57.0.9",
     "expo-device": "~57.0.1",
