@@ -151,6 +151,33 @@ export async function removePdfPages(
   return reorderPdf(source, keep);
 }
 
+/**
+ * Splits a document in two, after the page the caller names.
+ *
+ * Extract and remove can already produce either half, and the mobile Tools screen
+ * does exactly that — but "split this at page 10" is a thing a person asks for,
+ * and asking for it as two operations over complementary page lists is how you
+ * end up with a gap or an overlap. Naming it once means the two halves are the
+ * whole document exactly once, by construction.
+ */
+export async function splitPdfAt(
+  source: Uint8Array,
+  afterPageIndex: number,
+): Promise<[Uint8Array, Uint8Array]> {
+  const input = await PDFDocument.load(source);
+  const pageCount = input.getPageCount();
+  assertPageIndex(afterPageIndex, pageCount);
+  if (afterPageIndex === pageCount - 1) {
+    throw new Error('Splitting after the last page would leave the second document empty');
+  }
+
+  const indices = input.getPageIndices();
+  return Promise.all([
+    reorderPdf(source, indices.slice(0, afterPageIndex + 1)),
+    reorderPdf(source, indices.slice(afterPageIndex + 1)),
+  ]) as Promise<[Uint8Array, Uint8Array]>;
+}
+
 export async function rotatePdfPages(
   source: Uint8Array,
   pageIndices: number[],

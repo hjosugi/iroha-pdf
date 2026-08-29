@@ -16,6 +16,7 @@ import {
   removePdfPages,
   reorderPdf,
   rotatePdfPages,
+  splitPdfAt,
   validateAnnotation,
 } from './index';
 
@@ -138,6 +139,51 @@ describe('PDF page operations', () => {
 
     const rotated = await PDFDocument.load(await rotatePdfPages(source, [0], 90));
     expect(rotated.getPage(0).getRotation().angle).toBe(90);
+  });
+
+  /**
+   * Extract and remove can already produce either half, and the mobile Tools
+   * screen does exactly that. Naming the operation is what makes the two halves
+   * provably the whole document once each: built from complementary page lists
+   * by hand, a gap or an overlap is a typo away.
+   */
+  it('splits into two halves that are the whole document exactly once', async () => {
+    const input = await PDFDocument.create();
+    for (const size of [100, 200, 300, 400]) input.addPage([size, size]);
+    const source = await input.save();
+
+    const [first, second] = await splitPdfAt(source, 1);
+    const before = await PDFDocument.load(first);
+    const after = await PDFDocument.load(second);
+
+    expect(before.getPageCount()).toBe(2);
+    expect(after.getPageCount()).toBe(2);
+    expect(before.getPageCount() + after.getPageCount()).toBe(4);
+    // Identified by their distinct sizes, so a duplicated or dropped page shows.
+    expect([before.getPage(0).getWidth(), before.getPage(1).getWidth()]).toEqual([100, 200]);
+    expect([after.getPage(0).getWidth(), after.getPage(1).getWidth()]).toEqual([300, 400]);
+  });
+
+  it('refuses a split that would leave one half empty', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([100, 100]);
+    input.addPage([200, 200]);
+    const source = await input.save();
+
+    await expect(splitPdfAt(source, 1)).rejects.toThrow('would leave the second document empty');
+    await expect(splitPdfAt(source, 2)).rejects.toThrow('Invalid zero-based page index: 2');
+    await expect(splitPdfAt(source, -1)).rejects.toThrow('Invalid zero-based page index: -1');
+  });
+
+  it('leaves the source bytes untouched', async () => {
+    const input = await PDFDocument.create();
+    input.addPage([100, 100]);
+    input.addPage([200, 200]);
+    const source = await input.save();
+    const original = source.slice();
+
+    await splitPdfAt(source, 0);
+    expect(source).toEqual(original);
   });
 
   /**

@@ -50,6 +50,15 @@ declare global {
       calls: () => InvokeRecord[];
       setSavePath: (path: string | null) => void;
       setOpenPath: (path: string | null) => void;
+      /** What a multi-select open dialog returns. Null means the user dismissed it. */
+      setOpenPaths: (paths: string[] | null) => void;
+      /**
+       * Paths for the next save dialogs, consumed one per dialog. An operation
+       * that saves twice — split — shows two dialogs and the user names each
+       * separately, so a single `savePath` would model them overwriting one
+       * another rather than what really happens.
+       */
+      setSavePaths: (paths: (string | null)[]) => void;
       /**
        * Makes writes to `path` run out of room. Null gives the disk back.
        *
@@ -104,6 +113,8 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
 
     const calls: InvokeRecord[] = [];
     let openPath = stub.openPath;
+    let openPaths: string[] | null = null;
+    const queuedSavePaths: (string | null)[] = [];
     let savePath = stub.savePath;
     let fullDiskPath: string | null = null;
     let renameBlockedPath: string | null = null;
@@ -128,6 +139,13 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
       setOpenPath: (path) => {
         openPath = path;
       },
+      setOpenPaths: (paths) => {
+        openPaths = paths;
+      },
+      setSavePaths: (paths) => {
+        queuedSavePaths.length = 0;
+        queuedSavePaths.push(...paths);
+      },
       setDiskFull: (path) => {
         fullDiskPath = path;
       },
@@ -145,10 +163,16 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
         switch (cmd) {
           case 'plugin:dialog|open': {
             calls.push(record);
+            // The real plugin returns an array when asked for several, and a
+            // single path otherwise; a stub that always returned one would let a
+            // multi-select caller pass here and fail on a device.
+            const options = (args as { options?: { multiple?: boolean } } | undefined)?.options;
+            if (options?.multiple) return openPaths;
             return openPath;
           }
           case 'plugin:dialog|save': {
             calls.push(record);
+            if (queuedSavePaths.length > 0) return queuedSavePaths.shift() ?? null;
             return savePath;
           }
           case 'plugin:dialog|message': {

@@ -152,6 +152,21 @@ export async function blockRename(page: Page, path: string | null): Promise<void
   await page.evaluate((target) => window.__IROHA_TEST__.setRenameBlocked(target), path);
 }
 
+/** What the next save dialog returns; null is the user dismissing it. */
+export async function nextSavePath(page: Page, path: string | null): Promise<void> {
+  await page.evaluate((target) => window.__IROHA_TEST__.setSavePath(target), path);
+}
+
+/** What the next multi-select open dialog returns; null is a dismissal. */
+export async function nextOpenPaths(page: Page, paths: string[] | null): Promise<void> {
+  await page.evaluate((targets) => window.__IROHA_TEST__.setOpenPaths(targets), paths);
+}
+
+/** Paths for the next save dialogs, one per dialog, in order. */
+export async function nextSavePaths(page: Page, paths: (string | null)[]): Promise<void> {
+  await page.evaluate((targets) => window.__IROHA_TEST__.setSavePaths(targets), paths);
+}
+
 /** A normalised rectangle over page 1, as a fraction of its rendered box. */
 export type PageBox = { x1: number; y1: number; x2: number; y2: number };
 

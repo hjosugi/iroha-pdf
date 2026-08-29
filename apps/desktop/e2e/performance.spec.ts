@@ -47,16 +47,45 @@ const BUDGETS = {
   /** Total shipped bytes, the honest measure of "app weight" for the web layer. */
   bundleMb: 8,
   /**
-   * Everything except the PDF engine wasm, which dominates and is not ours.
+   * What the app downloads and parses before it can show anything — everything
+   * except the PDF engine wasm and the chunks nothing asks for until it is used.
    *
    * Measured at 0.63 MB. It was 1.80 MB until `@iroha-pdf/core` was marked
    * side-effect free and the bundler could stop pulling pdf-lib and fontkit in
-   * behind two i18n functions — a library the desktop never calls, because the
-   * engine is wasm. Kept tight deliberately: pdf-lib alone is 1.1 MB, so a
-   * re-entry through some other barrel breaches this rather than passing quietly.
+   * behind two i18n functions. Kept tight deliberately: pdf-lib alone is 1.1 MB,
+   * so a re-entry through some other barrel breaches this rather than passing
+   * quietly — which is exactly what it did when the page operations were first
+   * wired in with a static import, taking the entry chunk to 1.71 MB.
+   *
+   * The premise has moved since that comment was written: the desktop does now
+   * call pdf-lib, for the merge/split/extract in #19. What has not moved is that
+   * someone opening the app to read a document should not download a
+   * PDF-*writing* library to do it, which is why that code is behind a dynamic
+   * import and measured separately below.
    */
   appJsMb: 1,
+  /**
+   * The chunks loaded only when a feature is asked for. Measured at 1.12 MB,
+   * nearly all of it pdf-lib and fontkit.
+   *
+   * A separate budget rather than a bigger single one, because the two protect
+   * different things: this one bounds how much a feature can cost when used, and
+   * `appJsMb` bounds what everyone pays whether they use it or not. Rolling them
+   * together would let the startup path absorb a megabyte without anything
+   * failing.
+   */
+  onDemandJsMb: 1.5,
 };
+
+/**
+ * Chunks that are not fetched until something asks for them.
+ *
+ * Listed by name rather than matched by a pattern: leaving the startup path is a
+ * deliberate decision about a specific module, and a chunk that arrives without
+ * being named here should breach `appJsMb` rather than quietly widen it. The
+ * "is not loaded at boot" test below is what keeps this list honest.
+ */
+const ON_DEMAND_CHUNKS = ['page-operations'];
 
 /**
  * Heap usage read over CDP.
@@ -179,11 +208,15 @@ test.describe('app weight', () => {
     let appJs = 0;
     const breakdown: Array<[string, number]> = [];
 
+    let onDemandJs = 0;
+
     for (const entry of entries) {
       const { size } = await stat(join(DIST, 'assets', entry));
       total += size;
       breakdown.push([entry, size]);
-      if (entry.endsWith('.js') && !entry.includes('engine')) appJs += size;
+      if (!entry.endsWith('.js') || entry.includes('engine')) continue;
+      if (ON_DEMAND_CHUNKS.some((name) => entry.startsWith(`${name}-`))) onDemandJs += size;
+      else appJs += size;
     }
 
     breakdown.sort((a, b) => b[1] - a[1]);
@@ -192,8 +225,40 @@ test.describe('app weight', () => {
     }
     console.log(`[weight] total ${(total / 1024 / 1024).toFixed(2)} MB`);
 
+    console.log(`[weight] startup js ${(appJs / 1024 / 1024).toFixed(2)} MB, on demand ${(onDemandJs / 1024 / 1024).toFixed(2)} MB`);
+
     expect(total / 1024 / 1024).toBeLessThan(BUDGETS.bundleMb);
     expect(appJs / 1024 / 1024).toBeLessThan(BUDGETS.appJsMb);
+    expect(onDemandJs / 1024 / 1024).toBeLessThan(BUDGETS.onDemandJsMb);
+  });
+
+  /**
+   * What makes the split above a fact rather than a naming convention.
+   *
+   * `ON_DEMAND_CHUNKS` excludes a megabyte from the startup budget on the claim
+   * that nobody downloads it to read a document. The two ways that claim can stop
+   * being true fail in different places, which is why both checks exist:
+   *
+   *  - a static import folds the module into the entry chunk, there is no separate
+   *    file any more, and the size budget above catches it;
+   *  - a dynamic import evaluated at module scope leaves the chunk exactly where
+   *    it is and fetches it at boot anyway. Measured: the sizes are byte-identical
+   *    — 0.63 MB startup, 1.10 MB on demand — and only this test notices.
+   */
+  test('an on-demand chunk is not fetched just to open the app', async ({ page }) => {
+    const fetched: string[] = [];
+    page.on('request', (request) => fetched.push(request.url()));
+
+    await boot(page, 'complex.pdf');
+    await openPdf(page);
+    await expect(firstPage(page)).toBeVisible();
+
+    for (const name of ON_DEMAND_CHUNKS) {
+      expect(
+        fetched.filter((url) => url.includes(`/${name}-`)),
+        `${name} must not be fetched before it is used`,
+      ).toEqual([]);
+    }
   });
 
   test('the app shell renders before the PDF engine is needed', async ({ page }) => {
