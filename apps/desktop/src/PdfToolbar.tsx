@@ -19,8 +19,10 @@ import {
   type ToolId,
   type ToolSetting,
 } from './tool-settings';
+import type { PageOperation } from './page-operations';
 import {
   useAnnotationScope,
+  useDocumentBytes,
   useDocumentFile,
   usePdfSave,
   useSelectedAnnotations,
@@ -245,6 +247,117 @@ function PrintDialog({
   );
 }
 
+/**
+ * Merge, split, extract and remove, over the document that is open.
+ *
+ * Built on the same bones as the print dialog above — mounted while closed so a
+ * selection typed once survives a cancel, Escape closes it, focus returns to the
+ * control that opened it. Every operation writes a new file the user names and
+ * leaves the open document alone, which the dialog says out loud rather than
+ * leaving someone to find out.
+ */
+function PageDialog({
+  open,
+  documentName,
+  onClose,
+  onRun,
+}: {
+  open: boolean;
+  documentName: string;
+  onClose: () => void;
+  onRun: (operation: PageOperation, selection: string) => Promise<void>;
+}) {
+  const [operation, setOperation] = useState<PageOperation>('extract');
+  const [selection, setSelection] = useState('');
+  const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    dialogRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose, open]);
+
+  if (!open) return null;
+
+  // Merge takes its inputs from a file dialog, so there is nothing to type for it.
+  const needsSelection = operation !== 'merge';
+  const hint = operation === 'split' ? t('pages.splitHint') : t('pages.selectionHint');
+
+  return (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        ref={dialogRef}
+        className="print-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="page-dialog-title"
+        tabIndex={-1}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <h2 id="page-dialog-title">{t('pages.dialogTitle')}</h2>
+        {/* Which document these act on. Several can be open, and the operations
+            below produce files named after this one. */}
+        <p className="dialog-hint">{documentName}</p>
+        <fieldset>
+          <legend>{t('pages.label')}</legend>
+          {(
+            [
+              ['extract', 'pages.extract', 'pages.extractDescription'],
+              ['remove', 'pages.remove', 'pages.removeDescription'],
+              ['split', 'pages.split', 'pages.splitDescription'],
+              ['merge', 'pages.merge', 'pages.mergeDescription'],
+            ] as const
+          ).map(([id, labelKey, descriptionKey]) => (
+            <label key={id}>
+              <input
+                type="radio"
+                name="page-operation"
+                checked={operation === id}
+                onChange={() => setOperation(id)}
+              />{' '}
+              {t(labelKey)}
+              <span className="dialog-hint">{t(descriptionKey)}</span>
+            </label>
+          ))}
+        </fieldset>
+        {needsSelection && (
+          <label className="dialog-field">
+            {t('pages.selection')}
+            <input
+              aria-label={t('pages.selection')}
+              value={selection}
+              onChange={(event) => setSelection(event.target.value)}
+              placeholder={hint}
+            />
+            <span className="dialog-hint">{hint}</span>
+          </label>
+        )}
+        <p className="dialog-hint">{t('pages.untouched')}</p>
+        <div className="dialog-actions">
+          <button className="tool" onClick={onClose}>{t('action.cancel')}</button>
+          <button
+            className="primary-button"
+            disabled={busy || (needsSelection && !selection.trim())}
+            onClick={() => {
+              setBusy(true);
+              void onRun(operation, selection.trim()).finally(() => setBusy(false));
+            }}
+          >
+            {busy ? t('pages.working') : t('pages.run')}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function describeOutcome(outcome: SaveOutcome): string | null {
   if (outcome.status === 'cancelled') return null;
   if (outcome.status === 'downloaded') return t('save.downloaded');
@@ -303,11 +416,62 @@ export function PdfToolbar({
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [printOpen, setPrintOpen] = useState(false);
   const printButtonRef = useRef<HTMLButtonElement>(null);
+  const [pagesOpen, setPagesOpen] = useState(false);
+  const pagesButtonRef = useRef<HTMLButtonElement>(null);
+  const documentBytes = useDocumentBytes(documentId);
 
   const closePrint = useCallback(() => {
     setPrintOpen(false);
     window.requestAnimationFrame(() => printButtonRef.current?.focus());
   }, []);
+
+  const closePages = useCallback(() => {
+    setPagesOpen(false);
+    window.requestAnimationFrame(() => pagesButtonRef.current?.focus());
+  }, []);
+
+  /**
+   * Reported through the same `save-state` line the saves use, because it is the
+   * same question — where did my document go. A cancelled dialog says nothing:
+   * changing your mind is not an outcome worth announcing.
+   */
+  const runPages = useCallback(
+    async (operation: PageOperation, selection: string) => {
+      setSaveState(t('pages.working'));
+      try {
+        /**
+         * Loaded here rather than imported at the top, because this module is the
+         * only thing in the desktop app that reaches for `pdf-lib`. Static, it
+         * joined the entry chunk and took it from 0.61 MB to 1.71 MB — a megabyte
+         * of PDF-writing machinery downloaded and parsed by everyone who opens
+         * the app to read something. Nobody pays for it until they ask for a page
+         * operation.
+         */
+        const { runPageOperation } = await import('./page-operations');
+        const outcome = await runPageOperation(operation, {
+          source: async () => new Uint8Array(await documentBytes()),
+          sourceName: documentName || 'document.pdf',
+          selection,
+        });
+        if (outcome.status === 'cancelled') {
+          setSaveState(null);
+          return;
+        }
+        const [first, second] = outcome.paths.map((path) => basename(path));
+        setSaveState(
+          second
+            ? t('pages.wroteTwo', { first: first ?? '', second })
+            : t('pages.wroteOne', { name: first ?? '' }),
+        );
+        closePages();
+      } catch (error) {
+        console.error('Iroha PDF: page operation failed', error);
+        const { describeOperationFailure } = await import('./page-operations');
+        setSaveState(`${describeOperationFailure(error)} ${t('pages.untouched')}`);
+      }
+    },
+    [closePages, documentBytes, documentName],
+  );
 
   useEffect(() => {
     if (!annotation) return;
@@ -358,12 +522,21 @@ export function PdfToolbar({
       <button className="tool" onClick={() => void runSave(saveAs)}>
         {t(isDesktopRuntime() ? 'save.saveAs' : 'save.downloadCopy')}
       </button>
+      <button ref={pagesButtonRef} className="tool" onClick={() => setPagesOpen(true)}>
+        {t('pages.open')}
+      </button>
       <button ref={printButtonRef} className="tool" onClick={() => setPrintOpen(true)}>
         {t('print.open')}
       </button>
       <button className={unsaved ? 'primary-button unsaved' : 'primary-button'} onClick={() => void runSave(save)}>
         {unsaved ? t('save.saveCount', { count: file.pendingEdits }) : t('save.save')}
       </button>
+      <PageDialog
+        open={pagesOpen}
+        documentName={documentName}
+        onClose={closePages}
+        onRun={runPages}
+      />
       <PrintDialog
         open={printOpen}
         currentPage={scrollState.currentPage || 1}

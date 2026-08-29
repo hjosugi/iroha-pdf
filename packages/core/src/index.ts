@@ -1,5 +1,6 @@
 export * from './annotations';
 export * from './cache';
+export * from './pages';
 export * from './pdf';
 export * from './recovery';
 export * from './sync';

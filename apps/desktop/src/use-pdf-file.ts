@@ -312,12 +312,19 @@ export type SaveOutcome =
   | { status: 'downloaded' }
   | { status: 'cancelled' };
 
-export function usePdfSave(documentId: string, documentName: string) {
+/**
+ * The open document as bytes, with every pending annotation settled into it first.
+ *
+ * Saving needs this, and so does anything else that turns what is on screen into
+ * a file — the page operations produce a new PDF from the document you are
+ * looking at, and they have to be looking at the same thing a save would. Written
+ * once so that "what the engine hands out" cannot come to mean two things.
+ */
+export function useDocumentBytes(documentId: string): () => Promise<ArrayBuffer> {
   const annotation = useAnnotationScope(documentId);
   const { provides: exportProvider } = useExport(documentId);
 
-  /** Flushes pending annotations into the document, then serialises it. */
-  const serialize = useCallback(async (): Promise<ArrayBuffer> => {
+  return useCallback(async (): Promise<ArrayBuffer> => {
     if (!exportProvider) throw new Error('The PDF engine is still starting up.');
     if (annotation) {
       // The pen tool holds a finished stroke for `commitDelay` before turning it into
@@ -330,6 +337,11 @@ export function usePdfSave(documentId: string, documentName: string) {
     }
     return exportProvider.saveAsCopy().toPromise();
   }, [annotation, exportProvider]);
+}
+
+export function usePdfSave(documentId: string, documentName: string) {
+  const { provides: exportProvider } = useExport(documentId);
+  const serialize = useDocumentBytes(documentId);
 
   const saveAs = useCallback(async (): Promise<SaveOutcome> => {
     if (!isDesktopRuntime()) {

@@ -12,6 +12,8 @@ import {
   imagesToPdf,
   mergePdfs,
   optimizePdfStructure,
+  PageSelectionError,
+  parsePageSelection,
   removePdfPages,
   reorderPdf,
   rotatePdfPages,
@@ -206,23 +208,27 @@ function formatBytes(bytes: number | null): string {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/**
+ * The shared reading of a typed page selection, said in this app's words.
+ *
+ * The syntax lived here and desktop was about to need the same one, so the
+ * reading moved to core and the wording stayed. Core has no locale, so it reports
+ * what went wrong and which fragment; the catalogue lookup belongs on this side.
+ */
 function parseOneBasedPages(value: string): number[] {
-  const pages: number[] = [];
-  for (const part of value.split(',').map((item) => item.trim()).filter(Boolean)) {
-    const range = /^(\d+)-(\d+)$/.exec(part);
-    if (range) {
-      const start = Number(range[1]);
-      const end = Number(range[2]);
-      if (start < 1 || end < start) throw new Error(t('tools.invalidRange', { value: part }));
-      for (let page = start; page <= end; page += 1) pages.push(page - 1);
-      continue;
+  try {
+    return parsePageSelection(value);
+  } catch (error) {
+    if (!(error instanceof PageSelectionError)) throw error;
+    switch (error.problem.reason) {
+      case 'empty':
+        throw new Error(t('tools.enterPage'));
+      case 'not-a-range':
+        throw new Error(t('tools.invalidRange', { value: error.problem.value }));
+      case 'not-a-page':
+        throw new Error(t('tools.invalidPage', { value: error.problem.value }));
     }
-    const page = Number(part);
-    if (!Number.isInteger(page) || page < 1) throw new Error(t('tools.invalidPage', { value: part }));
-    pages.push(page - 1);
   }
-  if (pages.length === 0) throw new Error(t('tools.enterPage'));
-  return pages;
 }
 
 function ToolCard(props: { title: string; description: string; action: string; onPress: () => void; disabled: boolean }) {

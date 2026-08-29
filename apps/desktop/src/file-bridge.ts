@@ -60,6 +60,23 @@ export async function pickPdfFromDisk(): Promise<OpenedFile | null> {
   return readPdfFromDisk(selected);
 }
 
+/**
+ * Several PDFs at once, for the operations that combine them. Returns an empty
+ * list when the user dismisses the dialog.
+ *
+ * The dialog grants each path it returns, exactly as the single-file picker does,
+ * so nothing here widens the filesystem scope beyond what was chosen.
+ */
+export async function pickPdfsFromDisk(): Promise<OpenedFile[]> {
+  const selected = await openDialog({
+    multiple: true,
+    directory: false,
+    filters: PDF_FILTERS,
+  });
+  if (!Array.isArray(selected)) return [];
+  return Promise.all(selected.map((path) => readPdfFromDisk(path)));
+}
+
 /** Returns null when the user dismisses the dialog. */
 export async function pickSaveLocation(defaultName: string): Promise<string | null> {
   return saveDialog({ defaultPath: defaultName, filters: PDF_FILTERS });
