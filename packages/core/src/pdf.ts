@@ -201,6 +201,72 @@ export async function rotatePdfPages(
   return document.save({ useObjectStreams: true });
 }
 
+/** A quarter turn clockwise, counted in the degrees PDF rotation is written in. */
+export type QuarterTurn = 0 | 90 | 180 | 270;
+
+/**
+ * One page of an organised document: a page of the source, turned by some number
+ * of quarter turns on top of whatever rotation it already has, or a blank page.
+ */
+export type OrganizedPage =
+  | { kind: 'page'; source: number; rotation: QuarterTurn }
+  | { kind: 'blank'; width: number; height: number };
+
+const QUARTER_TURNS = new Set<number>([0, 90, 180, 270]);
+
+/**
+ * Builds a document from a page plan: any order, any page any number of times,
+ * each turned independently, with blank pages wherever they were asked for.
+ *
+ * Reorder, duplicate, delete, rotate and insert-blank are each a special case of
+ * this, and the page organizer (#17, #18) applies all of them in one plan, so
+ * they are one operation here rather than a pipeline of five saves — a pipeline
+ * would re-parse the document once per step and turn a page twice if it was named
+ * twice, which is the bug `rotatePdfPages` already had to guard against.
+ *
+ * Every entry is checked before anything is built, so an out-of-range page or a
+ * nonsense size refuses the whole plan instead of producing part of it.
+ */
+export async function organizePdf(source: Uint8Array, plan: OrganizedPage[]): Promise<Uint8Array> {
+  if (plan.length === 0) throw new Error('A PDF must keep at least one page');
+  const input = await PDFDocument.load(source);
+  const pageCount = input.getPageCount();
+
+  for (const entry of plan) {
+    if (entry.kind === 'page') {
+      assertPageIndex(entry.source, pageCount);
+      if (!QUARTER_TURNS.has(entry.rotation)) {
+        throw new Error(`Rotation must be a quarter turn, not ${entry.rotation}`);
+      }
+    } else if (
+      !Number.isFinite(entry.width) ||
+      !Number.isFinite(entry.height) ||
+      entry.width <= 0 ||
+      entry.height <= 0
+    ) {
+      throw new Error(`Invalid blank page size: ${entry.width} x ${entry.height}`);
+    }
+  }
+
+  const output = await PDFDocument.create();
+  // One copy per entry, not per distinct page: a duplicated page has to be its own
+  // page object, or turning one copy would turn the other.
+  const sources = plan.flatMap((entry) => (entry.kind === 'page' ? [entry.source] : []));
+  const copied = await output.copyPages(input, sources);
+  let next = 0;
+  for (const entry of plan) {
+    if (entry.kind === 'blank') {
+      output.addPage([entry.width, entry.height]);
+      continue;
+    }
+    const page = output.addPage(copied[next++]!);
+    if (entry.rotation !== 0) {
+      page.setRotation(degrees((page.getRotation().angle + entry.rotation) % 360));
+    }
+  }
+  return output.save({ useObjectStreams: true });
+}
+
 /**
  * Annotation coordinates are normalized against the page as the reader sees it,
  * but pdf-lib draws in unrotated user space. On a page carrying /Rotate the two
