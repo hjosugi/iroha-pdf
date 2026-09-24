@@ -25,6 +25,27 @@
         "Revisit when image-size publishes a fix and metro adopts it. The expiry is",
         "there so this is re-argued rather than inherited."
       ]
+    },
+    {
+      "package": "decode-uri-component",
+      "advisories": ["GHSA-vcc3-ghjq-m6fr"],
+      "expires": "2026-12-24",
+      "why": [
+        "Denial of service: when decodeURIComponent rejects its input, 0.2.x retries every split",
+        "of the percent-escapes it finds, and the cost of that explodes with the input length.",
+        "0.5.0 fixes it, but it is ESM-only and query-string@7 require()s it; expo-router 57.0.23,",
+        "the newest release of the SDK this application is built on, still pins query-string ^7.1.3,",
+        "so the fix cannot be installed under it. npm offers only a major downgrade of expo-router.",
+        "",
+        "It reaches the mobile binary through expo-router, which parses the query of every",
+        "iroha-pdf:// link the system delivers. apps/mobile/src/app/+native-intent.ts screens those",
+        "links before the router sees them and sends any link that decodeURIComponent rejects, or",
+        "that is longer than 2048 characters, to the library instead. The slow path is only reachable",
+        "from a string decodeURIComponent rejects, so no delivered link reaches it. The application",
+        "defines no links of its own, so nothing is lost by refusing one.",
+        "",
+        "Revisit when expo-router moves to a query-string that depends on decode-uri-component >=0.5."
+      ]
     }
   ]
 }
