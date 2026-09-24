@@ -43,6 +43,21 @@ const MESSAGES = {
   'document.closeTab': { ja: 'タブを閉じる', en: 'Close tab' },
   'document.untitled': { ja: '名称未設定のPDF', en: 'Untitled PDF' },
   'document.list': { ja: '書類', en: 'Documents' },
+  // First run (#65). Shown once, until it is dismissed or the sample is opened.
+  // Each claim here is one the app keeps: the privacy policy and the save paths
+  // are what they are checked against, so a change to either changes these.
+  'onboarding.title': { ja: 'Iroha PDFへようこそ', en: 'Welcome to Iroha PDF' },
+  'onboarding.localTitle': { ja: 'この端末の中で完結します', en: 'It stays on this device' },
+  'onboarding.local': { ja: 'PDF、注釈、メモはこの端末に保存されます。アカウントは不要で、送信先のサーバーもありません。ファイルを共有・印刷するか、Google Driveを使ったときだけ、そのファイルが外へ出ます。', en: 'Your PDFs, annotations and notes are kept on this device. There is no account and no server to send them to; a file leaves only when you share or print it, or use Google Drive.' },
+  'onboarding.driveTitle': { ja: 'Google Driveは任意です', en: 'Google Drive is optional' },
+  'onboarding.drive': { ja: 'つなぐ場合も、見えるのはこのアプリで開いたり作ったりしたファイルと、アプリ専用の隠しフォルダだけです（drive.file、drive.appdata）。ほかのファイルは見えません。いつでも接続を解除できます。', en: 'If you connect it, the app can see only the files you open or create with it and its own hidden app folder (drive.file and drive.appdata) — not the rest of your Drive. You can disconnect at any time.' },
+  'onboarding.originalsTitle': { ja: '元のファイルはそのままです', en: 'Your originals stay as they are' },
+  'onboarding.originalsMobile': { ja: 'PDFを開くとアプリ内にコピーが作られ、編集はそのコピーに対して行われます。「ファイル」やDriveにある元のファイルには書き込みません。書き出すと新しいPDFになります。', en: 'Opening a PDF makes a copy inside the app, and every edit happens on that copy. The file in Files or Drive is never written to; Export saves a new PDF.' },
+  'onboarding.originalsDesktop': { ja: 'ページ操作と「別名で保存」は、いつも新しいファイルを作ります。「保存」は開いたPDFに編集を書き込みますが、最初の保存のときに、開いたときの状態を「名前.iroha-original.pdf」として隣に残します。', en: 'Page tools and Save as always write a new file. Save writes your edits into the PDF you opened, and the first time it does, the version you opened is kept beside it as “name.iroha-original.pdf”.' },
+  'onboarding.sample': { ja: 'サンプルPDFで試す', en: 'Try the sample PDF' },
+  'onboarding.skip': { ja: 'スキップ', en: 'Skip' },
+  'onboarding.sampleName': { ja: 'Iroha PDF サンプル', en: 'Iroha PDF sample' },
+  'onboarding.sampleFailed': { ja: 'サンプルPDFを開けませんでした', en: 'The sample PDF could not be opened' },
   'document.search': { ja: 'PDFとメモを検索', en: 'Search PDFs and notes' },
   'document.noPdf': { ja: 'PDFはまだありません', en: 'No PDFs yet' },
   'document.noMatch': { ja: '一致するPDFがありません', en: 'No matching PDFs' },

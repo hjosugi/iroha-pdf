@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { DocumentState } from '@embedpdf/core';
 import { AnnotationLayer } from '@embedpdf/plugin-annotation/react';
 import {
@@ -26,8 +26,10 @@ import {
   useDocumentFile,
   useEditTimeline,
   useOpenPdf,
+  useOpenSample,
   useRecoverDraft,
 } from './use-pdf-file';
+import { readStoredObject, storageKey } from './local-storage';
 import { t, timeFormat } from './i18n';
 
 type WorkspaceProps = {
@@ -92,8 +94,69 @@ function TabStrip({ documents, activeDocumentId }: TabStripProps) {
   );
 }
 
+const WELCOME_KEY = storageKey('app', 'welcome');
+
+function welcomeDismissed(): boolean {
+  return readStoredObject<{ dismissedAt: number }>(WELCOME_KEY) !== null;
+}
+
+/**
+ * Remembered in this window's storage. A refused write only means the card comes
+ * back next time, which is not worth interrupting anyone over.
+ */
+function dismissWelcome(): void {
+  try {
+    localStorage.setItem(WELCOME_KEY, JSON.stringify({ dismissedAt: Date.now() }));
+  } catch {
+    // Storage disabled or full; see above.
+  }
+}
+
+/**
+ * The first-run introduction (#65): where files live, what Save does to the
+ * file it is given, and a document to practise on that is not the user's own.
+ * Shown until it is skipped or the sample is opened. There is no Google Drive on
+ * the desktop, so, unlike on mobile, there is nothing about Drive to explain.
+ */
+function WelcomeCard({ onDone }: { onDone: () => void }) {
+  const openSample = useOpenSample();
+  const [failed, setFailed] = useState(false);
+
+  const trySample = async () => {
+    setFailed(false);
+    try {
+      await openSample();
+      dismissWelcome();
+      onDone();
+    } catch (error) {
+      console.error('Iroha PDF: the sample PDF did not open', error);
+      setFailed(true);
+    }
+  };
+
+  return (
+    <section className="welcome-card" aria-labelledby="welcome-title">
+      <h2 id="welcome-title">{t('onboarding.title')}</h2>
+      <h3>{t('onboarding.localTitle')}</h3>
+      <p>{t('onboarding.local')}</p>
+      <h3>{t('onboarding.originalsTitle')}</h3>
+      <p>{t('onboarding.originalsDesktop')}</p>
+      {failed && <p role="alert" className="welcome-error">{t('onboarding.sampleFailed')}</p>}
+      <div className="welcome-actions">
+        <button className="tool" onClick={() => { dismissWelcome(); onDone(); }}>
+          {t('onboarding.skip')}
+        </button>
+        <button className="primary-button" onClick={() => void trySample()}>
+          {t('onboarding.sample')}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function EmptyWorkspace() {
   const openPdf = useOpenPdf();
+  const [welcome, setWelcome] = useState(() => !welcomeDismissed());
 
   return (
     <section className="empty-workspace">
@@ -101,6 +164,7 @@ function EmptyWorkspace() {
       <h1>{t('app.tagline')}</h1>
       <p>{t('app.emptyHelp')}</p>
       <button className="primary-button large" onClick={() => void openPdf()}>{t('document.open')}</button>
+      {welcome && <WelcomeCard onDone={() => setWelcome(false)} />}
     </section>
   );
 }

@@ -125,6 +125,24 @@ env = { CI = "true" }
 pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
 sandbox = false
 
+# The first-run sample PDF (#65) is generated, and committed twice — mobile
+# bundles one copy, the desktop serves the other. This fails when either is not
+# byte-for-byte what `release/sample/generate.mjs` produces, so the text in the
+# PDF can only change through the script where it can be reviewed.
+[target.iroha-pdf-sample-validate]
+kind = "test"
+tool = "node"
+args = ["release/sample/generate.mjs", "--check"]
+inputs = [
+  "apps/desktop/public/sample/*.pdf",
+  "apps/mobile/assets/sample/*.pdf",
+  "package-lock.json",
+  "release/sample/generate.mjs",
+]
+env = { CI = "true" }
+pass_env = ["NODE_OPTIONS", "NODE_PATH", "NPM_CONFIG_CACHE", "NPM_CONFIG_USERCONFIG", "COREPACK_HOME", "FORCE_COLOR"]
+sandbox = false
+
 # Builds the GitHub Pages documentation site into a temporary directory and
 # refuses a broken internal link, a dangling anchor, an off-origin subresource,
 # or a missing /privacy/ page. Its inputs are the documents it publishes, so
@@ -273,6 +291,8 @@ inputs = [
   "tsconfig.base.json",
   "apps/desktop/index.html",
   "apps/desktop/package.json",
+  # Copied into the output as-is; the first-run sample PDF lives here.
+  "apps/desktop/public/**/*",
   "apps/desktop/src/**/*",
   "apps/desktop/tsconfig.json",
   "apps/desktop/vite.config.ts",
