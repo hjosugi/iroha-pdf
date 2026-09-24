@@ -77,6 +77,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .tab.active { color: #171b24; border-color: #d9dbe0; border-bottom-color: white; background: white; }
 .tab-close { width: var(--control-default); flex: 0 0 var(--control-default); border: 0; border-radius: var(--radius-md); color: #737a87; background: transparent; font-size: var(--type-heading); }
 .tab-close:hover { color: #252a33; background: #d9dce2; }
+/* Where a dragged tab will land. */
+.tab.drop-target { box-shadow: inset var(--space-1) 0 0 #2b5cff; }
+.tab-label { touch-action: none; }
+.tab-error { align-self: center; margin-left: var(--space-4); color: #8a2a17; font-size: var(--type-small); }
 .icon-button { width: var(--control-compact); height: var(--control-compact); margin-bottom: var(--space-2); border: 0; border-radius: var(--radius-md); color: #5d6572; background: transparent; font-size: var(--type-heading); }
 .icon-button:hover { background: #dfe2e7; }
 

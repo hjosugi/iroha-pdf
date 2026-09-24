@@ -11,7 +11,7 @@
  */
 
 /** The namespaces of the single `iroha-pdf:` key space, kept visible together. */
-type Namespace = 'history' | 'draft' | 'tool' | 'note';
+type Namespace = 'history' | 'draft' | 'tool' | 'note' | 'app';
 
 export function storageKey(namespace: Namespace, id: string): string {
   return `iroha-pdf:${namespace}:${id}`;

@@ -41,6 +41,8 @@ const MESSAGES = {
   // one with a Japanese title spliced into it.
   'document.itemLabel': { ja: '{title}、PDF、{size}', en: '{title}, PDF, {size}' },
   'document.closeTab': { ja: 'タブを閉じる', en: 'Close tab' },
+  'tabs.reopen': { ja: '閉じたタブを開き直す', en: 'Reopen closed tab' },
+  'tabs.reopenFailed': { ja: '「{name}」を開き直せませんでした。移動または削除された可能性があります。', en: 'Could not reopen “{name}”. It may have been moved or deleted.' },
   'document.untitled': { ja: '名称未設定のPDF', en: 'Untitled PDF' },
   'document.list': { ja: '書類', en: 'Documents' },
   'document.search': { ja: 'PDFとメモを検索', en: 'Search PDFs and notes' },
