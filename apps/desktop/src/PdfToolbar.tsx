@@ -20,6 +20,8 @@ import {
   type ToolSetting,
 } from './tool-settings';
 import type { PageOperation } from './page-operations';
+import type { PlanPage } from './organizer-plan';
+import { PageOrganizer } from './PageOrganizer';
 import {
   useAnnotationScope,
   useDocumentBytes,
@@ -418,6 +420,8 @@ export function PdfToolbar({
   const printButtonRef = useRef<HTMLButtonElement>(null);
   const [pagesOpen, setPagesOpen] = useState(false);
   const pagesButtonRef = useRef<HTMLButtonElement>(null);
+  const [organizeOpen, setOrganizeOpen] = useState(false);
+  const organizeButtonRef = useRef<HTMLButtonElement>(null);
   const documentBytes = useDocumentBytes(documentId);
 
   const closePrint = useCallback(() => {
@@ -428,6 +432,17 @@ export function PdfToolbar({
   const closePages = useCallback(() => {
     setPagesOpen(false);
     window.requestAnimationFrame(() => pagesButtonRef.current?.focus());
+  }, []);
+
+  /**
+   * Unlike the page dialog, the organizer is unmounted when it closes: its
+   * thumbnails are bitmaps held by object URLs, which a closed dialog has no
+   * business keeping, and an arrangement abandoned with Cancel is asked about
+   * before it is let go.
+   */
+  const closeOrganizer = useCallback(() => {
+    setOrganizeOpen(false);
+    window.requestAnimationFrame(() => organizeButtonRef.current?.focus());
   }, []);
 
   /**
@@ -471,6 +486,31 @@ export function PdfToolbar({
       }
     },
     [closePages, documentBytes, documentName],
+  );
+
+  /** Reported on the same line as every other page operation, for the same reason. */
+  const saveOrganized = useCallback(
+    async (plan: PlanPage[]) => {
+      setSaveState(t('pages.working'));
+      try {
+        const { saveOrganizedPages } = await import('./page-operations');
+        const outcome = await saveOrganizedPages(plan, {
+          source: async () => new Uint8Array(await documentBytes()),
+          sourceName: documentName || 'document.pdf',
+        });
+        if (outcome.status === 'cancelled') {
+          setSaveState(null);
+          return;
+        }
+        setSaveState(t('pages.wroteOne', { name: basename(outcome.paths[0] ?? '') }));
+        closeOrganizer();
+      } catch (error) {
+        console.error('Iroha PDF: organizing pages failed', error);
+        const { describeOperationFailure } = await import('./page-operations');
+        setSaveState(`${describeOperationFailure(error)} ${t('pages.untouched')}`);
+      }
+    },
+    [closeOrganizer, documentBytes, documentName],
   );
 
   useEffect(() => {
@@ -522,6 +562,9 @@ export function PdfToolbar({
       <button className="tool" onClick={() => void runSave(saveAs)}>
         {t(isDesktopRuntime() ? 'save.saveAs' : 'save.downloadCopy')}
       </button>
+      <button ref={organizeButtonRef} className="tool" onClick={() => setOrganizeOpen(true)}>
+        {t('organize.open')}
+      </button>
       <button ref={pagesButtonRef} className="tool" onClick={() => setPagesOpen(true)}>
         {t('pages.open')}
       </button>
@@ -531,6 +574,14 @@ export function PdfToolbar({
       <button className={unsaved ? 'primary-button unsaved' : 'primary-button'} onClick={() => void runSave(save)}>
         {unsaved ? t('save.saveCount', { count: file.pendingEdits }) : t('save.save')}
       </button>
+      {organizeOpen && (
+        <PageOrganizer
+          documentId={documentId}
+          documentName={documentName}
+          onClose={closeOrganizer}
+          onSave={saveOrganized}
+        />
+      )}
       <PageDialog
         open={pagesOpen}
         documentName={documentName}

@@ -7,7 +7,7 @@
  * keeps a 500-page document from asking for 500 renders — the requirement this panel
  * exists to satisfy, and the one the strip would fail by simply mapping over the pages.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useDocumentManagerCapability } from '@embedpdf/plugin-document-manager/react';
 import { useRenderCapability } from '@embedpdf/plugin-render/react';
 
@@ -31,7 +31,7 @@ const PREFETCH_MARGIN = '100% 0px';
 type Document = { pageCount: number; firstPageWidth: number };
 
 /** The open document, once the engine has it. Null while it is still loading. */
-function useDocument(documentId: string): Document | null {
+export function useDocument(documentId: string): Document | null {
   const { provides } = useDocumentManagerCapability();
   const [document, setDocument] = useState<Document | null>(null);
 
@@ -62,7 +62,7 @@ function useDocument(documentId: string): Document | null {
   return document;
 }
 
-function useThumbnailStore(documentId: string, document: Document | null): ThumbnailStore | null {
+export function useThumbnailStore(documentId: string, document: Document | null): ThumbnailStore | null {
   const { provides: render } = useRenderCapability();
 
   const store = useMemo(() => {
@@ -83,8 +83,16 @@ function useThumbnailStore(documentId: string, document: Document | null): Thumb
   return store;
 }
 
-function Thumbnail({ store, pageIndex }: { store: ThumbnailStore; pageIndex: number }) {
-  const ref = useRef<HTMLLIElement>(null);
+/**
+ * The picture of one page, asked for only once `ref`'s element comes near the
+ * viewport. Shared with the page organizer, which lays the same pictures out in a
+ * grid and must keep the same promise about a 500-page document.
+ */
+export function useLazyThumbnail<E extends Element>(
+  store: ThumbnailStore,
+  pageIndex: number,
+): [RefObject<E | null>, string | undefined] {
+  const ref = useRef<E>(null);
 
   const subscribe = useCallback((listener: () => void) => store.subscribe(listener), [store]);
   const url = useSyncExternalStore(
@@ -105,6 +113,12 @@ function Thumbnail({ store, pageIndex }: { store: ThumbnailStore; pageIndex: num
     observer.observe(element);
     return () => observer.disconnect();
   }, [store, pageIndex]);
+
+  return [ref, url];
+}
+
+function Thumbnail({ store, pageIndex }: { store: ThumbnailStore; pageIndex: number }) {
+  const [ref, url] = useLazyThumbnail<HTMLLIElement>(store, pageIndex);
 
   return (
     <li className="thumbnail" ref={ref} data-page={pageIndex + 1}>
