@@ -410,6 +410,18 @@ export function PdfToolbar({
   const { save, saveAs } = usePdfSave(documentId, documentName);
   const file = useDocumentFile(documentId);
   const [saveState, setSaveState] = useState<string | null>(null);
+  /**
+   * Whether the line currently reports a failure. A failed save used to be the
+   * same grey caption as "Saved", in the same place, and nothing announced it —
+   * the kind of message that is read only by someone already looking for it.
+   * #100 lists that as unfinished. A failure is now an alert, which a screen
+   * reader speaks as it appears, and it is coloured as one.
+   */
+  const [saveFailed, setSaveFailed] = useState(false);
+  const report = useCallback((message: string | null, failed = false) => {
+    setSaveState(message);
+    setSaveFailed(failed && message !== null);
+  }, []);
   const history = useMemo(
     () => historyCapability?.forDocument(documentId),
     [historyCapability, documentId],
@@ -452,7 +464,7 @@ export function PdfToolbar({
    */
   const runPages = useCallback(
     async (operation: PageOperation, selection: string) => {
-      setSaveState(t('pages.working'));
+      report(t('pages.working'));
       try {
         /**
          * Loaded here rather than imported at the top, because this module is the
@@ -469,11 +481,11 @@ export function PdfToolbar({
           selection,
         });
         if (outcome.status === 'cancelled') {
-          setSaveState(null);
+          report(null);
           return;
         }
         const [first, second] = outcome.paths.map((path) => basename(path));
-        setSaveState(
+        report(
           second
             ? t('pages.wroteTwo', { first: first ?? '', second })
             : t('pages.wroteOne', { name: first ?? '' }),
@@ -482,10 +494,10 @@ export function PdfToolbar({
       } catch (error) {
         console.error('Iroha PDF: page operation failed', error);
         const { describeOperationFailure } = await import('./page-operations');
-        setSaveState(`${describeOperationFailure(error)} ${t('pages.untouched')}`);
+        report(`${describeOperationFailure(error)} ${t('pages.untouched')}`, true);
       }
     },
-    [closePages, documentBytes, documentName],
+    [closePages, documentBytes, documentName, report],
   );
 
   /** Reported on the same line as every other page operation, for the same reason. */
@@ -524,12 +536,12 @@ export function PdfToolbar({
   };
 
   const runSave = async (action: () => Promise<SaveOutcome>) => {
-    setSaveState(t('save.saving'));
+    report(t('save.saving'));
     try {
-      setSaveState(describeOutcome(await action()));
+      report(describeOutcome(await action()));
     } catch (error) {
       console.error('Iroha PDF: save failed', error);
-      setSaveState(describeFailure(error));
+      report(describeFailure(error), true);
     }
   };
 
@@ -558,7 +570,14 @@ export function PdfToolbar({
       <button className="tool" onClick={() => history?.undo()}>{t('edit.undo')}</button>
       <button className="tool" onClick={() => history?.redo()}>{t('edit.redo')}</button>
       <span className="toolbar-spacer" />
-      {saveState && <span className="save-state">{saveState}</span>}
+      {saveState && (
+        <span
+          className={saveFailed ? 'save-state failed' : 'save-state'}
+          role={saveFailed ? 'alert' : 'status'}
+        >
+          {saveState}
+        </span>
+      )}
       <button className="tool" onClick={() => void runSave(saveAs)}>
         {t(isDesktopRuntime() ? 'save.saveAs' : 'save.downloadCopy')}
       </button>
