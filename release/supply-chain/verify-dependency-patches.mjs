@@ -65,6 +65,39 @@ assert.match(
   "the vendored glib output pointer must be passed mutably",
 );
 
+// Resolved the way the app resolves it: expo-router -> query-string -> this.
+const fromQueryString = createRequire(
+  createRequire(require.resolve("expo-router")).resolve("query-string"),
+);
+const decodeUriComponentEntry = fromQueryString.resolve("decode-uri-component");
+const decodeUriComponentPackage = JSON.parse(
+  await readFile(
+    path.join(path.dirname(decodeUriComponentEntry), "package.json"),
+    "utf8",
+  ),
+);
+assert.equal(
+  decodeUriComponentPackage.version,
+  "0.2.2",
+  "query-string must still resolve decode-uri-component 0.2.2; if it moved, retire the backport and its advisory exception",
+);
+const decodeUriComponentSource = await readFile(decodeUriComponentEntry, "utf8");
+assert.equal(
+  createHash("sha256").update(decodeUriComponentSource).digest("hex"),
+  "2a9a7b4eedc4fe78396e3dc539778385e9f1cad45535ca501fb236458d634102",
+  "decode-uri-component must carry the reviewed backport of the 0.5.0 decoder",
+);
+// Checked only after the digest: the unpatched decoder takes hours on this input.
+const decodeUriComponent = fromQueryString("decode-uri-component");
+const malformed = "%80".repeat(4000);
+assert.equal(
+  decodeUriComponent(malformed),
+  malformed,
+  "the backported decoder must leave malformed escapes literal",
+);
+assert.equal(decodeUriComponent("a+b%20%C3%A5"), "a b å");
+assert.equal(decodeUriComponent("%84%D7%25%88%90"), "%84%D7%%88%90");
+
 const reactNativePdfBridge = await readFile(
   path.join(repositoryRoot, "node_modules/react-native-pdf/index.js"),
   "utf8",
