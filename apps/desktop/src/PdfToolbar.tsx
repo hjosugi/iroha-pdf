@@ -20,6 +20,8 @@ import {
   type ToolSetting,
 } from './tool-settings';
 import type { PageOperation } from './page-operations';
+import type { PlanPage } from './organizer-plan';
+import { PageOrganizer } from './PageOrganizer';
 import {
   useAnnotationScope,
   useDocumentBytes,
@@ -408,6 +410,18 @@ export function PdfToolbar({
   const { save, saveAs } = usePdfSave(documentId, documentName);
   const file = useDocumentFile(documentId);
   const [saveState, setSaveState] = useState<string | null>(null);
+  /**
+   * Whether the line currently reports a failure. A failed save used to be the
+   * same grey caption as "Saved", in the same place, and nothing announced it —
+   * the kind of message that is read only by someone already looking for it.
+   * #100 lists that as unfinished. A failure is now an alert, which a screen
+   * reader speaks as it appears, and it is coloured as one.
+   */
+  const [saveFailed, setSaveFailed] = useState(false);
+  const report = useCallback((message: string | null, failed = false) => {
+    setSaveState(message);
+    setSaveFailed(failed && message !== null);
+  }, []);
   const history = useMemo(
     () => historyCapability?.forDocument(documentId),
     [historyCapability, documentId],
@@ -418,6 +432,8 @@ export function PdfToolbar({
   const printButtonRef = useRef<HTMLButtonElement>(null);
   const [pagesOpen, setPagesOpen] = useState(false);
   const pagesButtonRef = useRef<HTMLButtonElement>(null);
+  const [organizeOpen, setOrganizeOpen] = useState(false);
+  const organizeButtonRef = useRef<HTMLButtonElement>(null);
   const documentBytes = useDocumentBytes(documentId);
 
   const closePrint = useCallback(() => {
@@ -431,13 +447,24 @@ export function PdfToolbar({
   }, []);
 
   /**
+   * Unlike the page dialog, the organizer is unmounted when it closes: its
+   * thumbnails are bitmaps held by object URLs, which a closed dialog has no
+   * business keeping, and an arrangement abandoned with Cancel is asked about
+   * before it is let go.
+   */
+  const closeOrganizer = useCallback(() => {
+    setOrganizeOpen(false);
+    window.requestAnimationFrame(() => organizeButtonRef.current?.focus());
+  }, []);
+
+  /**
    * Reported through the same `save-state` line the saves use, because it is the
    * same question — where did my document go. A cancelled dialog says nothing:
    * changing your mind is not an outcome worth announcing.
    */
   const runPages = useCallback(
     async (operation: PageOperation, selection: string) => {
-      setSaveState(t('pages.working'));
+      report(t('pages.working'));
       try {
         /**
          * Loaded here rather than imported at the top, because this module is the
@@ -454,11 +481,11 @@ export function PdfToolbar({
           selection,
         });
         if (outcome.status === 'cancelled') {
-          setSaveState(null);
+          report(null);
           return;
         }
         const [first, second] = outcome.paths.map((path) => basename(path));
-        setSaveState(
+        report(
           second
             ? t('pages.wroteTwo', { first: first ?? '', second })
             : t('pages.wroteOne', { name: first ?? '' }),
@@ -467,10 +494,35 @@ export function PdfToolbar({
       } catch (error) {
         console.error('Iroha PDF: page operation failed', error);
         const { describeOperationFailure } = await import('./page-operations');
+        report(`${describeOperationFailure(error)} ${t('pages.untouched')}`, true);
+      }
+    },
+    [closePages, documentBytes, documentName, report],
+  );
+
+  /** Reported on the same line as every other page operation, for the same reason. */
+  const saveOrganized = useCallback(
+    async (plan: PlanPage[]) => {
+      setSaveState(t('pages.working'));
+      try {
+        const { saveOrganizedPages } = await import('./page-operations');
+        const outcome = await saveOrganizedPages(plan, {
+          source: async () => new Uint8Array(await documentBytes()),
+          sourceName: documentName || 'document.pdf',
+        });
+        if (outcome.status === 'cancelled') {
+          setSaveState(null);
+          return;
+        }
+        setSaveState(t('pages.wroteOne', { name: basename(outcome.paths[0] ?? '') }));
+        closeOrganizer();
+      } catch (error) {
+        console.error('Iroha PDF: organizing pages failed', error);
+        const { describeOperationFailure } = await import('./page-operations');
         setSaveState(`${describeOperationFailure(error)} ${t('pages.untouched')}`);
       }
     },
-    [closePages, documentBytes, documentName],
+    [closeOrganizer, documentBytes, documentName],
   );
 
   useEffect(() => {
@@ -484,12 +536,12 @@ export function PdfToolbar({
   };
 
   const runSave = async (action: () => Promise<SaveOutcome>) => {
-    setSaveState(t('save.saving'));
+    report(t('save.saving'));
     try {
-      setSaveState(describeOutcome(await action()));
+      report(describeOutcome(await action()));
     } catch (error) {
       console.error('Iroha PDF: save failed', error);
-      setSaveState(describeFailure(error));
+      report(describeFailure(error), true);
     }
   };
 
@@ -518,9 +570,19 @@ export function PdfToolbar({
       <button className="tool" onClick={() => history?.undo()}>{t('edit.undo')}</button>
       <button className="tool" onClick={() => history?.redo()}>{t('edit.redo')}</button>
       <span className="toolbar-spacer" />
-      {saveState && <span className="save-state">{saveState}</span>}
+      {saveState && (
+        <span
+          className={saveFailed ? 'save-state failed' : 'save-state'}
+          role={saveFailed ? 'alert' : 'status'}
+        >
+          {saveState}
+        </span>
+      )}
       <button className="tool" onClick={() => void runSave(saveAs)}>
         {t(isDesktopRuntime() ? 'save.saveAs' : 'save.downloadCopy')}
+      </button>
+      <button ref={organizeButtonRef} className="tool" onClick={() => setOrganizeOpen(true)}>
+        {t('organize.open')}
       </button>
       <button ref={pagesButtonRef} className="tool" onClick={() => setPagesOpen(true)}>
         {t('pages.open')}
@@ -531,6 +593,14 @@ export function PdfToolbar({
       <button className={unsaved ? 'primary-button unsaved' : 'primary-button'} onClick={() => void runSave(save)}>
         {unsaved ? t('save.saveCount', { count: file.pendingEdits }) : t('save.save')}
       </button>
+      {organizeOpen && (
+        <PageOrganizer
+          documentId={documentId}
+          documentName={documentName}
+          onClose={closeOrganizer}
+          onSave={saveOrganized}
+        />
+      )}
       <PageDialog
         open={pagesOpen}
         documentName={documentName}

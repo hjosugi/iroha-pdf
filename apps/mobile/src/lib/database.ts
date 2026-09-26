@@ -89,6 +89,11 @@ async function setupDatabase(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS write_journal_status
       ON write_journal(status, created_at);
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
   const documentColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(documents)');
   if (!documentColumns.some((column) => column.name === 'last_opened_at')) {
@@ -267,6 +272,31 @@ export async function deleteNote(id: string): Promise<void> {
     );
     await db.runAsync('DELETE FROM notes WHERE id = ?', id);
   });
+}
+
+/**
+ * Small facts about this installation rather than about a document — so far only
+ * whether the first-run introduction has been dismissed. Kept in the same
+ * database as everything else, so it is reset exactly when the library is, and
+ * an introduction does not reappear over a library that still exists.
+ */
+export type AppSettingKey = 'onboarding.completedAt';
+
+export async function getAppSetting(key: AppSettingKey): Promise<string | null> {
+  const db = await readyDatabase();
+  const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', key);
+  return row?.value ?? null;
+}
+
+export async function setAppSetting(key: AppSettingKey, value: string): Promise<void> {
+  const db = await readyDatabase();
+  await db.runAsync(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    key,
+    value,
+    new Date().toISOString(),
+  );
 }
 
 export async function saveAnnotation(annotation: PdfAnnotation): Promise<void> {

@@ -41,11 +41,35 @@ const MESSAGES = {
   // one with a Japanese title spliced into it.
   'document.itemLabel': { ja: '{title}、PDF、{size}', en: '{title}, PDF, {size}' },
   'document.closeTab': { ja: 'タブを閉じる', en: 'Close tab' },
+  'tabs.reopen': { ja: '閉じたタブを開き直す', en: 'Reopen closed tab' },
+  'tabs.reopenFailed': { ja: '「{name}」を開き直せませんでした。移動または削除された可能性があります。', en: 'Could not reopen “{name}”. It may have been moved or deleted.' },
   'document.untitled': { ja: '名称未設定のPDF', en: 'Untitled PDF' },
   'document.list': { ja: '書類', en: 'Documents' },
+  // First run (#65). Shown once, until it is dismissed or the sample is opened.
+  // Each claim here is one the app keeps: the privacy policy and the save paths
+  // are what they are checked against, so a change to either changes these.
+  'onboarding.title': { ja: 'Iroha PDFへようこそ', en: 'Welcome to Iroha PDF' },
+  'onboarding.localTitle': { ja: 'この端末の中で完結します', en: 'It stays on this device' },
+  'onboarding.local': { ja: 'PDF、注釈、メモはこの端末に保存されます。アカウントは不要で、送信先のサーバーもありません。ファイルを共有・印刷するか、Google Driveを使ったときだけ、そのファイルが外へ出ます。', en: 'Your PDFs, annotations and notes are kept on this device. There is no account and no server to send them to; a file leaves only when you share or print it, or use Google Drive.' },
+  'onboarding.driveTitle': { ja: 'Google Driveは任意です', en: 'Google Drive is optional' },
+  'onboarding.drive': { ja: 'つなぐ場合も、見えるのはこのアプリで開いたり作ったりしたファイルと、アプリ専用の隠しフォルダだけです（drive.file、drive.appdata）。ほかのファイルは見えません。いつでも接続を解除できます。', en: 'If you connect it, the app can see only the files you open or create with it and its own hidden app folder (drive.file and drive.appdata) — not the rest of your Drive. You can disconnect at any time.' },
+  'onboarding.originalsTitle': { ja: '元のファイルはそのままです', en: 'Your originals stay as they are' },
+  'onboarding.originalsMobile': { ja: 'PDFを開くとアプリ内にコピーが作られ、編集はそのコピーに対して行われます。「ファイル」やDriveにある元のファイルには書き込みません。書き出すと新しいPDFになります。', en: 'Opening a PDF makes a copy inside the app, and every edit happens on that copy. The file in Files or Drive is never written to; Export saves a new PDF.' },
+  'onboarding.originalsDesktop': { ja: 'ページ操作と「別名で保存」は、いつも新しいファイルを作ります。「保存」は開いたPDFに編集を書き込みますが、最初の保存のときに、開いたときの状態を「名前.iroha-original.pdf」として隣に残します。', en: 'Page tools and Save as always write a new file. Save writes your edits into the PDF you opened, and the first time it does, the version you opened is kept beside it as “name.iroha-original.pdf”.' },
+  'onboarding.sample': { ja: 'サンプルPDFで試す', en: 'Try the sample PDF' },
+  'onboarding.skip': { ja: 'スキップ', en: 'Skip' },
+  'onboarding.sampleName': { ja: 'Iroha PDF サンプル', en: 'Iroha PDF sample' },
+  'onboarding.sampleFailed': { ja: 'サンプルPDFを開けませんでした', en: 'The sample PDF could not be opened' },
   'document.search': { ja: 'PDFとメモを検索', en: 'Search PDFs and notes' },
   'document.noPdf': { ja: 'PDFはまだありません', en: 'No PDFs yet' },
   'document.noMatch': { ja: '一致するPDFがありません', en: 'No matching PDFs' },
+  // Shown in place of `document.noPdf` and the empty notes list when the library
+  // could not be read. "No PDFs yet" there would tell someone whose storage failed
+  // that their documents are gone; the alert explains why, and this stays on the
+  // screen after the alert is dismissed.
+  'document.libraryUnavailable': { ja: 'ライブラリを読み込めませんでした', en: 'The library could not be read' },
+  'document.libraryUnavailableBody': { ja: '端末内の保存領域が使えないため、PDFとメモを表示できません。削除されたという意味ではありません。', en: 'Local storage is unavailable, so your PDFs and notes cannot be shown. That does not mean they were deleted.' },
+  'document.libraryRetry': { ja: '再試行', en: 'Try again' },
   'document.searchAgain': { ja: '別のキーワードで検索してください。', en: 'Try a different search.' },
   'document.importHelp': { ja: '「ファイル」、Google Drive、またはほかのアプリからPDFを開けます。', en: 'Open a PDF from Files, Google Drive, or another provider.' },
   'document.deleteTitle': { ja: '端末内のコピーを削除しますか？', en: 'Delete local copy?' },
@@ -302,6 +326,26 @@ const MESSAGES = {
   'pages.invalidPage': { ja: '正しくないページ番号です: {value}', en: 'Invalid page number: {value}' },
   'pages.mergeNeedsTwo': { ja: '結合するには2つ以上のPDFを選んでください', en: 'Choose at least two PDFs to merge' },
   'pages.splitOnePage': { ja: '分割位置は1つだけ指定してください', en: 'Name a single page to split after' },
+  // The page organizer (#17, #18): the open document's pages as a grid to
+  // rearrange, saved as a new PDF.
+  'organize.open': { ja: 'ページを整理…', en: 'Organize…' },
+  'organize.title': { ja: 'ページを整理', en: 'Organize pages' },
+  'organize.actions': { ja: 'ページの整理', en: 'Page actions' },
+  'organize.list': { ja: '新しいPDFのページ', en: 'Pages of the new PDF' },
+  'organize.hint': { ja: 'ドラッグで並べ替えます。クリックで選択し、ShiftまたはCtrl/⌘で追加選択します。キーボードでは矢印で移動、スペースで選択、Alt+矢印で選択したページを動かします。', en: 'Drag pages to reorder them. Click to select; Shift or Ctrl/⌘ adds to the selection. From the keyboard, arrows move between pages, Space selects, and Alt+arrow moves the selected pages.' },
+  'organize.rotateLeft': { ja: '左に回転', en: 'Rotate left' },
+  'organize.rotateRight': { ja: '右に回転', en: 'Rotate right' },
+  'organize.duplicate': { ja: '複製', en: 'Duplicate' },
+  'organize.delete': { ja: '削除', en: 'Delete' },
+  'organize.insertBlank': { ja: '空白ページを挿入', en: 'Insert blank page' },
+  'organize.selectAll': { ja: 'すべて選択', en: 'Select all' },
+  'organize.selectNone': { ja: '選択を解除', en: 'Select none' },
+  'organize.blank': { ja: '空白ページ', en: 'Blank page' },
+  'organize.turned': { ja: '{page}ページ目（{degrees}°回転）', en: 'Page {page}, turned {degrees}°' },
+  'organize.summary': { ja: '{count}ページ・{selected}ページ選択中', en: '{count} pages, {selected} selected' },
+  'organize.untouched': { ja: '開いている書類は変更されません。整理した結果は新しいPDFとして保存します。', en: 'The open document is not changed. The result is saved as a new PDF.' },
+  'organize.save': { ja: '新しいPDFとして保存…', en: 'Save as new PDF…' },
+  'organize.discard': { ja: 'ページの並べ替えを破棄しますか？', en: 'Discard the new page arrangement?' },
   'tools.enterPage': { ja: '1ページ以上入力してください', en: 'Enter at least one page' },
   'tools.invalidRange': { ja: '正しくないページ範囲です: {value}', en: 'Invalid page range: {value}' },
   'tools.invalidPage': { ja: '正しくないページ番号です: {value}', en: 'Invalid page number: {value}' },

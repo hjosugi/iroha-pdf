@@ -47,6 +47,10 @@ declare global {
     __IROHA_TEST__: {
       listFiles: () => string[];
       readFileBase64: (path: string) => string | null;
+      /** Puts a file on the virtual disk, as if another program had written it. */
+      writeFileBase64: (path: string, base64: string) => void;
+      /** Takes a file off the virtual disk, as if it had been moved or deleted. */
+      removeFile: (path: string) => void;
       calls: () => InvokeRecord[];
       setSavePath: (path: string | null) => void;
       setOpenPath: (path: string | null) => void;
@@ -131,6 +135,12 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
       readFileBase64: (path) => {
         const bytes = files.get(path);
         return bytes ? encode(bytes) : null;
+      },
+      writeFileBase64: (path, base64) => {
+        files.set(path, decode(base64));
+      },
+      removeFile: (path) => {
+        files.delete(path);
       },
       calls: () => calls,
       setSavePath: (path) => {
@@ -291,6 +301,19 @@ export async function readVirtualFile(page: Page, path: string): Promise<Buffer 
     path,
   );
   return base64 === null ? null : Buffer.from(base64, 'base64');
+}
+
+/** Writes a file into the page's virtual filesystem. */
+export async function writeVirtualFile(page: Page, path: string, bytes: Buffer): Promise<void> {
+  await page.evaluate(
+    ([target, base64]) => window.__IROHA_TEST__.writeFileBase64(target, base64),
+    [path, bytes.toString('base64')] as const,
+  );
+}
+
+/** Removes a file from the page's virtual filesystem. */
+export async function removeVirtualFile(page: Page, path: string): Promise<void> {
+  await page.evaluate((target) => window.__IROHA_TEST__.removeFile(target), path);
 }
 
 export async function listVirtualFiles(page: Page): Promise<string[]> {
