@@ -39,6 +39,8 @@
   --copy-width: 480px;
   --empty-mark-size: 56px;
   --dialog-width: 420px;
+  /* Wide enough for six columns of thumbnails; the dialog still shrinks to fit. */
+  --organizer-width: 880px;
   --mobile-panel-min: 180px;
   --shadow-tool-selected: inset 0 0 0 var(--line) #cbd7ff;
   --shadow-swatch-selected: 0 0 0 var(--space-1) #fff, 0 0 0 var(--space-2) #2b5cff;
@@ -120,6 +122,28 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .thumbnail-image, .thumbnail-placeholder { width: var(--thumbnail-width); aspect-ratio: 1 / 1.414; background: #fff; border: var(--line) solid #dfe3e8; border-radius: var(--radius-sm); object-fit: contain; }
 .thumbnail-placeholder { background: #f1f3f5; }
 .thumbnail-number { color: #8c929c; font-size: var(--type-label); }
+
+/* The page organizer: the page dialog's frame, widened to hold a grid of pages. */
+/* Bounded by the viewport, not by the backdrop: a percentage of an auto-sized grid
+   area is no bound at all, and the dialog's own buttons ended up below the window. */
+.print-dialog.organizer-dialog { width: min(var(--organizer-width), 100%); max-height: calc(100vh - 2 * var(--space-9)); display: flex; flex-direction: column; }
+.organizer-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
+.organizer-grid { flex: 1; min-height: 0; overflow-y: auto; margin: var(--space-4) 0 0; padding: var(--space-6); list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumbnail-width), 1fr)); gap: var(--space-7); border: var(--line) solid #e4e7ec; border-radius: var(--radius-lg); background: #f7f8fa; }
+.organizer-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-md); cursor: grab; user-select: none; }
+.organizer-tile:focus-visible { outline: var(--focus-ring) solid #ffbf47; }
+.organizer-tile.selected { background: #e6ecff; box-shadow: var(--shadow-tool-selected); }
+/* Where a drop will land: a bar in the gap on the side the pointer is on. */
+.organizer-tile.drop-before::before, .organizer-tile.drop-after::after { content: ''; position: absolute; top: var(--space-2); bottom: var(--space-2); width: var(--space-2); border-radius: var(--radius-pill); background: #2b5cff; }
+.organizer-tile.drop-before::before { left: calc(-1 * var(--space-5)); }
+.organizer-tile.drop-after::after { right: calc(-1 * var(--space-5)); }
+/* The image is centred absolutely so a quarter turn pivots on the frame's centre:
+   a portrait page turned is a landscape page, shown at the frame's width. */
+.organizer-frame { position: relative; width: var(--thumbnail-width); aspect-ratio: 1 / 1.414; }
+.organizer-frame > .thumbnail-placeholder { position: absolute; inset: 0; width: 100%; }
+.organizer-image { position: absolute; top: 50%; left: 50%; width: 100%; height: 100%; object-fit: contain; background: #fff; border: var(--line) solid #dfe3e8; border-radius: var(--radius-sm); }
+.organizer-image.quarter { width: calc(var(--thumbnail-width) * 1.414); height: var(--thumbnail-width); }
+.organizer-blank { position: absolute; inset: 0; background: #fff; border: var(--line) dashed #c9ced6; border-radius: var(--radius-sm); }
+.organizer-summary { margin: var(--space-4) 0 0; color: #4d5461; font-size: var(--type-label); }
 .history-item { display: flex; gap: var(--space-5); padding: var(--space-4) var(--space-7); border-left: var(--space-1) solid transparent; font-size: var(--type-label); }
 .history-item.save { border-left-color: #2b5cff; background: #f7f9ff; }
 .history-time { flex-shrink: 0; padding-top: var(--line); color: #a2a8b2; font-size: var(--type-caption); font-variant-numeric: tabular-nums; }
