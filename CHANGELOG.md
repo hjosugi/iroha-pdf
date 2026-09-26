@@ -1,13 +1,17 @@
 # Changelog
 
-## 0.6.0 - 2026-09-25
+## 0.6.0 - 2026-09-26
 
-Desktop can now merge, split, extract and remove pages, and has a page strip in
-its side panel. Most of the rest is places that reported success after
-something had failed: a desktop note that could not be stored blanked the
-window, both note editors said "Autosaved locally" about writes that had been
-refused, the mobile Recovery screen said there was nothing to recover when it
-could not look, and a save whose rename was refused left its partial behind.
+Desktop can now organize a document's pages in a grid — drag, select, duplicate,
+rotate, insert blank pages, with undo — as well as merge, split, extract and
+remove them, and has a page strip in its side panel. Its tabs can be reordered
+and reopened, and a file opens at the page it was left at. Both apps introduce
+themselves on first run, with a practice PDF. Most of the rest is places that
+reported success after something had failed: a desktop note that could not be
+stored blanked the window, both note editors said "Autosaved locally" about
+writes that had been refused, the mobile library and Recovery screens said
+there was nothing there when they could not look, and a save whose rename was
+refused left its partial behind.
 
 The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
 launch and Windows SmartScreen warns, because signing and notarization are
@@ -33,6 +37,26 @@ CI built — it is not a signature.
   byte budget and released in least-recently-seen order, which is the first thing
   to use the bounded cache that had been sitting in `@iroha-pdf/core` with tests
   and no caller. Leaving the tab releases every bitmap it was holding.
+- Organize… on desktop, beside Pages…, lays the document's pages out as a grid
+  that draws only what is near the view. Drag a page or a selection to where it
+  should go; click, Ctrl/⌘-click and Shift-click select; Duplicate puts the
+  copies straight after the selection and selects them, so "duplicate, then
+  move" moves the copies; Delete, Rotate left/right and Insert blank page (sized
+  like the page it follows, as that page is seen). Undo and Redo cover every
+  step, and the keyboard does all of it.
+- Desktop tabs can be reordered, by dragging one onto another or with
+  Ctrl+Shift+Page Up / Page Down, and a closed tab can be reopened with
+  Ctrl/⌘+Shift+T or the ↺ button: the last ten are remembered for the session,
+  and a file moved or deleted since is reported rather than silently skipped.
+  Each file opens again at the page it was being read at, whether reopened or
+  opened through the dialog in a later session. Which tabs were open is not yet
+  restored across a restart: that needs the dialog's file grant to outlive the
+  session, which changes what the app may read without asking.
+- A first-run introduction on both apps. Over an empty library it says where
+  files live, that opening a PDF never writes to the original, and — on mobile —
+  what Google Drive would and would not see; it offers a sample PDF to practise
+  on and can be skipped. Either choice is remembered, and the card never appears
+  over a library that already has something in it.
 
 ### Changed
 
@@ -55,7 +79,7 @@ CI built — it is not a signature.
   for `fs:deny-default`, which keeps the webview-data deny rules, and the five
   file commands it uses.
 - Dependency updates: expo-asset, expo-constants, expo-sharing and
-  expo-splash-screen within the Expo SDK 57 set; Playwright 1.62; Vitest 5; the
+  expo-splash-screen within the Expo SDK 57 set; Playwright 1.63; Vitest 5; the
   Tauri dialog, fs and opener plugins; and @xmldom/xmldom 0.8.15, browserslist
   4.29, baseline-browser-mapping 2.11.25, devalue 5.9.2, js-yaml 4.3.2 and
   fast-uri 3.1.8, which clear the advisories published against the versions the
@@ -63,6 +87,15 @@ CI built — it is not a signature.
 
 ### Fixed
 
+- The mobile library no longer says "No PDFs yet" when it could not read the
+  library. A failed read raised an alert, and behind it the lists rendered empty
+  because nothing had been read into them. A card now says the library could
+  not be read, that this does not mean anything was deleted, and offers Try
+  again.
+- A failed desktop save is announced as an alert, not shown in the same grey
+  line as "Saved to …". A failed save or page operation is now coloured as an
+  error and spoken by screen readers as it appears; the next success turns it
+  back into an ordinary status.
 - Erasing an annotation on mobile can be undone. The undo stack recorded only
   the marks that had been drawn, so taking a step back always meant deleting
   something — which left the eraser, the tool whose whole purpose is fixing a
