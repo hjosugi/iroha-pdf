@@ -14,8 +14,16 @@ import type { Note, WorkspaceDocument } from '@iroha-pdf/core';
 import { BrandMark } from '@/components/BrandMark';
 import { ContentColumn } from '@/components/ContentColumn';
 import { alertFailure, confirmDestructive } from '@/lib/alerts';
-import { createNote, deleteNote, listDocuments, listNotes, listRecoveryCopies } from '@/lib/database';
-import { importPdfFromSystem, removeImportedDocument } from '@/lib/files';
+import {
+  createNote,
+  deleteNote,
+  getAppSetting,
+  listDocuments,
+  listNotes,
+  listRecoveryCopies,
+  setAppSetting,
+} from '@/lib/database';
+import { importPdfFromSystem, importSamplePdf, removeImportedDocument } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady, readStoreCaptureScenario } from '@/lib/store-capture-native';
 import { COLOR, CONTROL, RADIUS, SPACE, TRACKING, TYPE } from '@/lib/theme';
@@ -34,6 +42,9 @@ function LibraryScreen() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [recoveryCount, setRecoveryCount] = useState(0);
   const [query, setQuery] = useState('');
+  // The first-run introduction (#65): shown over an empty library until it is
+  // skipped or the sample is opened, and then never again on this install.
+  const [welcome, setWelcome] = useState(false);
   // Kept apart from "the lists are empty": after a failed read they are empty
   // because nothing was read, and the empty-state copy would say otherwise.
   const [unreadable, setUnreadable] = useState(false);
@@ -44,14 +55,17 @@ function LibraryScreen() {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextDocuments, nextNotes, recoveryCopies] = await Promise.all([
+      const [nextDocuments, nextNotes, recoveryCopies, welcomed] = await Promise.all([
         listDocuments(),
         listNotes(),
         listRecoveryCopies(),
+        getAppSetting('onboarding.completedAt'),
       ]);
       setDocuments(nextDocuments);
       setNotes(nextNotes);
       setRecoveryCount(recoveryCopies.length);
+      // Someone who already has a library does not need to be introduced to it.
+      setWelcome(welcomed === null && nextDocuments.length === 0 && nextNotes.length === 0);
       setUnreadable(false);
     } catch (error) {
       setUnreadable(true);
@@ -69,6 +83,27 @@ function LibraryScreen() {
       router.push({ pathname: '/viewer/[id]', params: { id: imported.id } });
     } catch (error) {
       showStorageError(error);
+    }
+  };
+
+  /** Recorded before anything else, so a failure below cannot bring the card back. */
+  const finishWelcome = async () => {
+    setWelcome(false);
+    try {
+      await setAppSetting('onboarding.completedAt', new Date().toISOString());
+    } catch (error) {
+      showStorageError(error);
+    }
+  };
+
+  const openSample = async () => {
+    await finishWelcome();
+    try {
+      const sample = await importSamplePdf(t('onboarding.sampleName'));
+      await refresh();
+      router.push({ pathname: '/viewer/[id]', params: { id: sample.id } });
+    } catch (error) {
+      alertFailure(t('onboarding.sampleFailed'), error);
     }
   };
 
@@ -176,6 +211,9 @@ function LibraryScreen() {
           contentContainerStyle={styles.list}
           ListHeaderComponent={
             <>
+              {welcome && !unreadable ? (
+                <WelcomeCard onSample={() => void openSample()} onSkip={() => void finishWelcome()} />
+              ) : null}
               <SectionHeader title={t('document.list')} count={filteredDocuments.length} />
               {unreadable ? (
                 <View accessibilityRole="alert" style={styles.unreadableCard}>
@@ -190,7 +228,7 @@ function LibraryScreen() {
                     <Text style={styles.retryText}>{t('document.libraryRetry')}</Text>
                   </Pressable>
                 </View>
-              ) : filteredDocuments.length === 0 ? (
+              ) : filteredDocuments.length === 0 && !welcome ? (
                 <View style={styles.emptyCard}>
                   <Text accessibilityRole="header" style={styles.emptyTitle}>
                     {t(normalizedQuery ? 'document.noMatch' : 'document.noPdf')}
@@ -259,6 +297,34 @@ function showStorageError(error: unknown): void {
   alertFailure(t('error.storage'), error);
 }
 
+/**
+ * What someone opening the app for the first time needs before their first PDF:
+ * where their files go, what Google Drive would see, and that nothing they open
+ * is written to — and a document to try all of it on that is not theirs.
+ */
+function WelcomeCard({ onSample, onSkip }: { onSample: () => void; onSkip: () => void }) {
+  const sections = [
+    ['onboarding.localTitle', 'onboarding.local'],
+    ['onboarding.driveTitle', 'onboarding.drive'],
+    ['onboarding.originalsTitle', 'onboarding.originalsMobile'],
+  ] as const;
+  return (
+    <View style={styles.welcomeCard}>
+      <Text accessibilityRole="header" style={styles.welcomeTitle}>{t('onboarding.title')}</Text>
+      {sections.map(([title, body]) => (
+        <View key={title} style={styles.welcomeSection}>
+          <Text style={styles.welcomeHeading}>{t(title)}</Text>
+          <Text style={styles.welcomeBody}>{t(body)}</Text>
+        </View>
+      ))}
+      <View style={styles.welcomeActions}>
+        <ActionButton label={t('onboarding.sample')} primary onPress={onSample} />
+        <ActionButton label={t('onboarding.skip')} onPress={onSkip} />
+      </View>
+    </View>
+  );
+}
+
 function ActionButton({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} style={[styles.actionButton, primary && styles.actionButtonPrimary]} onPress={onPress}>
@@ -316,6 +382,12 @@ const styles = StyleSheet.create({
   emptyCard: { borderRadius: RADIUS.lg, padding: SPACE.xl, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E8EAF0' },
   emptyTitle: { color: '#242933', fontSize: TYPE.heading, fontWeight: '700' },
   emptyBody: { marginTop: SPACE.xs, color: '#7C8390', lineHeight: SPACE.xl },
+  welcomeCard: { marginTop: SPACE.md, borderRadius: RADIUS.lg, padding: SPACE.xl, gap: SPACE.md, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#D9E2FF' },
+  welcomeTitle: { color: '#151922', fontSize: TYPE.heading, fontWeight: '800' },
+  welcomeSection: { gap: SPACE.xxs },
+  welcomeHeading: { color: '#232832', fontSize: TYPE.body, fontWeight: '700' },
+  welcomeBody: { color: '#5D6470', lineHeight: SPACE.xl },
+  welcomeActions: { flexDirection: 'row', gap: SPACE.sm, marginTop: SPACE.xs },
   unreadableCard: { borderRadius: RADIUS.lg, padding: SPACE.xl, backgroundColor: '#FFF3F0', borderWidth: SPACE.hairline, borderColor: '#E9BCB1' },
   unreadableTitle: { color: '#7A3A2C', fontSize: TYPE.heading, fontWeight: '700' },
   unreadableBody: { marginTop: SPACE.xs, color: '#7A3A2C', lineHeight: SPACE.xl },
