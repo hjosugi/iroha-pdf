@@ -111,16 +111,18 @@ test.describe('document tabs', () => {
     await viewport.evaluate((node) => {
       node.scrollTop = (node.scrollHeight * 8.2) / 12;
     });
-    for (let step = 0; step < 20; step++) {
-      await page.waitForTimeout(250);
+    // Nudged until it arrives rather than a fixed number of times: on a slow
+    // runner the pages near the view are still being laid out between nudges.
+    await expect(async () => {
       const current = await pageInView(page);
-      if (current === 9) break;
-      await viewport.evaluate(
-        (node, direction) => node.scrollBy(0, (direction * node.clientHeight) / 4),
-        current === 0 || current < 9 ? 1 : -1,
-      );
-    }
-    await expect.poll(() => pageInView(page)).toBe(9);
+      if (current !== 9) {
+        await viewport.evaluate(
+          (node, direction) => node.scrollBy(0, (direction * node.clientHeight) / 4),
+          current === 0 || current < 9 ? 1 : -1,
+        );
+      }
+      expect(current).toBe(9);
+    }).toPass({ intervals: [250], timeout: 30_000 });
     // The position is recorded as the reader goes, not only on close.
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem('iroha-pdf:app:last-pages') ?? ''))
