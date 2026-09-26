@@ -15,7 +15,18 @@
  * Nothing here is Expo-specific beyond the method names; the native module is not
  * loadable outside a device build, which is the only reason this file exists.
  */
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
+
+/**
+ * Reached through `process.getBuiltinModule` rather than imported. The screen
+ * tests load this file in a browser-like environment, and on the Node 22 CI runs
+ * on, `node:sqlite` is one of the prefix-only built-ins missing from
+ * `module.builtinModules` — so the bundler there does not recognise it as
+ * built-in, tries to bundle it, and fails the suite before a test runs. Newer
+ * Node lists it, which is why that only shows up in CI.
+ */
+const { DatabaseSync } = process.getBuiltinModule('node:sqlite') as typeof import('node:sqlite');
+type DatabaseSync = DatabaseSyncType;
 
 type BindValue = string | number | null | boolean | Uint8Array | ArrayBuffer;
 
