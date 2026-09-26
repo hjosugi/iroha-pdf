@@ -45,6 +45,9 @@ function LibraryScreen() {
   // The first-run introduction (#65): shown over an empty library until it is
   // skipped or the sample is opened, and then never again on this install.
   const [welcome, setWelcome] = useState(false);
+  // Kept apart from "the lists are empty": after a failed read they are empty
+  // because nothing was read, and the empty-state copy would say otherwise.
+  const [unreadable, setUnreadable] = useState(false);
 
   useEffect(() => {
     if (documents.length >= 2 && notes.length >= 2) markStoreCaptureReady('library');
@@ -63,7 +66,9 @@ function LibraryScreen() {
       setRecoveryCount(recoveryCopies.length);
       // Someone who already has a library does not need to be introduced to it.
       setWelcome(welcomed === null && nextDocuments.length === 0 && nextNotes.length === 0);
+      setUnreadable(false);
     } catch (error) {
+      setUnreadable(true);
       showStorageError(error);
     }
   }, []);
@@ -206,11 +211,24 @@ function LibraryScreen() {
           contentContainerStyle={styles.list}
           ListHeaderComponent={
             <>
-              {welcome ? (
+              {welcome && !unreadable ? (
                 <WelcomeCard onSample={() => void openSample()} onSkip={() => void finishWelcome()} />
               ) : null}
               <SectionHeader title={t('document.list')} count={filteredDocuments.length} />
-              {filteredDocuments.length === 0 && !welcome ? (
+              {unreadable ? (
+                <View accessibilityRole="alert" style={styles.unreadableCard}>
+                  <Text accessibilityRole="header" style={styles.unreadableTitle}>{t('document.libraryUnavailable')}</Text>
+                  <Text style={styles.unreadableBody}>{t('document.libraryUnavailableBody')}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('document.libraryRetry')}
+                    style={styles.retry}
+                    onPress={() => void refresh()}
+                  >
+                    <Text style={styles.retryText}>{t('document.libraryRetry')}</Text>
+                  </Pressable>
+                </View>
+              ) : filteredDocuments.length === 0 && !welcome ? (
                 <View style={styles.emptyCard}>
                   <Text accessibilityRole="header" style={styles.emptyTitle}>
                     {t(normalizedQuery ? 'document.noMatch' : 'document.noPdf')}
@@ -245,7 +263,7 @@ function LibraryScreen() {
           ListFooterComponent={
             <View style={styles.notesSection}>
               <SectionHeader title={t('note.list')} count={filteredNotes.length} />
-              {filteredNotes.length === 0 ? (
+              {filteredNotes.length === 0 && !unreadable ? (
                 <View style={styles.emptyCard}>
                   <Text style={styles.emptyBody}>{t(normalizedQuery ? 'note.noMatch' : 'note.emptyHelp')}</Text>
                 </View>
@@ -370,6 +388,11 @@ const styles = StyleSheet.create({
   welcomeHeading: { color: '#232832', fontSize: TYPE.body, fontWeight: '700' },
   welcomeBody: { color: '#5D6470', lineHeight: SPACE.xl },
   welcomeActions: { flexDirection: 'row', gap: SPACE.sm, marginTop: SPACE.xs },
+  unreadableCard: { borderRadius: RADIUS.lg, padding: SPACE.xl, backgroundColor: '#FFF3F0', borderWidth: SPACE.hairline, borderColor: '#E9BCB1' },
+  unreadableTitle: { color: '#7A3A2C', fontSize: TYPE.heading, fontWeight: '700' },
+  unreadableBody: { marginTop: SPACE.xs, color: '#7A3A2C', lineHeight: SPACE.xl },
+  retry: { minHeight: CONTROL.minimum, alignSelf: 'flex-start', justifyContent: 'center', marginTop: SPACE.md, borderRadius: RADIUS.sm, paddingHorizontal: SPACE.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E9BCB1' },
+  retryText: { color: '#7A3A2C', fontWeight: '700' },
   documentCard: { minHeight: CONTROL.card, flexDirection: 'row', alignItems: 'center', marginBottom: SPACE.sm, borderRadius: RADIUS.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E8EAF0', overflow: 'hidden' },
   cardMainAction: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.md, padding: SPACE.md },
   pdfBadge: { width: CONTROL.minimum, height: CONTROL.comfortable, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm, backgroundColor: '#FFF0EC' },
