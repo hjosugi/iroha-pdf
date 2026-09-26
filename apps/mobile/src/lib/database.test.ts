@@ -163,7 +163,7 @@ describe('setupDatabase', () => {
   it('creates every table and index the app reads', async () => {
     await database.initializeDatabase();
     expect(schemaObjects('table')).toEqual(
-      expect.arrayContaining(['documents', 'notes', 'annotations', 'write_journal']),
+      expect.arrayContaining(['documents', 'notes', 'annotations', 'write_journal', 'app_settings']),
     );
     expect(schemaObjects('index')).toEqual(
       expect.arrayContaining(['annotations_document_page', 'write_journal_status']),
@@ -696,5 +696,31 @@ describe('discardRecoveryCopy', () => {
     await database.discardRecoveryCopy('journal-1');
 
     expect(journalRows()).toEqual([{ id: 'journal-1', entity_id: 'note-1', status: 'pending' }]);
+  });
+});
+
+describe('app settings', () => {
+  it('reads nothing for a setting never written', async () => {
+    expect(await database.getAppSetting('onboarding.completedAt')).toBeNull();
+  });
+
+  it('keeps the last value written, across a relaunch', async () => {
+    await database.setAppSetting('onboarding.completedAt', '2026-09-25T00:00:00.000Z');
+    await database.setAppSetting('onboarding.completedAt', '2026-09-26T00:00:00.000Z');
+    await launch();
+
+    expect(await database.getAppSetting('onboarding.completedAt')).toBe('2026-09-26T00:00:00.000Z');
+    const rows = sqlite.raw().prepare('SELECT COUNT(*) AS count FROM app_settings').get() as { count: number };
+    expect(rows.count).toBe(1);
+  });
+
+  it('adds the table to a database an older build left behind, keeping what it holds', async () => {
+    await database.createNote('Kept');
+    sqlite.raw().exec('DROP TABLE app_settings');
+    await launch();
+
+    await database.setAppSetting('onboarding.completedAt', 'now');
+    expect(await database.getAppSetting('onboarding.completedAt')).toBe('now');
+    expect((await database.listNotes()).map((note) => note.title)).toEqual(['Kept']);
   });
 });
