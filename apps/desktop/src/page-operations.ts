@@ -16,6 +16,7 @@
 import {
   extractPdfPages,
   mergePdfs,
+  organizePdf,
   parsePageSelection,
   PageSelectionError,
   removePdfPages,
@@ -30,6 +31,7 @@ import {
   writePdfToDisk,
 } from './file-bridge';
 import { t } from './i18n';
+import { toOrganizedPages, type PlanPage } from './organizer-plan';
 
 export type PageOperation = 'extract' | 'remove' | 'split' | 'merge';
 
@@ -138,5 +140,20 @@ export async function runPageOperation(
     operation === 'extract' ? await extractPdfPages(bytes, pages) : await removePdfPages(bytes, pages);
   const suffix = operation === 'extract' ? '-pages' : '-trimmed';
   const written = await writeProduced(suggestedName(request.sourceName, suffix), produced);
+  return written ? { status: 'written', paths: [written] } : { status: 'cancelled' };
+}
+
+/**
+ * Writes the page organizer's plan to a new file the user names.
+ *
+ * Here rather than beside the organizer for the reason `runPages` gives: this is
+ * the module that reaches for `pdf-lib`, and it is loaded only when asked for.
+ */
+export async function saveOrganizedPages(
+  plan: PlanPage[],
+  request: Pick<OperationRequest, 'source' | 'sourceName'>,
+): Promise<OperationOutcome> {
+  const produced = await organizePdf(await request.source(), toOrganizedPages(plan));
+  const written = await writeProduced(suggestedName(request.sourceName, '-organized'), produced);
   return written ? { status: 'written', paths: [written] } : { status: 'cancelled' };
 }
