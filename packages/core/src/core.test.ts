@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFString } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFString, degrees } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -12,6 +12,7 @@ import {
   mergeSyncOperations,
   normalizePoint,
   optimizePdfStructure,
+  organizePdf,
   pressureStrokeWidth,
   removePdfPages,
   reorderPdf,
@@ -343,6 +344,107 @@ describe('PDF output safety', () => {
 
     expect(output.getPageCount()).toBe(1);
     expect(output.getPage(0).getWidth()).toBeCloseTo(595.28, 2);
+  });
+});
+
+describe('organizing pages', () => {
+  /** Three pages told apart by width, the second already turned a quarter. */
+  async function threePages(): Promise<Uint8Array> {
+    const input = await PDFDocument.create();
+    input.addPage([100, 150]);
+    input.addPage([200, 250]).setRotation(degrees(90));
+    input.addPage([300, 350]);
+    return input.save();
+  }
+
+  function shape(document: PDFDocument): string[] {
+    return document
+      .getPages()
+      .map((page) => `${page.getWidth()}x${page.getHeight()}@${page.getRotation().angle}`);
+  }
+
+  it('applies an order, a duplicate, a turn and a blank page in one plan', async () => {
+    const output = await PDFDocument.load(
+      await organizePdf(await threePages(), [
+        { kind: 'page', source: 2, rotation: 0 },
+        { kind: 'blank', width: 612, height: 792 },
+        { kind: 'page', source: 0, rotation: 90 },
+        { kind: 'page', source: 0, rotation: 0 },
+      ]),
+    );
+
+    expect(shape(output)).toEqual(['300x350@0', '612x792@0', '100x150@90', '100x150@0']);
+  });
+
+  it('turns a copy without turning the page it was copied from', async () => {
+    const output = await PDFDocument.load(
+      await organizePdf(await threePages(), [
+        { kind: 'page', source: 0, rotation: 180 },
+        { kind: 'page', source: 0, rotation: 0 },
+        { kind: 'page', source: 0, rotation: 270 },
+      ]),
+    );
+
+    expect(shape(output)).toEqual(['100x150@180', '100x150@0', '100x150@270']);
+  });
+
+  it('adds a turn to the rotation a page already had', async () => {
+    const output = await PDFDocument.load(
+      await organizePdf(await threePages(), [
+        { kind: 'page', source: 1, rotation: 0 },
+        { kind: 'page', source: 1, rotation: 90 },
+        { kind: 'page', source: 1, rotation: 270 },
+      ]),
+    );
+
+    expect(shape(output)).toEqual(['200x250@90', '200x250@180', '200x250@0']);
+  });
+
+  it("keeps a page's annotations with it", async () => {
+    const input = await PDFDocument.create();
+    input.addPage([100, 100]);
+    const annotated = input.addPage([200, 200]);
+    const note = input.context.obj({
+      Type: 'Annot',
+      Subtype: 'Square',
+      Rect: [10, 10, 50, 50],
+      Contents: PDFString.of('keep me'),
+    });
+    annotated.node.set(PDFName.of('Annots'), input.context.obj([input.context.register(note)]));
+
+    const output = await PDFDocument.load(
+      await organizePdf(await input.save(), [
+        { kind: 'page', source: 1, rotation: 0 },
+        { kind: 'page', source: 0, rotation: 0 },
+      ]),
+    );
+
+    const annots = output.getPage(0).node.lookup(PDFName.of('Annots'), PDFArray);
+    expect(annots.size()).toBe(1);
+    const copied = annots.lookup(0, PDFDict);
+    expect(copied.lookup(PDFName.of('Contents'), PDFString).decodeText()).toBe('keep me');
+    expect(output.getPage(1).node.lookup(PDFName.of('Annots'))).toBeUndefined();
+  });
+
+  it('refuses a plan it cannot carry out, rather than building part of it', async () => {
+    const source = await threePages();
+
+    await expect(organizePdf(source, [])).rejects.toThrow('at least one page');
+    await expect(
+      organizePdf(source, [
+        { kind: 'page', source: 0, rotation: 0 },
+        { kind: 'page', source: 3, rotation: 0 },
+      ]),
+    ).rejects.toThrow('Invalid zero-based page index: 3');
+    await expect(
+      organizePdf(source, [{ kind: 'page', source: 0, rotation: 45 as 90 }]),
+    ).rejects.toThrow('quarter turn');
+    await expect(
+      organizePdf(source, [{ kind: 'blank', width: 0, height: 792 }]),
+    ).rejects.toThrow('Invalid blank page size');
+    await expect(
+      organizePdf(source, [{ kind: 'blank', width: Number.NaN, height: 792 }]),
+    ).rejects.toThrow('Invalid blank page size');
   });
 });
 
