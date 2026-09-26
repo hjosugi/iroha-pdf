@@ -103,6 +103,11 @@ export function subscribe(listener: () => void): () => void {
   };
 }
 
+/** Whether opening has recorded this document yet — its path is known, even if null. */
+export function isRegistered(documentId: string): boolean {
+  return files.has(documentId);
+}
+
 export function getDocumentFile(documentId: string): DocumentFile {
   return files.get(documentId) ?? EMPTY;
 }

@@ -1,4 +1,12 @@
-import { useEffect, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent,
+} from 'react';
 import type { DocumentState } from '@embedpdf/core';
 import { AnnotationLayer } from '@embedpdf/plugin-annotation/react';
 import {
@@ -11,7 +19,7 @@ import {
 } from '@embedpdf/plugin-interaction-manager/react';
 import { RenderLayer } from '@embedpdf/plugin-render/react';
 import { Rotate } from '@embedpdf/plugin-rotate/react';
-import { Scroller } from '@embedpdf/plugin-scroll/react';
+import { Scroller, useScroll, useScrollCapability } from '@embedpdf/plugin-scroll/react';
 import { SelectionLayer } from '@embedpdf/plugin-selection/react';
 import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
@@ -20,15 +28,17 @@ import { BrandMark } from './BrandMark';
 import { PdfToolbar } from './PdfToolbar';
 import { SidePanel } from './SidePanel';
 import { confirmDiscard } from './file-bridge';
-import { forgetDocument, getDocumentFile, hasUnsavedEdits } from './document-store';
+import { forgetDocument, getDocumentFile, hasUnsavedEdits, isRegistered } from './document-store';
 import {
   useDeleteSelected,
   useDocumentFile,
   useEditTimeline,
+  useOpenPath,
   useOpenPdf,
   useOpenSample,
   useRecoverDraft,
 } from './use-pdf-file';
+import { ClosedTabs, lastPageFor, movedIndex, recordLastPage } from './tab-session';
 import { readStoredObject, storageKey } from './local-storage';
 import { t, timeFormat } from './i18n';
 
@@ -42,9 +52,30 @@ type TabStripProps = {
   activeDocumentId: string | null;
 };
 
+/** Tabs closed in this window, for Reopen closed tab. One per window, like the tabs. */
+const closedTabs = new ClosedTabs();
+
+/** Pointer travel, in CSS pixels, before a press on a tab becomes a drag. */
+const TAB_DRAG_THRESHOLD_PX = 6;
+
+function focusTab(documentId: string): void {
+  window.requestAnimationFrame(() => {
+    document.querySelector<HTMLButtonElement>(`[data-document-id="${CSS.escape(documentId)}"] .tab-label`)?.focus();
+  });
+}
+
 function TabStrip({ documents, activeDocumentId }: TabStripProps) {
   const { provides } = useDocumentManagerCapability();
   const openPdf = useOpenPdf();
+  const openPath = useOpenPath();
+  const closedCount = useSyncExternalStore(
+    useCallback((listener: () => void) => closedTabs.subscribe(listener), []),
+    () => closedTabs.count(),
+  );
+  const [reopenFailed, setReopenFailed] = useState<string | null>(null);
+  const drag = useRef<{ id: string; pointerId: number; x: number; moving: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   const closeTab = async (documentId: string) => {
     const pending = getDocumentFile(documentId).pendingEdits;
@@ -54,23 +85,125 @@ function TabStrip({ documents, activeDocumentId }: TabStripProps) {
       );
       if (!discard) return;
     }
+    closedTabs.remember(getDocumentFile(documentId).path);
     provides?.closeDocument(documentId);
     forgetDocument(documentId);
   };
 
+  /**
+   * The most recently closed file, opened again — or, if it is already open in
+   * another tab, that tab. A file that has since been moved or deleted cannot be
+   * reopened, and the strip says so rather than doing nothing.
+   */
+  const reopenClosed = useCallback(async () => {
+    const path = closedTabs.takeLast();
+    if (!path) return;
+    setReopenFailed(null);
+    const open = documents.find((document) => getDocumentFile(document.id).path === path);
+    if (open) {
+      provides?.setActiveDocument(open.id);
+      return;
+    }
+    try {
+      await openPath(path);
+    } catch (error) {
+      console.error('Iroha PDF: a closed tab could not be reopened', error);
+      setReopenFailed(t('tabs.reopenFailed', { name: path.split(/[\\/]/).pop() ?? path }));
+    }
+  }, [documents, openPath, provides]);
+
+  // Ctrl/⌘+Shift+T, as in every browser.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 't') return;
+      event.preventDefault();
+      void reopenClosed();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [reopenClosed]);
+
+  const move = (documentId: string, to: number) => {
+    provides?.moveDocument(documentId, to);
+    focusTab(documentId);
+  };
+
+  /** Ctrl+Shift+Page Up / Page Down moves the focused tab, as browsers do. */
+  const onTabKeyDown = (event: ReactKeyboardEvent, documentId: string) => {
+    if (!event.ctrlKey || !event.shiftKey) return;
+    const delta = event.key === 'PageUp' ? -1 : event.key === 'PageDown' ? 1 : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const to = movedIndex(documents.map((document) => document.id), documentId, delta);
+    if (to !== null) move(documentId, to);
+  };
+
+  /** The tab under the pointer, as the index a dragged tab should take. */
+  const indexAt = (x: number, y: number): number | null => {
+    const tab = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-document-id]');
+    if (!tab) return null;
+    const index = documents.findIndex((document) => document.id === tab.dataset.documentId);
+    return index < 0 ? null : index;
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    if (!current.moving) {
+      if (Math.abs(event.clientX - current.x) < TAB_DRAG_THRESHOLD_PX) return;
+      current.moving = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    setDropIndex(indexAt(event.clientX, event.clientY));
+  };
+
+  const endDrag = (event: PointerEvent<HTMLDivElement>, commit: boolean) => {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    drag.current = null;
+    setDropIndex(null);
+    if (!current.moving) return;
+    suppressClick.current = true;
+    const to = commit ? indexAt(event.clientX, event.clientY) : null;
+    if (to !== null && documents[to]?.id !== current.id) move(current.id, to);
+  };
+
   return (
-    <div className="tab-strip" role="tablist" aria-label={t('document.openFiles')}>
-      {documents.map((document) => (
+    <div
+      className="tab-strip"
+      role="tablist"
+      aria-label={t('document.openFiles')}
+      onPointerMove={onPointerMove}
+      onPointerUp={(event) => endDrag(event, true)}
+      onPointerCancel={(event) => endDrag(event, false)}
+    >
+      {documents.map((document, index) => (
         <div
-          className={document.id === activeDocumentId ? 'tab active' : 'tab'}
+          className={[
+            document.id === activeDocumentId ? 'tab active' : 'tab',
+            dropIndex === index && drag.current?.id !== document.id ? 'drop-target' : '',
+          ].join(' ').trim()}
           key={document.id}
           role="none"
+          data-document-id={document.id}
         >
           <button
             className="tab-label"
-            onClick={() => provides?.setActiveDocument(document.id)}
+            onClick={() => {
+              if (suppressClick.current) {
+                suppressClick.current = false;
+                return;
+              }
+              provides?.setActiveDocument(document.id);
+            }}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              drag.current = { id: document.id, pointerId: event.pointerId, x: event.clientX, moving: false };
+            }}
+            onKeyDown={(event) => onTabKeyDown(event, document.id)}
             role="tab"
             aria-selected={document.id === activeDocumentId}
+            aria-keyshortcuts="Control+Shift+PageUp Control+Shift+PageDown"
             title={document.name ?? t('document.untitled')}
           >
             <span>{document.name ?? t('document.untitled')}</span>
@@ -90,8 +223,93 @@ function TabStrip({ documents, activeDocumentId }: TabStripProps) {
           +
         </button>
       ) : null}
+      {closedCount > 0 ? (
+        <button
+          className="icon-button"
+          onClick={() => void reopenClosed()}
+          aria-label={t('tabs.reopen')}
+          aria-keyshortcuts="Control+Shift+T Meta+Shift+T"
+          title={t('tabs.reopen')}
+        >
+          ↺
+        </button>
+      ) : null}
+      {reopenFailed ? <span className="tab-error" role="alert">{reopenFailed}</span> : null}
     </div>
   );
+}
+
+/**
+ * Where each file was being read (#13). The first time a document's pages are
+ * laid out, it moves to the page that file was last read at; from then on, the
+ * page being read is remembered.
+ *
+ * Two orderings have to be waited out. The path is registered a moment after
+ * the engine has the document, and the layout is ready only once the viewport
+ * has been measured — a scroll requested before that is lost. And recording
+ * waits until the move has landed, or the page one a document opens at would
+ * overwrite the page it is about to go back to.
+ */
+const layoutReady = new Set<string>();
+const layoutListeners = new Set<() => void>();
+
+function useLayoutReadyTracking(): void {
+  const { provides: scroll } = useScrollCapability();
+  useEffect(() => {
+    if (!scroll) return;
+    return scroll.onLayoutReady((event) => {
+      if (layoutReady.has(event.documentId)) return;
+      layoutReady.add(event.documentId);
+      for (const listener of layoutListeners) listener();
+    });
+  }, [scroll]);
+}
+
+function useIsLayoutReady(documentId: string): boolean {
+  return useSyncExternalStore(
+    useCallback((listener: () => void) => {
+      layoutListeners.add(listener);
+      return () => layoutListeners.delete(listener);
+    }, []),
+    () => layoutReady.has(documentId),
+  );
+}
+
+/** How long a requested move may take to land before the reader's page is recorded anyway. */
+const POSITION_SETTLE_MS = 2000;
+
+const positioned = new Map<string, { target: number | null; settled: boolean }>();
+
+function useReadingPosition(documentId: string): void {
+  const file = useDocumentFile(documentId);
+  const { provides: scroll, state } = useScroll(documentId);
+  const ready = useIsLayoutReady(documentId);
+  const registered = isRegistered(documentId);
+
+  useEffect(() => {
+    if (!scroll || !ready || !registered || positioned.has(documentId)) return;
+    const page = lastPageFor(file.path);
+    const target = page !== null && page <= state.totalPages ? page : null;
+    positioned.set(documentId, { target, settled: target === null });
+    if (target === null) return;
+    scroll.scrollToPage({ pageNumber: target, behavior: 'instant' });
+    // Not cleared on re-render: it only marks the entry, and a move that never
+    // lands must not leave this document's position unrecorded for good.
+    window.setTimeout(() => {
+      const entry = positioned.get(documentId);
+      if (entry) entry.settled = true;
+    }, POSITION_SETTLE_MS);
+  }, [documentId, file.path, ready, registered, scroll, state.totalPages]);
+
+  useEffect(() => {
+    const entry = positioned.get(documentId);
+    if (!entry || state.currentPage < 1) return;
+    if (!entry.settled) {
+      if (state.currentPage !== entry.target) return;
+      entry.settled = true;
+    }
+    recordLastPage(file.path, state.currentPage);
+  }, [documentId, file.path, state.currentPage]);
 }
 
 const WELCOME_KEY = storageKey('app', 'welcome');
@@ -225,6 +443,7 @@ function AutosaveBanner({ documentId }: { documentId: string }) {
 
 function ActiveDocument({ documentId, documentName }: { documentId: string; documentName: string }) {
   useEditTimeline(documentId);
+  useReadingPosition(documentId);
   useDeleteSelected(documentId);
   return (
     <>
@@ -256,6 +475,9 @@ function PdfViewer({ documentId }: { documentId: string }) {
                           pageIndex={pageIndex}
                           scale={1}
                           style={{ pointerEvents: 'none' }}
+                          // Which page a picture is, for the e2e that checks a
+                          // file reopens at the page it was last read at.
+                          data-page-index={pageIndex}
                         />
                         <TilingLayer
                           documentId={documentId}
@@ -296,6 +518,7 @@ function useUnsavedGuard(): void {
 
 export function Workspace({ activeDocumentId, documentStates }: WorkspaceProps) {
   useUnsavedGuard();
+  useLayoutReadyTracking();
 
   const active = documentStates.find((document) => document.id === activeDocumentId);
   const activeName = active?.name ?? 'document.pdf';

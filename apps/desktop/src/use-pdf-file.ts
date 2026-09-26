@@ -80,6 +80,23 @@ async function openPath(provides: DocumentManager, path: string): Promise<void> 
   registerOpenedFile(response.documentId, file.path);
 }
 
+/**
+ * Opens a file by a path this session has already been given — a tab being
+ * reopened. The dialog's grant lasts for the session, so no dialog is needed;
+ * a path from an earlier session would be refused, which is why nothing calls
+ * this with one.
+ */
+export function useOpenPath(): (path: string) => Promise<void> {
+  const { provides } = useDocumentManagerCapability();
+  return useCallback(
+    async (path: string) => {
+      if (!provides) throw new Error('The PDF engine is still starting up.');
+      await openPath(provides, path);
+    },
+    [provides],
+  );
+}
+
 /** Opens a PDF, keeping its filesystem path when the desktop runtime provides one. */
 export function useOpenPdf(): () => Promise<void> {
   const { provides } = useDocumentManagerCapability();
