@@ -34,6 +34,9 @@ function LibraryScreen() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [recoveryCount, setRecoveryCount] = useState(0);
   const [query, setQuery] = useState('');
+  // Kept apart from "the lists are empty": after a failed read they are empty
+  // because nothing was read, and the empty-state copy would say otherwise.
+  const [unreadable, setUnreadable] = useState(false);
 
   useEffect(() => {
     if (documents.length >= 2 && notes.length >= 2) markStoreCaptureReady('library');
@@ -49,7 +52,9 @@ function LibraryScreen() {
       setDocuments(nextDocuments);
       setNotes(nextNotes);
       setRecoveryCount(recoveryCopies.length);
+      setUnreadable(false);
     } catch (error) {
+      setUnreadable(true);
       showStorageError(error);
     }
   }, []);
@@ -172,7 +177,20 @@ function LibraryScreen() {
           ListHeaderComponent={
             <>
               <SectionHeader title={t('document.list')} count={filteredDocuments.length} />
-              {filteredDocuments.length === 0 ? (
+              {unreadable ? (
+                <View accessibilityRole="alert" style={styles.unreadableCard}>
+                  <Text accessibilityRole="header" style={styles.unreadableTitle}>{t('document.libraryUnavailable')}</Text>
+                  <Text style={styles.unreadableBody}>{t('document.libraryUnavailableBody')}</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('document.libraryRetry')}
+                    style={styles.retry}
+                    onPress={() => void refresh()}
+                  >
+                    <Text style={styles.retryText}>{t('document.libraryRetry')}</Text>
+                  </Pressable>
+                </View>
+              ) : filteredDocuments.length === 0 ? (
                 <View style={styles.emptyCard}>
                   <Text accessibilityRole="header" style={styles.emptyTitle}>
                     {t(normalizedQuery ? 'document.noMatch' : 'document.noPdf')}
@@ -207,7 +225,7 @@ function LibraryScreen() {
           ListFooterComponent={
             <View style={styles.notesSection}>
               <SectionHeader title={t('note.list')} count={filteredNotes.length} />
-              {filteredNotes.length === 0 ? (
+              {filteredNotes.length === 0 && !unreadable ? (
                 <View style={styles.emptyCard}>
                   <Text style={styles.emptyBody}>{t(normalizedQuery ? 'note.noMatch' : 'note.emptyHelp')}</Text>
                 </View>
@@ -298,6 +316,11 @@ const styles = StyleSheet.create({
   emptyCard: { borderRadius: RADIUS.lg, padding: SPACE.xl, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E8EAF0' },
   emptyTitle: { color: '#242933', fontSize: TYPE.heading, fontWeight: '700' },
   emptyBody: { marginTop: SPACE.xs, color: '#7C8390', lineHeight: SPACE.xl },
+  unreadableCard: { borderRadius: RADIUS.lg, padding: SPACE.xl, backgroundColor: '#FFF3F0', borderWidth: SPACE.hairline, borderColor: '#E9BCB1' },
+  unreadableTitle: { color: '#7A3A2C', fontSize: TYPE.heading, fontWeight: '700' },
+  unreadableBody: { marginTop: SPACE.xs, color: '#7A3A2C', lineHeight: SPACE.xl },
+  retry: { minHeight: CONTROL.minimum, alignSelf: 'flex-start', justifyContent: 'center', marginTop: SPACE.md, borderRadius: RADIUS.sm, paddingHorizontal: SPACE.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E9BCB1' },
+  retryText: { color: '#7A3A2C', fontWeight: '700' },
   documentCard: { minHeight: CONTROL.card, flexDirection: 'row', alignItems: 'center', marginBottom: SPACE.sm, borderRadius: RADIUS.lg, backgroundColor: COLOR.surface, borderWidth: SPACE.hairline, borderColor: '#E8EAF0', overflow: 'hidden' },
   cardMainAction: { minWidth: 0, flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.md, padding: SPACE.md },
   pdfBadge: { width: CONTROL.minimum, height: CONTROL.comfortable, alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.sm, backgroundColor: '#FFF0EC' },
