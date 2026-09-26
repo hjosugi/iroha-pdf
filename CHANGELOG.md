@@ -1,19 +1,35 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-09-26
 
-### Fixed
+Desktop can now organize a document's pages in a grid — drag, select, duplicate,
+rotate, insert blank pages, with undo — as well as merge, split, extract and
+remove them, and has a page strip in its side panel. Its tabs can be reordered
+and reopened, and a file opens at the page it was left at. Both apps introduce
+themselves on first run, with a practice PDF. Most of the rest is places that
+reported success after something had failed: a desktop note that could not be
+stored blanked the window, both note editors said "Autosaved locally" about
+writes that had been refused, the mobile library and Recovery screens said
+there was nothing there when they could not look, and a save whose rename was
+refused left its partial behind.
 
-- Erasing an annotation on mobile can be undone. The undo stack recorded only
-  the marks that had been drawn, so taking a step back always meant deleting
-  something — which left the eraser, the tool whose whole purpose is fixing a
-  mistake, as the one mistake that stuck. Steps now carry what happened to them,
-  so undo knows whether to remove a mark or put it back, and the history is
-  dropped when the screen moves to another document rather than offering to undo
-  marks belonging to the previous one.
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
 
 ### Added
 
+- Merge, split, extract and remove pages on desktop, from a Pages… dialog beside
+  Print. Every operation writes a new file the user names and leaves the open
+  document alone, and the dialog says so: that document has unsaved annotations,
+  a draft and an edit history keyed to its path, and splitting it must not be a
+  way to lose them. Split is a named operation in `@iroha-pdf/core`, so the two
+  halves cover the document exactly once by construction, and desktop and mobile
+  read a page list such as `2, 5, 9-12` with the same parser — which no longer
+  takes `2e3` for page 2000 or `0x10` for page 16. The operations load on
+  demand; opening a document does not pay for them.
 - A page strip in the desktop side panel. Every page has a slot from the start,
   so the list is the right length and scrolls correctly immediately, and each
   picture is drawn only when its page comes near the view — a 500-page document
@@ -21,30 +37,115 @@
   byte budget and released in least-recently-seen order, which is the first thing
   to use the bounded cache that had been sitting in `@iroha-pdf/core` with tests
   and no caller. Leaving the tab releases every bitmap it was holding.
+- Organize… on desktop, beside Pages…, lays the document's pages out as a grid
+  that draws only what is near the view. Drag a page or a selection to where it
+  should go; click, Ctrl/⌘-click and Shift-click select; Duplicate puts the
+  copies straight after the selection and selects them, so "duplicate, then
+  move" moves the copies; Delete, Rotate left/right and Insert blank page (sized
+  like the page it follows, as that page is seen). Undo and Redo cover every
+  step, and the keyboard does all of it.
+- Desktop tabs can be reordered, by dragging one onto another or with
+  Ctrl+Shift+Page Up / Page Down, and a closed tab can be reopened with
+  Ctrl/⌘+Shift+T or the ↺ button: the last ten are remembered for the session,
+  and a file moved or deleted since is reported rather than silently skipped.
+  Each file opens again at the page it was being read at, whether reopened or
+  opened through the dialog in a later session. Which tabs were open is not yet
+  restored across a restart: that needs the dialog's file grant to outlive the
+  session, which changes what the app may read without asking.
+- A first-run introduction on both apps. Over an empty library it says where
+  files live, that opening a PDF never writes to the original, and — on mobile —
+  what Google Drive would and would not see; it offers a sample PDF to practise
+  on and can be skipped. Either choice is remembered, and the card never appears
+  over a library that already has something in it.
 
 ### Changed
 
-- The desktop application no longer ships pdf-lib and fontkit. It never called
+- Desktop startup no longer loads pdf-lib and fontkit. The viewer never called
   either — its PDF work is all wasm — but it imports two i18n functions from
-  `@iroha-pdf/core`, whose barrel re-exports the module that does use them, and
-  nothing told the bundler it was free to drop that graph. Application
-  JavaScript went from 1.80 MB to 0.63 MB, and pdf-lib leaves the desktop's
-  installed dependencies and its SBOM. First contentful paint did not measurably
-  change; the shell already paints before the engine loads.
+  `@iroha-pdf/core`, whose barrel re-exported the module that does, and nothing
+  told the bundler it could drop that graph. Startup JavaScript went from
+  1.80 MB to 0.63 MB. The page operations above do use pdf-lib, so it is back in
+  the desktop's dependencies and SBOM, but only in a chunk fetched the first time
+  one of them runs, with its own size budget.
 - The rules that turn a document's path into the names a save works with live in
   one module now. The e2e suite carried its own copy, because the module they
   were in reaches for Tauri at import time, so renaming one in the application
   moved the assertions onto the same different file instead of failing.
+- The desktop webview no longer holds `fs:default`. tauri-plugin-fs 2.5.2 fixed
+  that set so that it really grants recursive read access to the app's own
+  config, data, cache and log directories; until then it had granted the
+  commands with no paths. The webview reads nothing there, and its file scope is
+  meant to hold only what a dialog or a save granted, so the capability now asks
+  for `fs:deny-default`, which keeps the webview-data deny rules, and the five
+  file commands it uses.
+- Dependency updates: expo-asset, expo-constants, expo-sharing and
+  expo-splash-screen within the Expo SDK 57 set; Playwright 1.63; Vitest 5; the
+  Tauri dialog, fs and opener plugins; and @xmldom/xmldom 0.8.15, browserslist
+  4.29, baseline-browser-mapping 2.11.25, devalue 5.9.2, js-yaml 4.3.2 and
+  fast-uri 3.1.8, which clear the advisories published against the versions the
+  lockfile pinned.
 
 ### Fixed
 
+- The mobile library no longer says "No PDFs yet" when it could not read the
+  library. A failed read raised an alert, and behind it the lists rendered empty
+  because nothing had been read into them. A card now says the library could
+  not be read, that this does not mean anything was deleted, and offers Try
+  again.
+- A failed desktop save is announced as an alert, not shown in the same grey
+  line as "Saved to …". A failed save or page operation is now coloured as an
+  error and spoken by screen readers as it appears; the next success turns it
+  back into an ordinary status.
+- Erasing an annotation on mobile can be undone. The undo stack recorded only
+  the marks that had been drawn, so taking a step back always meant deleting
+  something — which left the eraser, the tool whose whole purpose is fixing a
+  mistake, as the one mistake that stuck. Steps now carry what happened to them,
+  so undo knows whether to remove a mark or put it back, and the history is
+  dropped when the screen moves to another document rather than offering to undo
+  marks belonging to the previous one.
 - A save that fails now takes its own half-written bytes with it, instead of
   leaving a `.iroha-part.pdf` beside the document. Those bytes are never what an
   interrupted edit is recovered from — the draft is — so a file named almost
   like the document was only ever going to be mistaken for it. The webview still
   cannot delete anything: the app derives the one path it may remove on the Rust
   side, so it can reach a document's partial and nothing else. If the clean-up
-  itself fails, the file stays and the error says where.
+  itself fails, the file stays and the error says where. This now covers a
+  refused rename too — the way a save fails on Windows when another program has
+  the document open — and "Access is denied" is recognised as a permission
+  failure instead of falling through to "the PDF could not be written".
+- Opening `report.pdf` on desktop no longer grants write access to
+  `report-final.pdf`, `reportcard.pdf` or any other sibling that starts with the
+  same name. Only the two files a save derives, `<name>.iroha-original.pdf` and
+  `<name>.iroha-part.pdf`, are granted, and the rule has Rust unit tests that CI
+  runs.
+- A desktop note that cannot be stored no longer blanks the window. The write is
+  flushed from an effect cleanup, React treated the throw there like one during
+  render, and with no error boundary the whole app unmounted after a single
+  typed character. The label under the note, on desktop and on mobile, now says
+  "Note could not be saved" when a write was refused, instead of "Autosaved
+  locally" regardless.
+- The mobile Recovery screen no longer says there is nothing to recover when it
+  could not read the list. An unreadable list is its own state: storage is
+  unavailable, so whether anything survived is unknown, with a retry.
+- Mobile storage recovers from a database that failed to open once, instead of
+  replaying the same rejection until the app is killed, and erasing a mark no
+  longer leaves a recovery copy that would offer to bring it back.
+- Rotate rejects a bad page number in the app's own words, like extract and
+  remove, rather than in pdf-lib's untranslated ones, and turns a page named
+  twice once instead of twice.
+- The Google Drive client, not yet wired into either app, escapes backslashes in
+  query literals, stops following a repeated page token, gives up on an upload
+  that makes no progress, and reports a failed scheduled sync instead of leaving
+  an unhandled rejection on every tick.
+- The site gate really pins the privacy-policy URL the stores were given. It
+  accepted any canonical address, including one a changed Pages base URL would
+  have produced.
+- `decode-uri-component` 0.2.2, which expo-router bundles into the mobile app
+  through query-string 7, carries the upstream single-pass decoder: 0.2.2 took
+  32 s on 400 malformed escapes (GHSA-vcc3-ghjq-m6fr). The fixed 0.5.0 is
+  ESM-only and query-string 7 cannot load it, so the fix is backported as a
+  patch, checked by digest in CI, with an expiring advisory exception because
+  npm audit matches on the version.
 
 ## 0.5.0 - 2026-08-07
 
