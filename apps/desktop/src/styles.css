@@ -164,11 +164,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .primary-button.unsaved:hover { background: #b93c0b; }
 
 .empty-workspace, .center-state { display: grid; place-items: center; flex: 1; color: #727986; }
-.empty-workspace { align-content: center; text-align: center; }
+/* `safe` and the scroll are for the first-run card: without them a short window
+   centres the content past its own top edge, where it cannot be scrolled to. */
+.empty-workspace { align-content: safe center; min-height: 0; overflow-y: auto; text-align: center; }
 .empty-workspace h1 { margin: var(--space-8) 0 var(--space-4); color: #161a22; font-size: var(--type-display); letter-spacing: -.04em; }
 .empty-workspace p { max-width: var(--copy-width); margin: 0 0 var(--space-8); line-height: var(--leading-copy); }
 .empty-mark { width: var(--empty-mark-size); height: var(--empty-mark-size); font-size: var(--type-icon); box-shadow: var(--shadow-brand-mark); }
 .empty-mark svg { width: var(--control-default); height: var(--control-default); }
+/* The first-run card sits under the empty state's own button, so opening a PDF
+   stays the most obvious thing to do and the introduction is there to read. */
+.welcome-card { max-width: var(--copy-width); margin-top: var(--space-9); border: var(--line) solid #d9e2ff; border-radius: var(--radius-xl); padding: var(--space-8); text-align: left; color: #3d4450; background: #fff; }
+.welcome-card h2 { margin: 0 0 var(--space-6); color: #161a22; font-size: var(--type-heading); }
+.welcome-card h3 { margin: var(--space-6) 0 var(--space-2); color: #232832; font-size: var(--type-body); }
+.empty-workspace .welcome-card p { max-width: none; margin: 0; }
+.welcome-card .welcome-error { margin-top: var(--space-6); color: #a0341f; }
+.welcome-actions { display: flex; justify-content: flex-end; gap: var(--space-4); margin-top: var(--space-8); }
 
 .dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: var(--space-9); background: rgba(12,16,24,.48); }
 .print-dialog { width: min(var(--dialog-width), 100%); border: var(--line) solid #dfe3ea; border-radius: var(--radius-xl); padding: var(--space-8); color: #20252e; background: #fff; box-shadow: var(--shadow-dialog); }
