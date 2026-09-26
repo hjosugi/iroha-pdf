@@ -47,6 +47,17 @@ therefore uses the published 0.18.5 source with the upstream two-line
 condition, and 2026-10-31 re-review date are recorded in
 `apps/desktop/src-tauri/vendor/glib-0.18.5-patched/PROVENANCE.md`.
 
+`decode-uri-component` 0.2.2 decodes malformed percent-encoded input in cubic
+time (GHSA-vcc3-ghjq-m6fr). The fixed 0.5.0 is ESM-only, and its one dependent
+here, the `query-string` 7.1.3 that every expo-router 57 release pins, loads it
+with `require`, so the fix cannot be installed. `patches/decode-uri-component+0.2.2.patch`
+backports 0.5.0's single-pass decoder (upstream commit `fa479da`) into the 0.2.2
+CommonJS module, keeping 0.2.2's `+`-to-space conversion. The verification
+script checks the installed file's SHA-256 and decodes a long malformed input.
+Because `npm audit` matches on the version, the advisory also carries an
+expiring entry in `advisory-exceptions.json`; remove both once expo-router
+depends on a `query-string` that accepts 0.5.
+
 `react-native-pdf` 7.0.4 is patched on Android and iOS to report each current
 page's dimensions, which keeps mixed-size-page annotation coordinates aligned.
 React Native 0.86.2 is patched separately so Android pen events preserve the
