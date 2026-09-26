@@ -25,7 +25,7 @@ vi.mock('@/lib/alerts', () => ({
   confirmDestructive: (options: { onConfirm: () => void }) => options.onConfirm(),
 }));
 
-const { default: RecoveryScreen } = await import('./recovery');
+const { default: RecoveryScreen } = await import('@/app/recovery');
 
 function copyFixture(overrides: Partial<RecoveryCopy> = {}): RecoveryCopy {
   return {

@@ -46,6 +46,13 @@ const MESSAGES = {
   'document.search': { ja: 'PDFとメモを検索', en: 'Search PDFs and notes' },
   'document.noPdf': { ja: 'PDFはまだありません', en: 'No PDFs yet' },
   'document.noMatch': { ja: '一致するPDFがありません', en: 'No matching PDFs' },
+  // Shown in place of `document.noPdf` and the empty notes list when the library
+  // could not be read. "No PDFs yet" there would tell someone whose storage failed
+  // that their documents are gone; the alert explains why, and this stays on the
+  // screen after the alert is dismissed.
+  'document.libraryUnavailable': { ja: 'ライブラリを読み込めませんでした', en: 'The library could not be read' },
+  'document.libraryUnavailableBody': { ja: '端末内の保存領域が使えないため、PDFとメモを表示できません。削除されたという意味ではありません。', en: 'Local storage is unavailable, so your PDFs and notes cannot be shown. That does not mean they were deleted.' },
+  'document.libraryRetry': { ja: '再試行', en: 'Try again' },
   'document.searchAgain': { ja: '別のキーワードで検索してください。', en: 'Try a different search.' },
   'document.importHelp': { ja: '「ファイル」、Google Drive、またはほかのアプリからPDFを開けます。', en: 'Open a PDF from Files, Google Drive, or another provider.' },
   'document.deleteTitle': { ja: '端末内のコピーを削除しますか？', en: 'Delete local copy?' },

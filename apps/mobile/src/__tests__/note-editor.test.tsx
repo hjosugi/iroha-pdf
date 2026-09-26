@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Note } from '@iroha-pdf/core';
 
-import { setRouteParams } from '../../../test-route';
+import { setRouteParams } from '../../test-route';
 
 const getNote = vi.fn<() => Promise<Note | null>>();
 const saveNote = vi.fn<(note: Note) => Promise<void>>();
@@ -23,7 +23,7 @@ vi.mock('@/lib/alerts', () => ({
   alertFailure: (...args: unknown[]) => alertFailure(...args),
 }));
 
-const { default: NoteEditorScreen } = await import('./[id]');
+const { default: NoteEditorScreen } = await import('@/app/note/[id]');
 
 const NOTE: Note = {
   id: 'note-1',
