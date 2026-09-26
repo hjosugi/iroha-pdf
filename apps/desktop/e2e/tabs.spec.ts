@@ -127,6 +127,9 @@ test.describe('document tabs', () => {
       .toContain('"page":9');
 
     await page.getByRole('button', { name: 'Close tab: first.pdf' }).click();
+    // Closing finishes asynchronously. Reopening before the old tab is gone
+    // shows both for a moment, and a strict locator fails on that at once.
+    await expect(page.getByRole('tab', { name: 'first.pdf' })).toHaveCount(0);
     await page.keyboard.press('ControlOrMeta+Shift+T');
     await expect(page.getByRole('tab', { name: 'first.pdf' })).toHaveAttribute('aria-selected', 'true');
     await expect.poll(() => pageInView(page), { timeout: 15_000 }).toBe(9);
