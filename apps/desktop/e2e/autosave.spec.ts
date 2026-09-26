@@ -170,6 +170,9 @@ test.describe('a save that runs out of room', () => {
     await expect(page.locator('.save-state')).toContainText('the disk is full');
     // The one thing someone whose save just failed needs to know.
     await expect(page.locator('.save-state')).toContainText('unchanged');
+    // Said as a failure, not as another caption beside "Saved": an alert is what
+    // a screen reader speaks as it appears (#100).
+    await expect(page.getByRole('alert')).toContainText('the disk is full');
 
     const onDisk = await readVirtualFile(page, openPath);
     expect(onDisk!.equals(originalBytes), 'the document must be byte-identical').toBe(true);
@@ -189,6 +192,9 @@ test.describe('a save that runs out of room', () => {
     await fillDisk(page, null);
     await save(page);
     await expect(page.locator('.save-state')).toContainText('Saved to');
+    // Success goes back to being a status, and the alert is gone.
+    await expect(page.getByRole('status').filter({ hasText: 'Saved to' })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
     const saved = await readVirtualFile(page, openPath);
     expect(saved!.equals(originalBytes)).toBe(false);
     const facts = await inspectPdf(saved!);
@@ -223,6 +229,7 @@ test.describe('a save the platform will not let finish', () => {
     // shown `os error 5`, and Windows' wording matched none of the POSIX spellings.
     await expect(page.locator('.save-state')).toContainText('that file is not writable');
     await expect(page.locator('.save-state')).toContainText('unchanged');
+    await expect(page.getByRole('alert')).toContainText('that file is not writable');
 
     const onDisk = await readVirtualFile(page, openPath);
     expect(onDisk!.equals(originalBytes), 'the document must be byte-identical').toBe(true);
