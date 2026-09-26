@@ -27,14 +27,23 @@ vi.mock('react-native-safe-area-context', async () => {
   };
 });
 
-/** Navigation is a native stack; screens under test are rendered directly. */
+/**
+ * Navigation is a native stack; screens under test are rendered directly.
+ *
+ * A screen rendered here is focused from its first render and never loses focus,
+ * so `useFocusEffect` is an effect that runs on mount and again when its callback
+ * changes — which is what the real hook does for a screen that stays in front.
+ * Calling the callback during render instead would run it on every render, and a
+ * callback that sets state (the library's refresh does) would never settle.
+ */
 vi.mock('expo-router', async () => {
   const { routeParams } = await import('./test-route');
+  const { useEffect } = await import('react');
   return {
   useLocalSearchParams: () => routeParams,
   useNavigation: () => ({ setOptions: vi.fn() }),
   useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
-  useFocusEffect: (effect: () => void) => effect(),
+  useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
   Redirect: () => null,
   Stack: Object.assign(() => null, { Screen: () => null }),
   };
