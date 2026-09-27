@@ -89,7 +89,7 @@ issues/
 
 ## セットアップ
 
-前提はNode.js 22.13以降とFrostBuild v0.8.0です。Taskfileは廃止し、ローカルとCIの増分テスト・型検査・検証・デスクトップビルドを`frost.toml`へ一本化しています。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
+前提はNode.js 22.13以降とFrostBuild v0.15.0です。Taskfileは廃止し、ローカルとCIの増分テスト・型検査・検証・デスクトップビルドを`frost.toml`へ一本化しています。デスクトップのネイティブビルドにはRustとTauriのOS別前提ソフトウェアも必要です。
 
 ```bash
 npm ci

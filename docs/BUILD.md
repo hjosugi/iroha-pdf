@@ -1,6 +1,6 @@
 # Build workflow
 
-FrostBuild v0.8.0 is the single build-graph and validation entry point. The
+FrostBuild v0.15.0 is the single build-graph and validation entry point. The
 former Taskfile wrapper was removed: local development, CI and Release now call
 the same named Frost targets directly, so there is no second command catalogue
 that can drift.
@@ -11,19 +11,19 @@ successful tests, and restores the verified profile-specific desktop output.
 
 ## Install
 
-Install Node.js 22.13 or newer, run `npm ci`, then install FrostBuild v0.8.0
-from its [checksummed release](https://github.com/hjosugi/frost-build/releases/tag/v0.8.0)
+Install Node.js 22.13 or newer, run `npm ci`, then install FrostBuild v0.15.0
+from its [checksummed release](https://github.com/hjosugi/frost-build/releases/tag/v0.15.0)
 and place `frost` on `PATH`. CI pins and verifies these SHA-256 digests:
 
 | Host | Archive SHA-256 |
 |---|---|
-| Linux x86_64 musl | `7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795` |
-| macOS arm64 | `834b3d841e78e5a46851fb84202d49a6faaa5c0cc64d9b9e0cee0fd314d01bf6` |
-| Windows x86_64 MSVC | `358e95577aa865b679cf35f31405ae9ffe2f4acc7b586f65cf5a253bd1394b31` |
+| Linux x86_64 musl | `cbc7678a8f6513d541d751a4d7f66389a8a06cd9b00f306f5822c4700ceee9c6` |
+| macOS arm64 | `d7b785d4fb09e63fc69dd20fc81582024cd2534240aa6bc8f99408a1fccf1f00` |
+| Windows x86_64 MSVC | `49024ffbc2af490ee0ae9046b4ed972480771353c27c42d0840d9e1ee7cbf330` |
 
 ```bash
 npm ci
-frost info version    # must print 0.8.0
+frost info version    # must print 0.15.0
 frost doctor
 frost info
 ```

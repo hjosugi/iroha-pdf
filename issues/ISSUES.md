@@ -916,7 +916,7 @@ Labels: `type:ci`, `priority:P0`
 
 Expo prebuild validationはQuality jobのstepとして通っている。androidはcache有りで18m20sまで落ちており、#001が実測した初回42m51sとは別物になっている。
 
-**ビルドグラフはFrostBuild v0.8.0にpin**（`frost.toml` / `ci.yml` / `release.yml`）。2026-08-02にTaskfile/go-taskを廃止し、ローカル、CI、ReleaseはいずれもFrost targetを直接呼ぶ形へ一本化した。CIはchecksummed releaseを展開する。Frostは1.0前でminorがmanifest/CLI意味論を変えうるため、ローカルでも`frost info version`が`0.8.0`であることを確認する。
+**ビルドグラフはFrostBuild v0.15.0にpin**（`frost.toml` / `ci.yml` / `release.yml`）。2026-08-02にTaskfile/go-taskを廃止し、ローカル、CI、ReleaseはいずれもFrost targetを直接呼ぶ形へ一本化した。CIはchecksummed releaseを展開する。Frostは1.0前でminorがmanifest/CLI意味論を変えうるため、ローカルでも`frost info version`が`0.15.0`であることを確認する。
 
 リリース検証（`validate:eas` / `validate:brand` / `verify:dependency-patches`）も生のnpm実行をやめてFrostの`test` targetにした。checked-inのconfigとassetを`inputs`として宣言しているので、`apps/mobile/app.json`を触るとbrand gateだけが再実行される。変異テストで確認済み: `adaptiveIcon.backgroundColor`を書き換えると当該gateだけがrerunして失敗し、戻すとcache hitに戻る。
 

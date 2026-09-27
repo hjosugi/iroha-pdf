@@ -320,14 +320,14 @@ jobs:
           set -euo pipefail
           case "$RUNNER_OS" in
             Linux)
-              asset=frostbuild-v0.8.0-x86_64-unknown-linux-musl.tar.gz
-              sha=7a70953d61831109daf66cc02f9e93ec2740db1c4fa8bc680530e8b5cae46795 ;;
+              asset=frostbuild-v0.15.0-x86_64-unknown-linux-musl.tar.gz
+              sha=cbc7678a8f6513d541d751a4d7f66389a8a06cd9b00f306f5822c4700ceee9c6 ;;
             macOS)
-              asset=frostbuild-v0.8.0-aarch64-apple-darwin.tar.gz
-              sha=834b3d841e78e5a46851fb84202d49a6faaa5c0cc64d9b9e0cee0fd314d01bf6 ;;
+              asset=frostbuild-v0.15.0-aarch64-apple-darwin.tar.gz
+              sha=d7b785d4fb09e63fc69dd20fc81582024cd2534240aa6bc8f99408a1fccf1f00 ;;
             Windows)
-              asset=frostbuild-v0.8.0-x86_64-pc-windows-msvc.zip
-              sha=358e95577aa865b679cf35f31405ae9ffe2f4acc7b586f65cf5a253bd1394b31 ;;
+              asset=frostbuild-v0.15.0-x86_64-pc-windows-msvc.zip
+              sha=49024ffbc2af490ee0ae9046b4ed972480771353c27c42d0840d9e1ee7cbf330 ;;
             *)
               echo "::error::no pinned FrostBuild release for $RUNNER_OS"
               exit 1 ;;
@@ -335,7 +335,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/frost"
           curl --fail --location --silent --show-error \
             --output "$RUNNER_TEMP/$asset" \
-            "https://github.com/hjosugi/frost-build/releases/download/v0.8.0/$asset"
+            "https://github.com/hjosugi/frost-build/releases/download/v0.15.0/$asset"
           # Chosen by runner, not by which binary exists: macOS has a
           # `sha256sum`, but a BSD one that rejects `--check` and the
           # "digest  path" line GNU reads, so probing for the name picks a tool
