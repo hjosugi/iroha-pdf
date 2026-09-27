@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.7.0 - 2026-09-27
+
+A maintenance release with no user-facing change of its own. It takes the
+dependency updates that had been waiting, and moves the build graph from
+FrostBuild v0.8.0 to v0.15.0.
+
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
+
+### Changed
+
+- The desktop PDF stack takes its upstream patch release: the eighteen
+  `@embedpdf/*` packages move from 2.15.0 to 2.15.1, and the Tauri shell moves
+  with them — `tauri` 2.11.5 → 2.11.6, `@tauri-apps/cli` 2.11.4 → 2.11.5 and
+  `@tauri-apps/plugin-dialog` 2.7.2 → 2.7.3.
+- The mobile file and browser modules take their upstream patch releases:
+  `expo-file-system` 57.0.5 → 57.0.7 and `expo-web-browser` 57.0.2 → 57.0.3.
+- Local, CI and Release builds move to FrostBuild v0.15.0, pinned and
+  checksum-verified as before. The manifest is unchanged — every one of its 22
+  targets resolves under the new binary — so the upgrade is confined to the
+  version, the release URLs and the three digests in the two workflows.
+- The lockfile's mirrored ranges for `@tauri-apps/cli`, `expo-file-system` and
+  `expo-web-browser` are restored to what `package.json` declares. Dependabot's
+  branches had carried a caret where the manifests pin an exact version or a
+  tilde range, the same drift #142 corrected.
+
 ## 0.6.0 - 2026-09-26
 
 Desktop can now organize a document's pages in a grid — drag, select, duplicate,
