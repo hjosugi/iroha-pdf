@@ -9,15 +9,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   extractPdfPages,
+  fillPdfForm,
   imagesToPdf,
   mergePdfs,
   optimizePdfStructure,
   PageSelectionError,
   parsePageSelection,
+  readPdfForm,
   removePdfPages,
   reorderPdf,
   rotatePdfPages,
   type ImageInput,
+  type PdfFormField,
+  type PdfFormFieldValue,
 } from '@iroha-pdf/core';
 import { alertFailure } from '@/lib/alerts';
 import { describeError } from '@/lib/errors';
@@ -31,6 +35,10 @@ export default function PdfToolsScreen() {
   const [pageOrder, setPageOrder] = useState('1,2,3');
   const [selectedPages, setSelectedPages] = useState('1');
   const [busy, setBusy] = useState<string | null>(null);
+  const [formFields, setFormFields] = useState<PdfFormField[]>([]);
+  const [formValues, setFormValues] = useState<Record<string, PdfFormFieldValue>>({});
+  const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [formSource, setFormSource] = useState<{ bytes: Uint8Array; name: string } | null>(null);
 
   useEffect(() => markStoreCaptureReady('tools'), []);
 
@@ -157,6 +165,107 @@ export default function PdfToolsScreen() {
     await Print.printAsync({ uri: input.file.uri });
   });
 
+  const chooseForm = () => run(t('tools.formTitle'), async () => {
+    const input = await pickPdf();
+    if (!input) return;
+    const bytes = await input.file.bytes();
+    const form = await readPdfForm(bytes);
+    const fillable = form.fields.filter((field) => FILLABLE_TYPES.has(field.type));
+    if (form.xfa) {
+      setFormSource(null); setFormFields([]); setFormMessage(t('tools.formXfa'));
+      return;
+    }
+    if (fillable.length === 0) {
+      setFormSource(null); setFormFields([]); setFormMessage(t('tools.formNoFields'));
+      return;
+    }
+    setFormFields(fillable);
+    setFormValues(initialFormValues(fillable));
+    setFormSource({ bytes, name: input.name });
+    setFormMessage(null);
+  });
+
+  const fillForm = () => run(t('tools.formTitle'), async () => {
+    if (!formSource) return;
+    const values: Record<string, PdfFormFieldValue> = {};
+    for (const field of formFields) {
+      const value = formValues[field.name];
+      if (value === undefined) continue;
+      // An unselected choice is left out, so the field keeps whatever it had;
+      // an empty text field is sent, because clearing it is a real answer.
+      if (isChoice(field.type) && (value === '' || (Array.isArray(value) && value.length === 0))) continue;
+      values[field.name] = value;
+    }
+    const bytes = await fillPdfForm(formSource.bytes, values);
+    await sharePdf(createOutputPdf(`${baseName(formSource.name)}-filled.pdf`, bytes));
+  });
+
+  const setFormValue = (name: string, value: PdfFormFieldValue) =>
+    setFormValues((current) => ({ ...current, [name]: value }));
+
+  const renderFormField = (field: PdfFormField) => {
+    const value = formValues[field.name];
+    if (field.type === 'text') {
+      return (
+        <TextInput
+          key={field.name}
+          accessibilityLabel={field.name}
+          value={typeof value === 'string' ? value : ''}
+          onChangeText={(text) => setFormValue(field.name, text)}
+          style={styles.input}
+          placeholder={field.name}
+        />
+      );
+    }
+    if (field.type === 'checkbox') {
+      const checked = value === true;
+      return (
+        <Pressable
+          key={field.name}
+          accessibilityRole="checkbox"
+          accessibilityLabel={field.name}
+          accessibilityState={{ checked }}
+          style={styles.formCheckRow}
+          onPress={() => setFormValue(field.name, !checked)}
+        >
+          <View style={[styles.formCheckBox, checked && styles.formCheckBoxOn]}>
+            {checked ? <Text style={styles.formCheckMark}>✓</Text> : null}
+          </View>
+          <Text style={styles.formFieldName}>{field.name}</Text>
+        </Pressable>
+      );
+    }
+    const options = field.options;
+    const selected = field.type === 'option-list'
+      ? (Array.isArray(value) ? value : [])
+      : (typeof value === 'string' && value ? [value] : []);
+    const multiple = field.type === 'option-list';
+    return (
+      <View key={field.name} style={styles.formChoiceBlock}>
+        <Text style={styles.formFieldName}>{field.name}</Text>
+        <View style={styles.choiceRow}>
+          {options.map((option) => {
+            const on = selected.includes(option);
+            return (
+              <Pressable
+                key={option}
+                accessibilityRole={multiple ? 'checkbox' : 'radio'}
+                accessibilityLabel={`${field.name}: ${option}`}
+                accessibilityState={multiple ? { checked: on } : { selected: on }}
+                style={[styles.choice, on && styles.choiceOn]}
+                onPress={() => setFormValue(field.name, multiple
+                  ? (on ? selected.filter((entry) => entry !== option) : [...selected, option])
+                  : option)}
+              >
+                <Text style={[styles.choiceText, on && styles.choiceTextOn]}>{option}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -183,6 +292,15 @@ export default function PdfToolsScreen() {
             </View>
             <ToolCard title={t('tools.optimizeTitle')} description={t('tools.optimizeDescription')} action={t('tools.choosePdf')} disabled={busy !== null} onPress={safeOptimize} />
             <ToolCard title={t('print.open')} description={t('tools.printDescription')} action={t('tools.choosePdf')} disabled={busy !== null} onPress={printPdf} />
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.cardTitle}>{t('tools.formTitle')}</Text>
+              <Text style={styles.cardDescription}>{t('tools.formDescription')}</Text>
+              {formMessage ? <Text style={styles.formMessage}>{formMessage}</Text> : null}
+              {formFields.map(renderFormField)}
+              {formFields.length > 0
+                ? <Action label={t('tools.formFill')} disabled={busy !== null} onPress={fillForm} />
+                : <Action label={t('tools.formChoose')} disabled={busy !== null} onPress={chooseForm} />}
+            </View>
           </View>
           {busy ? (
             <View accessibilityRole="progressbar" accessibilityLabel={t('tools.working', { name: busy })} style={styles.busyRow}>
@@ -206,6 +324,36 @@ async function pickPdf(): Promise<{ file: File; name: string } | null> {
 function formatBytes(bytes: number | null): string {
   if (!bytes) return '0 KB';
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** The form field kinds this screen can present; signatures and buttons cannot be filled. */
+const FILLABLE_TYPES = new Set<PdfFormField['type']>(['text', 'checkbox', 'radio', 'dropdown', 'option-list']);
+
+function isChoice(type: PdfFormField['type']): boolean {
+  return type === 'radio' || type === 'dropdown' || type === 'option-list';
+}
+
+/** Seeds each input from the field's current value, so an untouched field keeps it. */
+function initialFormValues(fields: PdfFormField[]): Record<string, PdfFormFieldValue> {
+  const values: Record<string, PdfFormFieldValue> = {};
+  for (const field of fields) {
+    switch (field.type) {
+      case 'text':
+        values[field.name] = typeof field.value === 'string' ? field.value : '';
+        break;
+      case 'checkbox':
+        values[field.name] = field.value === true;
+        break;
+      case 'radio':
+        values[field.name] = typeof field.value === 'string' ? field.value : '';
+        break;
+      case 'dropdown':
+      case 'option-list':
+        values[field.name] = Array.isArray(field.value) ? field.value : [];
+        break;
+    }
+  }
+  return values;
 }
 
 /**
@@ -255,4 +403,16 @@ const styles = StyleSheet.create({
   actionText: { color: COLOR.surface, fontWeight: '800' },
   busyRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: SPACE.sm, padding: SPACE.lg },
   busy: { color: COLOR.brand, fontWeight: '700' },
+  formMessage: { marginTop: SPACE.md, color: '#777E89', lineHeight: SPACE.xl },
+  formFieldName: { marginTop: SPACE.md, color: '#262B34', fontWeight: '700' },
+  formCheckRow: { marginTop: SPACE.md, flexDirection: 'row', alignItems: 'center', gap: SPACE.sm, minHeight: CONTROL.comfortable },
+  formCheckBox: { width: CONTROL.swatch, height: CONTROL.swatch, borderRadius: RADIUS.sm, borderWidth: SPACE.hairline, borderColor: '#C7CCD6', alignItems: 'center', justifyContent: 'center' },
+  formCheckBoxOn: { backgroundColor: COLOR.brand, borderColor: COLOR.brand },
+  formCheckMark: { color: COLOR.surface, fontWeight: '800' },
+  formChoiceBlock: { marginTop: SPACE.md },
+  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm, marginTop: SPACE.sm },
+  choice: { minHeight: CONTROL.comfortable, justifyContent: 'center', borderRadius: RADIUS.md, paddingHorizontal: SPACE.md, backgroundColor: '#F4F5F7' },
+  choiceOn: { backgroundColor: COLOR.brand },
+  choiceText: { color: '#262B34', fontWeight: '700' },
+  choiceTextOn: { color: COLOR.surface },
 });

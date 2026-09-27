@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
+import { diagnostics } from './diagnostics';
 import { t } from './i18n';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, type PluginBatchRegistrations } from '@embedpdf/core/react';
@@ -67,6 +68,14 @@ export function App() {
     ],
     [],
   );
+
+  useEffect(() => {
+    diagnostics.record('app.started');
+  }, []);
+
+  useEffect(() => {
+    if (error) diagnostics.record('app.engine.failed', 'error');
+  }, [error]);
 
   if (error) {
     console.error('Iroha PDF: PDF engine failed to start', error);

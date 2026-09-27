@@ -1,6 +1,6 @@
 import { Alert } from 'react-native';
 
-import { describeError } from './errors';
+import { userFacingErrorMessage } from '@iroha-pdf/core';
 import { t } from './i18n';
 
 /**
@@ -12,7 +12,9 @@ import { t } from './i18n';
  * consistent, and keeps the cancel button first and non-destructive everywhere.
  */
 export function alertFailure(title: string, error: unknown): void {
-  Alert.alert(title, describeError(error));
+  // A raw platform or provider rejection is classified and localized here rather
+  // than shown as-is (#55); the app's own wording passes through unchanged.
+  Alert.alert(title, userFacingErrorMessage(error, t));
 }
 
 export function confirmDestructive(options: {
