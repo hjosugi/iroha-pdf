@@ -14,4 +14,4 @@ Expo SDK 57 / React Native 0.86.2 / React 19.2.3 / TypeScript 6.0.3のモバイ�
 - Google Drive画面からログアウトと権限取り消しを選べますが、本番OAuthアカウントでの実機検証は未完了です。
 - 開いた外部PDFそのものへの上書きはできません。注釈済みの別コピーを共有・保存します。
 
-ローカル／CIのbuild入口はFrostBuild v0.8.0です。セットアップ、リリース状態、制約、Google Drive設定はリポジトリrootの`README.md`、`docs/BUILD.md`、`docs/RELEASE_GATE.md`を参照してください。
+ローカル／CIのbuild入口はFrostBuild v0.15.0です。セットアップ、リリース状態、制約、Google Drive設定はリポジトリrootの`README.md`、`docs/BUILD.md`、`docs/RELEASE_GATE.md`を参照してください。

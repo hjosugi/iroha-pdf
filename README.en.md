@@ -89,7 +89,7 @@ Run `npm run site` to build the site locally, then serve `site/dist/` as static 
 
 ## Setup
 
-Node.js 22.13 or later and FrostBuild v0.8.0 are required. The former Taskfile has been removed: local and CI incremental tests, type checks, validations, and desktop builds are defined in `frost.toml`. Native desktop builds also require Rust and Tauri's operating-system-specific prerequisites.
+Node.js 22.13 or later and FrostBuild v0.15.0 are required. The former Taskfile has been removed: local and CI incremental tests, type checks, validations, and desktop builds are defined in `frost.toml`. Native desktop builds also require Rust and Tauri's operating-system-specific prerequisites.
 
 ```bash
 npm ci

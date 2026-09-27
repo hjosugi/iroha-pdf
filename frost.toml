@@ -1,4 +1,4 @@
-# Generated from npm workspace metadata with FrostBuild v0.8.0, then extended
+# Generated from npm workspace metadata with FrostBuild v0.15.0, then extended
 # with an explicit Vite output-tree boundary for the desktop web build and with
 # the release-facing validation gates, which read checked-in configuration and
 # assets rather than a workspace script.

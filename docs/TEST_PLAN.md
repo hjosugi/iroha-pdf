@@ -9,7 +9,7 @@ npm run e2e           # Playwright/Chromium: editing, save path, performance bud
 npm run e2e:tauri     # the real Tauri binary via tauri-driver (Linux desktop session)
 ```
 
-FrostBuild v0.8.0 is the canonical incremental graph used locally and in CI.
+FrostBuild v0.15.0 is the canonical incremental graph used locally and in CI.
 The direct npm E2E commands remain explicit because they drive external browser
 and desktop runtimes rather than cacheable unit/build targets. Workspace-level
 `npm run test --workspace ...` and `npm run typecheck --workspace ...` are useful

@@ -77,7 +77,7 @@ export const SECTIONS = [
         source: 'docs/BUILD.md',
         slug: 'build',
         label: 'Build workflow',
-        summary: 'FrostBuild v0.8.0への一本化、固定チェックサム、CIと同じ直接ターゲット。',
+        summary: 'FrostBuild v0.15.0への一本化、固定チェックサム、CIと同じ直接ターゲット。',
       },
       {
         source: 'docs/VERIFICATION.md',
