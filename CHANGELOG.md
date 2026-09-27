@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.8.0 - 2026-09-27
+
+Three gaps close. PDF forms can be filled: the app reads an AcroForm's fields,
+fills text, checkboxes and choices, and exports a new document. An opt-in
+diagnostics log can be turned on that records only fixed codes and numbers —
+never document content, paths, titles or tokens — and previewed, exported or
+deleted. And a raw platform rejection no longer reaches anyone as text: it is
+classified, said in the user's language, and replaced when it carries the marks
+of a technical error.
+
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
+
+### Added
+
+- PDF form filling (#48). `@iroha-pdf/core` lists an AcroForm's fields with their
+  kind, choices and current value, and fills text, checkbox, radio, dropdown and
+  option-list fields. Every value is checked before any is written, so a field
+  the form does not have, a value of the wrong shape or an option that is not on
+  the list refuses the whole fill rather than producing a half-answered document;
+  the result can be flattened. XFA forms are read out of the catalog before
+  pdf-lib can strip them and refused, so a hybrid file is never silently
+  half-filled. The mobile Tools screen has the UI: choose a form, fill the fields
+  it lists, export a new PDF.
+- Opt-in diagnostics (#66). Off by default and a no-op while disabled. An event
+  carries a code drawn from a closed set, a level, a timestamp and at most two
+  numbers — there is no free-text field, so document content, file names, paths,
+  notes and tokens have nowhere to go. The log can be previewed as a crash
+  report, exported as versioned JSON, and deleted, from a desktop dialog. Stored
+  events are re-validated on read and an event carrying an unknown key is dropped
+  whole, so a tampered store cannot leak through an export.
+
+### Fixed
+
+- A platform or provider rejection is no longer shown as-is (#55). It is mapped
+  to a category — network, sign-in, storage-full, busy, permission, not-found,
+  corrupt-file, unsupported, cancelled — and said in the user's language; a
+  message that is neither recognised nor the app's own wording, and that carries
+  the marks of a technical error (native or SQLite codes, stack frames, URLs,
+  absolute paths, JavaScript type errors), becomes a generic message instead of
+  reaching the screen.
+
 ## 0.7.0 - 2026-09-27
 
 A maintenance release with no user-facing change of its own. It takes the
