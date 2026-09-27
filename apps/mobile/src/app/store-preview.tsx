@@ -3,9 +3,10 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { userFacingErrorMessage } from '@iroha-pdf/core';
 import type { Note, PdfAnnotation, WorkspaceDocument } from '@iroha-pdf/core';
 import { saveAnnotation, saveDocument, saveNote } from '@/lib/database';
-import { describeError } from '@/lib/errors';
+import { t } from '@/lib/i18n';
 import { parseStoreCaptureScenario } from '@/lib/store-capture';
 import {
   clearStoreCaptureScenario,
@@ -42,7 +43,7 @@ export default function StorePreviewScreen() {
           router.replace('/');
         }
       })
-      .catch((reason: unknown) => setError(describeError(reason)));
+      .catch((reason: unknown) => setError(userFacingErrorMessage(reason, t)));
   }, [router, screen]);
 
   if (!ENABLED) return <Redirect href="/" />;

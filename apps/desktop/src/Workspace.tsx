@@ -25,6 +25,7 @@ import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
 
 import { BrandMark } from './BrandMark';
+import { DiagnosticsDialog } from './DiagnosticsDialog';
 import { PdfToolbar } from './PdfToolbar';
 import { SidePanel } from './SidePanel';
 import { confirmDiscard } from './file-bridge';
@@ -519,6 +520,7 @@ function useUnsavedGuard(): void {
 export function Workspace({ activeDocumentId, documentStates }: WorkspaceProps) {
   useUnsavedGuard();
   useLayoutReadyTracking();
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   const active = documentStates.find((document) => document.id === activeDocumentId);
   const activeName = active?.name ?? 'document.pdf';
@@ -530,7 +532,10 @@ export function Workspace({ activeDocumentId, documentStates }: WorkspaceProps) 
     <main className="app-shell">
       <header className="app-header">
         <div className="brand"><BrandMark className="brand-mark" /> {t('app.name')}</div>
-        <div className="header-status"><span className="status-dot" /> {t('app.localFirst')}</div>
+        <div className="header-actions">
+          <div className="header-status"><span className="status-dot" /> {t('app.localFirst')}</div>
+          <button className="tool" onClick={() => setDiagnosticsOpen(true)}>{t('diagnostics.open')}</button>
+        </div>
       </header>
       <TabStrip activeDocumentId={activeDocumentId} documents={documentStates} />
       {activeDocumentId ? (
@@ -546,6 +551,7 @@ export function Workspace({ activeDocumentId, documentStates }: WorkspaceProps) 
       ) : (
         <EmptyWorkspace />
       )}
+      {diagnosticsOpen && <DiagnosticsDialog onClose={() => setDiagnosticsOpen(false)} />}
     </main>
   );
 }
