@@ -6,7 +6,7 @@
  * right thing, and pushes the size up until something gives, so the practical ceiling
  * is a measured number rather than an extrapolation.
  *
- * Run explicitly: npx playwright test memory-probe --project=chromium
+ * Run explicitly: RUN_MEMORY_PROBE=1 npx playwright test memory-probe --project=chromium
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -34,20 +34,58 @@ async function sample(
   cdp: import('@playwright/test').CDPSession,
   stage: string,
 ): Promise<Sample> {
-  const read = async (): Promise<number> => {
-    const { metrics } = (await cdp.send('Performance.getMetrics')) as {
-      metrics: Array<{ name: string; value: number }>;
-    };
-    const used = metrics.find((metric) => metric.name === 'JSHeapUsedSize')?.value ?? 0;
-    return Math.round((used / 1024 / 1024) * 10) / 10;
-  };
-
-  const dirtyMb = await read();
+  const dirtyMb = await heapMb(cdp);
   await cdp.send('HeapProfiler.collectGarbage');
   await page.waitForTimeout(400);
-  const liveMb = await read();
+  const liveMb = await heapMb(cdp);
 
   return { stage, dirtyMb, liveMb };
+}
+
+/** The real JSHeapUsedSize, on every call — see the note on `sample`. */
+async function heapMb(cdp: import('@playwright/test').CDPSession): Promise<number> {
+  const { metrics } = (await cdp.send('Performance.getMetrics')) as {
+    metrics: Array<{ name: string; value: number }>;
+  };
+  const used = metrics.find((metric) => metric.name === 'JSHeapUsedSize')?.value ?? 0;
+  return Math.round((used / 1024 / 1024) * 10) / 10;
+}
+
+/**
+ * The heap's highest point while an action runs, not just its resting value afterwards.
+ *
+ * A stage table is built from `sample`, which collects first: the right number for "what
+ * is retained", and the wrong one for "what did getting here cost". A peak that has been
+ * collected away is invisible in it, and the reported figures in #52 were three such
+ * point-in-time snapshots. This polls without collecting, so a transient allocation
+ * counts too — which is the shape a render of a 300 MB scan would have.
+ */
+async function track(
+  page: import('@playwright/test').Page,
+  cdp: import('@playwright/test').CDPSession,
+  action: () => Promise<void>,
+): Promise<number> {
+  let peakMb = await heapMb(cdp);
+  let running = true;
+  const poll = (async () => {
+    while (running) {
+      try {
+        peakMb = Math.max(peakMb, await heapMb(cdp));
+      } catch {
+        // The session can go away under a probe that pushes until it fails; that is
+        // the harness ending, not something to report as the probe's own error.
+        return;
+      }
+      await page.waitForTimeout(100);
+    }
+  })();
+  try {
+    await action();
+  } finally {
+    running = false;
+    await poll;
+  }
+  return peakMb;
 }
 
 function report(samples: Sample[]): void {
@@ -95,26 +133,31 @@ test('where the memory goes on a byte-heavy PDF', async ({ page }) => {
   });
   samples.push(await sample(page, cdp, 'bytes released'));
 
-  await openPdf(page);
-  samples.push(await sample(page, cdp, 'document open, page 1'));
+  // Opening and reading, tracked continuously rather than sampled at rest: the sample
+  // table below says what is retained, this says what it cost to get there.
+  const peakMb = await track(page, cdp, async () => {
+    await openPdf(page);
+    samples.push(await sample(page, cdp, 'document open, page 1'));
 
-  await page.locator('.pdf-viewport').evaluate((node) => {
-    node.scrollTop = node.scrollHeight / 2;
-  });
-  await page.waitForTimeout(3000);
-  samples.push(await sample(page, cdp, 'scrolled to middle'));
+    await page.locator('.pdf-viewport').evaluate((node) => {
+      node.scrollTop = node.scrollHeight / 2;
+    });
+    await page.waitForTimeout(3000);
+    samples.push(await sample(page, cdp, 'scrolled to middle'));
 
-  await page.locator('.pdf-viewport').evaluate((node) => {
-    node.scrollTop = node.scrollHeight;
-  });
-  await page.waitForTimeout(3000);
-  samples.push(await sample(page, cdp, 'scrolled to end'));
+    await page.locator('.pdf-viewport').evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+    });
+    await page.waitForTimeout(3000);
+    samples.push(await sample(page, cdp, 'scrolled to end'));
 
-  await page.locator('.pdf-viewport').evaluate((node) => {
-    node.scrollTop = 0;
+    await page.locator('.pdf-viewport').evaluate((node) => {
+      node.scrollTop = 0;
+    });
+    await page.waitForTimeout(3000);
+    samples.push(await sample(page, cdp, 'back to the top'));
   });
-  await page.waitForTimeout(3000);
-  samples.push(await sample(page, cdp, 'back to the top'));
+  console.log(`[mem] continuous peak open+scroll: ${peakMb} MB`);
 
   report(samples);
   const sizeMb = bytes.length / 1024 / 1024;
@@ -131,8 +174,10 @@ test('how large a scan can actually be opened', async ({ page }) => {
   test.setTimeout(900_000);
 
   // Every page needs its own image: reusing a pool keeps the byte count flat no matter
-  // how many pages there are, which is exactly what this test must not do.
-  for (const pageCount of [12, 24, 36, 48, 72]) {
+  // how many pages there are, which is exactly what this test must not do. 96 pages at
+  // roughly 3.6 MB of image each is the ≥300 MiB scanned-content case #52 asks for,
+  // one step past the 249 MB the list used to stop at.
+  for (const pageCount of [12, 24, 36, 48, 72, 96]) {
     const name = `scan-${pageCount}.pdf`;
     const target = join(FIXTURE_DIR, name);
     if (!existsSync(target)) {

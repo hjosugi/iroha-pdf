@@ -12,6 +12,7 @@ import { useDocumentManagerCapability } from '@embedpdf/plugin-document-manager/
 import { useRenderCapability } from '@embedpdf/plugin-render/react';
 
 import { t } from './i18n';
+import { subscribeToVisibility } from './page-visibility';
 import { ThumbnailStore } from './thumbnails';
 
 /**
@@ -79,6 +80,14 @@ export function useThumbnailStore(documentId: string, document: Document | null)
   // Closing the panel, or opening another document, has to release the bitmaps: they
   // are held by object URLs, which outlive React state.
   useEffect(() => () => store?.dispose(), [store]);
+
+  // A hidden window holds nothing: the pictures cannot be seen, and the OS may take the
+  // whole process while it sits in the background. Being shown again asks for exactly
+  // what was dropped, so the strip is not left as placeholders.
+  useEffect(() => {
+    if (!store) return;
+    return subscribeToVisibility((visible) => (visible ? store.resume() : store.suspend()));
+  }, [store]);
 
   return store;
 }

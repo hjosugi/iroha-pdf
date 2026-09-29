@@ -201,4 +201,86 @@ describe('ThumbnailStore', () => {
 
     expect(listener).toHaveBeenCalled();
   });
+
+  /**
+   * The half of the policy a `dispose` cannot cover: the window is still open and will
+   * be looked at again, so what it drops has to come back. `page-visibility.ts` is the
+   * producer; this is what it drives.
+   */
+  it('drops everything when hidden and asks for it back when shown', async () => {
+    const { store, rendered, revoked, settle } = harness();
+    store.request(0);
+    store.request(1);
+    await settle();
+    expect(store.held).toEqual({ pages: 2, bytes: 2000 });
+
+    store.suspend();
+
+    expect(store.held, 'a hidden window holds no bitmaps').toEqual({ pages: 0, bytes: 0 });
+    expect(revoked, 'and their bytes are actually released').toHaveLength(2);
+    expect(store.get(0)).toBeUndefined();
+
+    store.resume();
+    await settle();
+
+    // Both pages were asked for a second time, not merely one.
+    expect(rendered.filter((page) => page === 0), 'page 0 comes back').toHaveLength(2);
+    expect(rendered.filter((page) => page === 1), 'page 1 comes back').toHaveLength(2);
+    expect(store.get(0)).toBeDefined();
+  });
+
+  it('remembers a page asked for while hidden instead of drawing it', async () => {
+    const { store, rendered, settle } = harness();
+    store.suspend();
+
+    store.request(5);
+    await settle();
+    expect(rendered, 'nothing is rendered for a window nobody can see').toEqual([]);
+
+    store.resume();
+    await settle();
+
+    expect(rendered, 'but it is not forgotten').toEqual([5]);
+    expect(store.get(5)).toBeDefined();
+  });
+
+  it('drops a render that lands after the window hid, rather than keeping it', async () => {
+    const { store, rendered, revoked, settle } = harness();
+    store.request(0);
+    // The window hides while the render is still in flight — the case a release that
+    // only sweeps the cache would miss.
+    store.suspend();
+    await settle();
+
+    expect(store.held, 'a late render must not survive the release').toEqual({ pages: 0, bytes: 0 });
+    expect(revoked, 'and no URL was ever created to leak').toHaveLength(0);
+
+    store.resume();
+    await settle();
+
+    expect(rendered, 'it is re-requested on the way back').toEqual([0, 0]);
+    expect(store.get(0)).toBeDefined();
+  });
+
+  it('does not resurrect a disposed store when shown again', async () => {
+    const { store, rendered, settle } = harness();
+    store.request(0);
+    await settle();
+    store.suspend();
+    store.dispose();
+
+    store.resume();
+    await settle();
+
+    expect(rendered, 'a disposed store renders nothing more').toEqual([0]);
+    expect(store.held).toEqual({ pages: 0, bytes: 0 });
+  });
+
+  it('does nothing on resume when nothing was dropped', async () => {
+    const { store, rendered, settle } = harness();
+    store.resume();
+    await settle();
+
+    expect(rendered).toEqual([]);
+  });
 });

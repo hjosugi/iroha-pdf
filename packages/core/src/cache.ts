@@ -1,8 +1,19 @@
 export type CacheEntrySize<Value> = (value: Value) => number;
 
-/** Why a value left the cache. Callers use it to tell a render that is merely
- * cold apart from one the platform asked them to release. */
-export type CacheEvictionReason = 'budget' | 'replace' | 'delete' | 'memory-warning';
+/**
+ * Why a value left the cache. Callers use it to tell a render that is merely cold
+ * apart from one the platform asked them to release.
+ *
+ * `'hidden'` is the one bulk reason a webview can actually produce: the page is no
+ * longer visible, so nothing can see the bitmaps and holding them only competes with
+ * whatever the OS wants the memory for. `'memory-warning'` stays for a runtime that
+ * raises a real one — none of WebKitGTK, WKWebView or WebView2 exposes such an event to
+ * JavaScript, and the Compute Pressure API's only shipped source is `cpu`, so today
+ * `handleMemoryWarning` has no producer. The two are deliberately not the same reason:
+ * a caller that resumes from `'hidden'` refills, and one told the platform needs memory
+ * back must not.
+ */
+export type CacheEvictionReason = 'budget' | 'replace' | 'delete' | 'hidden' | 'memory-warning';
 
 export type BoundedCacheOptions<Value> = {
   maxBytes: number;
@@ -29,6 +40,11 @@ type CacheEntry<Value> = {
  * Page rendering itself is still not cached here and is not meant to be: the engine
  * draws pages on both platforms — pdfium's own tiling on desktop, native on mobile —
  * so no full-size rendered bytes pass through JavaScript.
+ *
+ * The bulk releases have their own grammar: `dispose`-style teardown says `'delete'`,
+ * a window going hidden says `'hidden'`, and only a genuine platform warning would say
+ * `'memory-warning'`. Collapsing them was the bug this file's consumer hit once — a
+ * routine teardown reported a warning nobody had raised.
  */
 export class BoundedLruCache<Value> {
   readonly maxBytes: number;
@@ -104,7 +120,15 @@ export class BoundedLruCache<Value> {
     }
   }
 
-  /** The platform has asked for memory back. */
+  /**
+   * The platform has asked for memory back, without saying the page is hidden.
+   *
+   * Kept so a runtime with a real pressure event has one entry point, and documented
+   * as unproduced so it is not mistaken for a wired path: no webview this app ships in
+   * raises such an event today, which is why the desktop policy is built on
+   * `'hidden'` instead. A caller that gets one must not refill on the next frame the
+   * way a hidden-and-shown page does.
+   */
   handleMemoryWarning(): void {
     this.releaseAll('memory-warning');
   }

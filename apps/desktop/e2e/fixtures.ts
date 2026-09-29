@@ -515,6 +515,15 @@ export const FIXTURES = {
   'complex.pdf': buildComplexPdf,
   'heavy.pdf': () => buildHeavyPdf(),
   'image-heavy.pdf': () => buildImageHeavyPdf(),
+  // 240 noisy pages, for the one test that has to reach the thumbnail budget rather
+  // than assume it. `heavy.pdf` is 500 pages but nearly blank text, so its thumbnails
+  // are a few KiB each: scrolling it walks pages lazily but never fills the 8 MiB cache
+  // and never evicts anything under load (#52). A noisy scan renders to ~44 KiB per
+  // thumbnail, so 240 pages overflow the budget and force the LRU to drop the oldest —
+  // which is the behaviour the pressure test has to see, not infer from unit tests.
+  // 400 px source images keep the file small; the thumbnail is rendered at 120 px wide
+  // either way, and noise downscales to noise.
+  'scan-heavy.pdf': () => buildImageHeavyPdf(240, 6, 400),
   'rotated-mixed.pdf': buildRotatedMixedPdf,
   'corrupt.pdf': buildCorruptPdf,
   'repairable.pdf': () => buildRepairablePdf(),
