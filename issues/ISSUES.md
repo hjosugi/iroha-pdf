@@ -784,11 +784,42 @@ CDPの`Performance.getMetrics` + `HeapProfiler.collectGarbage`で測り直した
 
 **Android bounded evidence（2026-08-02）**: [run 30743017733](https://github.com/hjosugi/iroha-pdf/actions/runs/30743017733)は314,720,686 bytes / 500ページの決定的fixtureを1,503,188 KiB RAMのAndroid 16 AVDでopenし、`RUNNING_CRITICAL`、background/resume、process-cold reopenを通した。cold open 2,816 ms、resume 1,063 ms、reopen 2,684 ms。open / resume / reopenのPSS/RSSはそれぞれ436,549/517,624、426,008/511,232、433,927/523,788 KiBで、Iroha PDFのcrash / ANR / OOMはlogに無い。
 
-残作業:
+**追記（2026-09-29、desktop実装）**: explicitなbudget/LRUはunit testから実負荷へ、
+memory warningは「producerが無い」から「実在するtriggerで動く」へ移した。
 
-- 300 MB以上のdesktop、iPad、物理Androidと実スキャン（JPEG中心、現fixtureはstreaming生成した非圧縮データ）での確認
-- memory warning / LRUの明示的な実装は依然として無い。現状「制御下の1ケースが壊れていない」だけで、budget管理はされていない
-- AVDの3点PSS/RSS snapshotは実施済みだがcontinuous peakではない。desktopのArrayBuffer / WASMを含むRSS profileも残る
+- **triggerはvisibilityにした。** WebKitGTK / WKWebView / WebView2はいずれも
+  memory pressure eventをJavaScriptへ出さない。標準候補のCompute Pressure APIが
+  出しているsourceも`cpu`だけ。無いwarningを作れば`'memory-warning'`が起きていない
+  evictionとしてログに残り、#52自身が記録した誤りを繰り返す。そこで`'hidden'`という
+  別のreasonを足し、非表示で`ThumbnailStore.suspend()`が保持分をrelease、表示で
+  `resume()`が同じページを再要求する。`handleMemoryWarning`は本当のeventを持つ
+  runtime用に残し、現状producerが無いことをdocに明記した（fakeしない）。
+- **page stripがそもそもscrollしていなかった。** `.workspace-body`が列だけを定義し
+  rowを定義していなかったため、implicit rowがstripの高さ（500ページで49,676px）まで
+  伸び、`overflow-y: auto`が効かず`scrollTop`が動かなかった。最初の画面以降は到達不能で、
+  既存の「scrollする」e2eも実際にはscrollせずdrawn=6のままだった（vacuous test）。
+  `grid-template-rows: minmax(0, 1fr)`で修正。
+- **budgetを実負荷で検証した。** `heavy.pdf`はnear-blankで1枚数KiB、8 MiBに一度も
+  届かない。evictionはサイズを合わせたunit testでしか証明されていなかった。240ページの
+  noisy scan（`scan-heavy.pdf`、1枚約44 KiB）を足し、stripを最後までscrollして
+  164枚/7.97 MiBで頭打ち・最古pageが消える・broken image 0をe2eで確認。
+- **document churnをe2e化した。** 別documentを開くと前のstripはreleaseされ、戻ると
+  画面内だけが再描画される（旧storeの~160枚を持ち越さない）。
+- **continuous peakを計測器に足した。** memory-probeは強制GC前後の点サンプルだけだった。
+  GCせずopen+scroll中を100 msごとにpollする`track`を追加。41.6 MB scanでpeak JS heap
+  7.8 MBを実測（ファイルサイズにほぼ非依存）。
+- **probeが動かなかった。** `testIgnore`は明示指定でも効くため、docにある
+  `npx playwright test memory-probe`は"No tests found"になっていた。
+  `RUN_MEMORY_PROBE=1`で開くようにした。
+- **≥300 MiB scanned fixtureの口を開けた。** size ladderに`scan-96.pdf`
+  （distinct 96枚×約3.6 MB）を足し、`e2e:tauri:ceiling`の候補にも入れた。
+
+実機・別runtimeで残るもの（この環境では実行できない）:
+
+- WebKitGTKのreal runtime（`npm run e2e:tauri:ceiling`）と、iPad・物理Androidの同一
+  ケース。display・device・CIが必要。
+- RSS / wasm / ArrayBufferを含むpeak profile。上のcontinuous peakはChromiumのJS heapのみ。
+- 300 MB/500-pageのOOMなし証跡の保存。
 
 Acceptance: 300 MB/500-page PDFでOOMしない。peak memory証跡を保存する。
 

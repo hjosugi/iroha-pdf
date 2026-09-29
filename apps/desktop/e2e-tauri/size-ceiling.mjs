@@ -36,8 +36,16 @@ async function wd(method, path, body) {
   }
 }
 
-// Built by `npx playwright test memory-probe -g "how large"`, which writes them here.
-const CANDIDATES = ['scan-12.pdf', 'scan-24.pdf', 'scan-36.pdf', 'scan-48.pdf', 'scan-72.pdf'];
+// Built by `RUN_MEMORY_PROBE=1 npx playwright test memory-probe -g "how large"`, which writes them here.
+// scan-96 is the ≥300 MiB scanned-content case (#52); it skips itself when absent.
+const CANDIDATES = [
+  'scan-12.pdf',
+  'scan-24.pdf',
+  'scan-36.pdf',
+  'scan-48.pdf',
+  'scan-72.pdf',
+  'scan-96.pdf',
+];
 
 async function main() {
   rmSync(WORK, { recursive: true, force: true });

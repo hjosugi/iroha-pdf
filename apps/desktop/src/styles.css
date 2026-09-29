@@ -100,7 +100,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .toolbar-divider { width: var(--line); height: var(--space-9); margin: 0 var(--space-2); background: #dfe2e7; }
 .toolbar-spacer { min-width: var(--space-4); flex: 1 0 var(--space-4); }
 
-.workspace-body { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) var(--side-panel-width); }
+/* The row has to be bounded, not just the columns. An implicit `auto` row is as tall
+   as its tallest item, and the page strip is one <li> per page — so a 500-page
+   document made its own row 49,676 CSS pixels tall. `.thumbnail-strip` has
+   `overflow-y: auto` and `flex: 1`, but a flex child cannot scroll inside an
+   auto-height parent: the strip measured scrollHeight === clientHeight and `scrollTop`
+   did nothing, leaving every page past the first screenful unreachable.
+   `minmax(0, 1fr)` is what makes it a scroll container instead of a growing one, and
+   matches the narrow layout below. */
+.workspace-body { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) var(--side-panel-width); grid-template-rows: minmax(0, 1fr); }
 .viewer-pane { min-width: 0; min-height: 0; background: #dfe2e7; }
 .pdf-viewport { height: 100%; background: #dfe2e7; }
 .side-panel { display: flex; min-width: 0; flex-direction: column; border-left: var(--line) solid #e0e2e6; background: #fff; }
