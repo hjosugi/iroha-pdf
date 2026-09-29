@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.9.0 - 2026-09-29
+
+A fix for long documents. The page strip in the side panel could not be scrolled:
+past the first screenful its pages were unreachable, because the workspace grid
+declared its columns but not its row, so the implicit row grew to the strip's full
+height — 49,676 pixels for a 500-page document — and the strip's `overflow-y:
+auto` never engaged. The strip is a scroll container again, and every page in a
+long document can be reached.
+
+The thumbnail cache behind that strip also learned when to let go. A window that
+is hidden releases every rendered page and asks for them back when it is shown
+again, so a backgrounded window holds no bitmaps and a render that lands after it
+hid is dropped rather than kept. The byte budget and least-recently-used eviction
+already existed; this connects them to the one signal a webview actually offers,
+and the 8 MiB budget is now exercised by a scan rather than only by unit tests at
+sizes chosen to reach it.
+
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
+
+### Fixed
+
+- The page strip scrolls for a long document (#52). A document's pages past the
+  first screenful were unreachable: the workspace grid had columns but no row, so
+  the row took the strip's full height and its `overflow-y: auto` did nothing. The
+  row is now bounded, and the strip reaches every page.
+
+### Changed
+
+- A hidden window holds no rendered thumbnails, and restoring it refills the strip
+  (#52). The rendered pages are released when the window is hidden and requested
+  again when it is shown; a render that completes after the window hid is dropped
+  instead of retained.
+
 ## 0.8.0 - 2026-09-27
 
 Three gaps close. PDF forms can be filled: the app reads an AcroForm's fields,
