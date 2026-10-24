@@ -40,12 +40,23 @@
     "spdx-expression-parse": "4.0.0",
     "patch-package": "8.0.1",
     "typescript": "~7.0.2",
-    "vitest": "^5.0.1",
+    "vitest": "^5.0.5",
     "xcode": "3.0.1"
   },
   "overrides": {
     "nanoid": "^3.3.17",
-    "uuid": "11.1.1"
+    "uuid": "11.1.1",
+    "@vitest/mocker@>=5.0.0 <5.0.3": "5.0.5",
+    "@vue/server-renderer@>=3.0.0 <3.5.42": "3.5.44",
+    "brace-expansion@>=2.0.0 <2.1.7": "2.1.7",
+    "brace-expansion@>=5.0.0 <5.0.12": "5.0.12",
+    "compression@>=1.0.0 <1.8.2": "1.8.2",
+    "devalue@>=5.0.0 <5.9.3": "5.9.4",
+    "fast-uri@>=3.0.0 <3.1.9": "3.1.9",
+    "ip-address@>=10.0.0 <10.7.4": "10.7.4",
+    "shell-quote@>=1.0.0 <1.11.0": "1.12.0",
+    "source-map-js@>=1.0.0 <1.2.2": "1.2.2",
+    "vite@>=8.0.0 <8.3.3": "8.3.5"
   },
   "engines": {
     "node": ">=22.13.0"
