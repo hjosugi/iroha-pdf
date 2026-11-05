@@ -150,6 +150,23 @@ assert.match(
   /PointerEvent\.kt[\s\S]*POINTER_TYPE_PEN[\s\S]*motionEvent\.getPressure\(index\)/,
   "the reviewed React Native 0.86.2 pressure bridge patch must be committed",
 );
+const reactNativeHermesGradle = await readFile(
+  path.join(
+    repositoryRoot,
+    "node_modules/react-native/ReactAndroid/hermes-engine/build.gradle.kts",
+  ),
+  "utf8",
+);
+assert.match(
+  reactNativeHermesGradle,
+  /eachFile \{[\s\S]*this\.path = this\.path\.substringAfter\("\/"\)/,
+  "React Native Android must flatten the Hermes tarball root whatever it is called",
+);
+assert.match(
+  reactNativePatch,
+  /hermes-engine\/build\.gradle\.kts[\s\S]*substringAfter\("\/"\)/,
+  "the reviewed React Native 0.86.2 Hermes tarball patch must be committed",
+);
 
 const androidPointerPlugin = await readFile(
   path.join(

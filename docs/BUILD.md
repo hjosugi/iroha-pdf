@@ -80,7 +80,10 @@ source/AAR Hermes classpath. It also captures legacy `react-native` and `hermes-
 coordinates before the React plugin can rewrite them back to published AARs. The
 dependency gate checks the installed source and
 the clean prebuild's generated `settings.gradle`; native instrumentation rejects a
-fixed-pressure payload. A React Native upgrade must re-audit and either refresh or
+fixed-pressure payload. The same patch also flattens the downloaded Hermes tarball
+by dropping its first path segment, because the repository GitHub serves it from is
+now `meta-hermes` rather than `facebook-hermes`, so a prefix check left `CMakeLists.txt`
+one directory too deep. A React Native upgrade must re-audit and either refresh or
 remove this patch and the temporary source-build override.
 
 Android's React Native 0.86 pointer dispatcher is still guarded by
