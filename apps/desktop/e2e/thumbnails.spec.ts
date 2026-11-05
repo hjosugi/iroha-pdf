@@ -251,6 +251,9 @@ test.describe('page thumbnails', () => {
     const count = await drawn(page);
     console.log(`[thumbnails] ${count} of 240 pages drawn after a document round trip`);
     expect(count).toBeLessThan(40);
-    expect(await brokenImages(page)).toBe(0);
+    // An `<img>` reports naturalWidth 0 while its blob is still decoding as well as
+    // when the URL was revoked under it, so give the freshly drawn pictures time to
+    // settle before deciding that any of them is broken.
+    await expect.poll(() => brokenImages(page), { timeout: 30_000 }).toBe(0);
   });
 });

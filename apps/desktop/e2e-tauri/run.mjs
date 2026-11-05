@@ -173,7 +173,8 @@ async function main() {
     console.error(
       `\ncould not start ${DRIVER}: ${error.message}\n` +
         'Install it with: cargo install tauri-driver --version 2.0.6 --locked\n' +
-        'It also needs a WebKitWebDriver on PATH (Debian/Ubuntu: webkit2gtk-driver).',
+        'It also needs a WebKitWebDriver on PATH (Debian/Ubuntu: webkit2gtk-driver, ' +
+          'renamed webkitgtk-webdriver on Ubuntu 26.04).',
     );
     stopDevServer(devServer);
     process.exit(2);

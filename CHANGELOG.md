@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.10.0 - 2026-11-05
+
+A dependency and supply-chain release. No application behaviour is meant to
+change; the work is taking the updates that had queued up since 0.9.0 in one
+tested commit instead of merging them one at a time.
+
+The twenty open Dependabot pull requests and the security update batch together.
+Expo moves from 57.0.9 to 57.0.26, which also clears the image-size and
+node-forge advisories that had no fixed release at 57.0.9. happy-dom moves to
+21, vite to 8.3.5, esbuild to 0.28.2, the Tauri JavaScript plugins to their
+pending minors, and the Rust side to tauri 2.12.0, tauri-build 2.7.0 and the
+plugin crates at the versions the pending pull requests named. Transitive
+packages the advisory database flagged — brace-expansion, compression,
+fast-uri, ip-address, shell-quote, source-map-js, @vue/server-renderer, devalue
+and @vitest/mocker — are pinned through root overrides so the fix reaches every
+copy in the tree, not only the direct dependency.
+
+React Native reanimated and worklets stay at 4.5.0 and 0.10.0. A fresh resolve
+floated them to newer versions that expo-modules-core 57.0.24 does not accept as
+a peer, so the pair is pinned while the other Expo packages take their patch
+updates.
+
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
+
+### Changed
+
+- Dependencies refreshed across both applications and the desktop Rust crate,
+  including Expo 57.0.26, happy-dom 21, vite 8.3.5 and Tauri 2.12.0.
+
+### Security
+
+- The advisory gate now accounts for four Expo build-tooling findings —
+  deepmerge, glob, minimatch and zod — which live in the CLI and bundler rather
+  than in either shipped application, and extends the decode-uri-component entry
+  to the new quadratic-replacement advisory. The installed decoder already
+  carries the backport patch. Every exception states its reason and expires on
+  2026-12-24 or 2027-01-31; none is permanent.
+
 ## 0.9.0 - 2026-09-29
 
 A fix for long documents. The page strip in the side panel could not be scrolled:

@@ -481,11 +481,20 @@ jobs:
       # WebKitWebDriver is the native driver tauri-driver drives, xvfb is the
       # display the webview opens its window on, and pdftotext is how the last two
       # checks read the saved file back (they skip themselves without it).
+      #
+      # Ubuntu 26.04 renamed the driver package from `webkit2gtk-driver` to
+      # `webkitgtk-webdriver`, and `ubuntu-latest` now points at 26.04. Pick
+      # whichever name this image's archive knows so the job works on both.
       - name: Install Linux build and real-runtime dependencies
-        run: >-
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends
-          libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
-          webkit2gtk-driver xvfb poppler-utils
+        run: |
+          sudo apt-get update
+          driver=webkit2gtk-driver
+          if ! apt-cache policy "$driver" | grep -q 'Candidate: [0-9]'; then
+            driver=webkitgtk-webdriver
+          fi
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils \
+            "$driver" xvfb poppler-utils
       # Pinned like every other tool here. tauri-driver is the WebDriver shim that
       # starts the application and forwards to WebKitWebDriver; 2.x is the series
       # that speaks to Tauri 2.
