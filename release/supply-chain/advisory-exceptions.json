@@ -7,28 +7,11 @@
   ],
   "exceptions": [
     {
-      "package": "image-size",
-      "advisories": ["GHSA-w3rx-r6r6-pgpr", "GHSA-5p2g-fcmc-qvqq"],
-      "expires": "2026-11-07",
-      "why": [
-        "Denial of service through infinite loops in the ICNS, JXL and HEIF parsers.",
-        "There is no version to move to: the advisories cover <=2.0.2 and 2.0.2 is the",
-        "latest published release. npm's own suggested fix is a major downgrade of Expo",
-        "to 53, which would take React Native back three years and is not a fix.",
-        "",
-        "It reaches this project only through metro, which reads image dimensions while",
-        "bundling. It is never installed into an application binary and never sees a",
-        "file a user opens — the images it parses are the ones already committed to this",
-        "repository, so triggering it requires control of the source tree, at which",
-        "point the loop is the least of the problems.",
-        "",
-        "Revisit when image-size publishes a fix and metro adopts it. The expiry is",
-        "there so this is re-argued rather than inherited."
-      ]
-    },
-    {
       "package": "decode-uri-component",
-      "advisories": ["GHSA-vcc3-ghjq-m6fr"],
+      "advisories": [
+        "GHSA-vcc3-ghjq-m6fr",
+        "GHSA-qr28-fpjm-wq7f"
+      ],
       "expires": "2026-12-24",
       "why": [
         "Cubic-time decoding of malformed percent-encoded input (CVE-2026-45822): 0.2.2",
@@ -48,11 +31,67 @@
         "verify-dependency-patches checks the installed file's digest and decodes the",
         "pathological input. npm audit matches on the version number, which a patch cannot",
         "change, so the advisory still needs this entry.",
+        "",
+        "GHSA-qr28-fpjm-wq7f is the quadratic-replacement advisory, and it covers every",
+        "published release including 0.5.0. The same single-pass decoder backport",
+        "removes that path too, so the patch is the control for both findings.",
         "Owner: Iroha PDF maintainers.",
         "",
         "Revisit when expo-router takes query-string 9.5 or later (which accepts",
         "decode-uri-component 0.5) or stops depending on it. Remove the patch and this entry",
         "together."
+      ]
+    },
+    {
+      "package": "deepmerge",
+      "advisories": ["GHSA-gcqx-w48m-w2h4"],
+      "expires": "2027-01-31",
+      "why": [
+        "Prototype poisoning of the object mergeObject() returns. It reaches this project",
+        "only through @expo/config while the Expo CLI reads the project's own app.json",
+        "at build time; no user-opened document and no untrusted remote input passes",
+        "through it. npm's suggested fix is Expo 53, three SDKs back, which is not a fix.",
+        "",
+        "Revisit when @expo/config moves to a fixed deepmerge, or when Expo 58 lands."
+      ]
+    },
+    {
+      "package": "glob",
+      "advisories": ["GHSA-3g3m-2fjr-6pw4"],
+      "expires": "2027-01-31",
+      "why": [
+        "AbortSignal cancellation bypass in a glob traversal. Every path is in Expo CLI,",
+        "@expo/config, metro and react-native-blob-util's Node-side tooling, walking the",
+        "repository during development and bundling — not a path derived from a document",
+        "a user opens. The fix is glob 14.0.2, but Expo 57 pins glob 13; npm's suggested",
+        "fix is Expo 53, three SDKs back.",
+        "",
+        "Revisit when Expo moves to glob 14.0.2 or later."
+      ]
+    },
+    {
+      "package": "minimatch",
+      "advisories": ["GHSA-g3hv-75wg-m249"],
+      "expires": "2027-01-31",
+      "why": [
+        "CPU amplification in globparts matching, reached only through the same Expo",
+        "build tooling chain as glob above and over repository paths. Fixed in",
+        "minimatch 11.0.1, but glob 13 pins minimatch 10 and Expo 57 pins glob 13.",
+        "",
+        "Revisit when Expo's glob moves to a minimatch 11.0.1 or later."
+      ]
+    },
+    {
+      "package": "zod",
+      "advisories": ["GHSA-mrhx-c7xc-m3w5"],
+      "expires": "2027-01-31",
+      "why": [
+        "Memory exhaustion while validating oversized constrained collections. The only",
+        "consumer is @expo/cli at development time, validating its own configuration;",
+        "it is not bundled into the desktop or mobile application. The fix is zod 4.6.6,",
+        "and Expo CLI 57 pins zod 3.25, whose schema API is not source compatible.",
+        "",
+        "Revisit when @expo/cli adopts zod 4.6.6 or later."
       ]
     }
   ]
