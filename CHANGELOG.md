@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.10.1 - 2026-11-06
+
+A build fix for the Android debug gate. React Native 0.86.2 downloads Hermes
+from GitHub and strips a `facebook-hermes-` prefix from the tarball's root
+before extracting it into `sdks/hermes`. The repository is now served as
+`meta-hermes`, so the root arrives as `meta-hermes-<hash>`, the prefix check
+missed it and `CMakeLists.txt` landed one directory too deep:
+`configureBuildForHermes` then failed and the main-branch Android matrix could
+not build any of the four debug APKs. The reviewed React Native patch now drops
+the first path segment whatever the folder is called, so another rename cannot
+reintroduce the same failure.
+
+No application behaviour changes. The Android debug packages are unsigned, as
+the desktop ones are, and the package, device and account rows of
+`docs/RELEASE_GATE.md` remain pending (#64, #69).
+
+### Fixed
+
+- The Android debug matrix builds again now that the renamed Hermes tarball is
+  flattened at its root (#227).
+
 ## 0.10.0 - 2026-11-05
 
 A dependency and supply-chain release. No application behaviour is meant to
