@@ -16,7 +16,7 @@
 import { flattenAnnotations, type PdfAnnotation } from '@iroha-pdf/core';
 
 import { t } from './i18n';
-import { bytesToWholeMiB, canFlattenOnMobile, MAX_MOBILE_FLATTEN_BYTES } from './memory-policy';
+import { bytesToWholeMiB, canRewriteOnMobile, MAX_MOBILE_REWRITE_BYTES } from './memory-policy';
 
 /**
  * The document as flattening needs it: the size to judge, and the bytes to read
@@ -29,7 +29,7 @@ export type FlattenSource = {
 
 /** What a document too large to rewrite in a phone's heap is refused with. */
 export function tooLargeToFlattenMessage(): string {
-  return t('document.largeExportBody', { limit: bytesToWholeMiB(MAX_MOBILE_FLATTEN_BYTES) });
+  return t('document.largeExportBody', { limit: bytesToWholeMiB(MAX_MOBILE_REWRITE_BYTES) });
 }
 
 /**
@@ -44,7 +44,7 @@ export async function flattenForDelivery(
   annotations: PdfAnnotation[],
   loadFont: () => Promise<Uint8Array>,
 ): Promise<Uint8Array> {
-  if (!canFlattenOnMobile(source.sizeBytes)) throw new Error(tooLargeToFlattenMessage());
+  if (!canRewriteOnMobile(source.sizeBytes)) throw new Error(tooLargeToFlattenMessage());
 
   // Loaded only when there is text to draw: the face is several megabytes, and a
   // highlight- or ink-only export has no glyphs to encode.

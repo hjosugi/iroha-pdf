@@ -27,6 +27,12 @@ import { alertFailure } from '@/lib/alerts';
 import { describeError } from '@/lib/errors';
 import { baseName, createOutputPdf, sharePdf } from '@/lib/files';
 import { t } from '@/lib/i18n';
+import {
+  bytesToWholeMiB,
+  canRewriteOnMobile,
+  MAX_MOBILE_REWRITE_BYTES,
+  totalKnownSizeBytes,
+} from '@/lib/memory-policy';
 import { COLOR, CONTROL, RADIUS, SPACE, TYPE } from '@/lib/theme';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 import { ContentColumn } from '@/components/ContentColumn';
@@ -54,6 +60,22 @@ export default function PdfToolsScreen() {
   };
 
   /**
+   * Every page operation here rewrites the document with pdf-lib, which holds
+   * the source and the result in JavaScript memory at once. Refuse before the
+   * bytes are read, as flattening does, so the allocation the ceiling exists to
+   * prevent never happens. An unknown size is allowed through, matching the
+   * export path where old catalogue rows carry no size.
+   */
+  const refuseOversizedRewrite = (sizeBytes: number | undefined): boolean => {
+    if (canRewriteOnMobile(sizeBytes)) return false;
+    Alert.alert(
+      t('tools.tooLargeTitle'),
+      t('tools.tooLargeBody', { limit: bytesToWholeMiB(MAX_MOBILE_REWRITE_BYTES) }),
+    );
+    return true;
+  };
+
+  /**
    * The shape four of these tools share: ask for one PDF, rewrite its bytes,
    * and offer the result under a name derived from the original. A cancelled
    * picker is a silent no-op, not a failure.
@@ -63,7 +85,7 @@ export default function PdfToolsScreen() {
     rewrite: (bytes: Uint8Array) => Promise<Uint8Array>,
   ) => {
     const input = await pickPdf();
-    if (!input) return;
+    if (!input || refuseOversizedRewrite(input.sizeBytes)) return;
     const bytes = await rewrite(await input.file.bytes());
     await sharePdf(createOutputPdf(`${baseName(input.name)}-${suffix}.pdf`, bytes));
   };
@@ -128,9 +150,14 @@ export default function PdfToolsScreen() {
     });
     if (result.canceled) return;
     if (result.assets.length < 2) throw new Error(t('tools.selectTwo'));
-    const bytes = await mergePdfs(await Promise.all(
-      result.assets.map((asset) => new File(asset.uri).bytes()),
-    ));
+    const files = result.assets.map((asset) => new File(asset.uri));
+    const sizes = result.assets.map(
+      (asset, index) => asset.size ?? files[index]!.size ?? undefined,
+    );
+    // Merging holds every source plus the combined result, so the ceiling
+    // applies to their sum, not to each file on its own.
+    if (refuseOversizedRewrite(totalKnownSizeBytes(sizes))) return;
+    const bytes = await mergePdfs(await Promise.all(files.map((file) => file.bytes())));
     await sharePdf(createOutputPdf('merged.pdf', bytes));
   });
 
@@ -314,11 +341,13 @@ export default function PdfToolsScreen() {
   );
 }
 
-async function pickPdf(): Promise<{ file: File; name: string } | null> {
+async function pickPdf(): Promise<{ file: File; name: string; sizeBytes: number | undefined } | null> {
   const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
   if (result.canceled) return null;
   const asset = result.assets[0];
-  return asset ? { file: new File(asset.uri), name: asset.name } : null;
+  if (!asset) return null;
+  const file = new File(asset.uri);
+  return { file, name: asset.name, sizeBytes: asset.size ?? file.size ?? undefined };
 }
 
 function formatBytes(bytes: number | null): string {

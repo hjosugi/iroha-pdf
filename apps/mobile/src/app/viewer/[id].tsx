@@ -40,7 +40,7 @@ import { createOutputPdf, sharePdf } from '@/lib/files';
 import { t } from '@/lib/i18n';
 import { markStoreCaptureReady } from '@/lib/store-capture-native';
 import { COLOR, CONTROL, LAYOUT, LINE_HEIGHT, RADIUS, SPACE, TYPE } from '@/lib/theme';
-import { canFlattenOnMobile } from '@/lib/memory-policy';
+import { canRewriteOnMobile } from '@/lib/memory-policy';
 import {
   flattenForDelivery,
   tooLargeToFlattenMessage,
@@ -356,7 +356,7 @@ export default function PdfViewerScreen() {
   };
 
   const warnIfFlatteningIsUnsafe = (): boolean => {
-    if (canFlattenOnMobile(flattenSource()?.sizeBytes)) return false;
+    if (canRewriteOnMobile(flattenSource()?.sizeBytes)) return false;
     Alert.alert(t('document.largeExportTitle'), tooLargeToFlattenMessage());
     return true;
   };

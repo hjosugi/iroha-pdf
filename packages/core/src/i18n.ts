@@ -298,6 +298,8 @@ const MESSAGES = {
   'tools.failed': { ja: '{name}に失敗しました', en: '{name} failed' },
   'tools.selectTwo': { ja: '2つ以上のPDFを選んでください', en: 'Select at least two PDFs' },
   'tools.pageNumbers': { ja: '3,1,2のように1から始まるページ番号を入力してください', en: 'Use one-based page numbers such as 3,1,2' },
+  'tools.tooLargeTitle': { ja: 'この端末では安全に処理できません', en: 'This file is too large to process safely here' },
+  'tools.tooLargeBody': { ja: '{limit} MBを超えるPDFのページ操作は、低メモリ時の強制終了を避けるためモバイル版では行いません。デスクトップ版を使用してください。元ファイルは変更されません。', en: 'To avoid an out-of-memory termination, page operations are unavailable on mobile for PDFs over {limit} MB. Use the desktop app instead. The original file is not changed.' },
   // Desktop's page operations. Worded separately from `tools.*` because the
   // mobile Tools screen shares a picker with them and desktop does not: here the
   // pages come from the document already open, so the sentences say so.

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { HighlightAnnotation, PdfAnnotation, TextAnnotation } from '@iroha-pdf/core';
 
 import { flattenForDelivery, type FlattenSource } from './flatten';
-import { MAX_MOBILE_FLATTEN_BYTES } from './memory-policy';
+import { MAX_MOBILE_REWRITE_BYTES } from './memory-policy';
 
 const TIMESTAMP = '2026-07-12T00:00:00.000Z';
 
@@ -73,7 +73,7 @@ describe('flattening for export and print', () => {
    */
   it('refuses an oversized document before reading a byte of it', async () => {
     const input = await onePagePdf();
-    const handle = source(MAX_MOBILE_FLATTEN_BYTES + 1, input);
+    const handle = source(MAX_MOBILE_REWRITE_BYTES + 1, input);
 
     await expect(flattenForDelivery(handle, [highlight], async () => new Uint8Array()))
       .rejects.toThrow();
