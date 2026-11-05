@@ -23,7 +23,8 @@ remain part of the device/desktop E2E gate because `pdf-lib` does not render.
 `e2e:tauri` drives the real Tauri runtime — a real window, the real webview,
 real filesystem writes and real Tauri plugin calls — rather than the Playwright
 stub, and runs 31 checks. The native file dialog itself remains a manual gate. It needs
-`cargo install tauri-driver`, a `WebKitWebDriver` binary (Debian: `webkit2gtk-driver`),
+`cargo install tauri-driver`, a `WebKitWebDriver` binary (Debian/Ubuntu: `webkit2gtk-driver`,
+renamed `webkitgtk-webdriver` on Ubuntu 26.04),
 a graphical session, and a **debug** app build from
 `frost build desktop-app-linux-debug --no-tui`.
 
