@@ -1,8 +1,31 @@
+diff --git a/node_modules/react-native/ReactAndroid/hermes-engine/build.gradle.kts b/node_modules/react-native/ReactAndroid/hermes-engine/build.gradle.kts
+index faf4e4f..f866b7b 100644
+--- a/node_modules/react-native/ReactAndroid/hermes-engine/build.gradle.kts
++++ b/node_modules/react-native/ReactAndroid/hermes-engine/build.gradle.kts
+@@ -123,11 +123,12 @@ val unzipHermes by
+       dependsOn(downloadHermes)
+       from(tarTree(downloadHermesDest)) {
+         eachFile {
+-          // We flatten the unzip as the tarball contains a `facebook-hermes-<SHA>`
+-          // folder at the top level.
+-          if (this.path.startsWith("facebook-hermes-")) {
+-            this.path = this.path.substringAfter("/")
+-          }
++          // We flatten the unzip as the tarball wraps everything in a single
++          // top-level folder. Its name used to be `facebook-hermes-<SHA>`; the
++          // repository is now `meta-hermes`, so GitHub serves `meta-hermes-<SHA>`.
++          // The folder name carries no meaning for the build, so drop the first
++          // path segment whatever it is called.
++          this.path = this.path.substringAfter("/")
+         }
+       }
+       into(hermesDir)
 diff --git a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt
-index ed14d9925..1db2bf733 100644
+index ed14d99..1db2bf7 100644
 --- a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt
 +++ b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/uimanager/events/PointerEvent.kt
-@@ -210,5 +210,10 @@ internal class PointerEvent private constructor() : Event<PointerEvent>() {
+@@ -209,6 +209,11 @@ internal class PointerEvent private constructor() : Event<PointerEvent>() {
+     val pressure =
          if (isClickEvent) {
            0.0 // click events need pressure=0
 +        } else if (pointerType == PointerEventHelper.POINTER_TYPE_PEN) {
