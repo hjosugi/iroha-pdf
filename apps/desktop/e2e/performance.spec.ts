@@ -85,7 +85,14 @@ const BUDGETS = {
  * being named here should breach `appJsMb` rather than quietly widen it. The
  * "is not loaded at boot" test below is what keeps this list honest.
  */
-const ON_DEMAND_CHUNKS = ['page-operations'];
+const ON_DEMAND_CHUNKS = [
+  'page-operations',
+  'form-operations',
+  // The shared pdf-lib/fontkit code both of the above import. Rolldown splits it
+  // out as its own chunk once there is more than one dynamic importer; without
+  // naming it here its 1.1 MB is counted as startup weight.
+  'es',
+];
 
 /**
  * Heap usage read over CDP.
