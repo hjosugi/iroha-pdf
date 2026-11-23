@@ -1,0 +1,49 @@
+#
+# Advisories are published between commits, not only at the moment one lands.
+#
+# The `Supply-chain policy` job in ci.yml re-runs the two audits on every push and
+# pull request, which is the right moment to fail a change. What it cannot do is
+# notice an advisory that was published while nobody was pushing, so this runs the
+# same checks on a schedule and leaves the failure where a scheduled run is seen.
+#
+# It deliberately duplicates the audit steps rather than calling ci.yml: a reusable
+# workflow would have to carry the whole build around them, and the SDK/toolchain
+# pins here are the two lines that keep the result comparable.
+name: Scheduled security audit
+
+on:
+  schedule:
+    # Mondays at 03:00 UTC, before the week's first merges.
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-security-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: npm and Cargo advisories
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit npm advisories
+        run: npm run audit:advisories
+      - name: Install pinned Rust audit tool
+        run: cargo install --locked cargo-audit --version 0.22.2
+      - name: Audit Cargo advisories
+        run: cargo audit --file apps/desktop/src-tauri/Cargo.lock
