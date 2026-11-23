@@ -431,10 +431,23 @@ export async function buildFormPdf(): Promise<Uint8Array> {
   return pdf.save({ useObjectStreams: true });
 }
 
-/** The passwords baked into encrypted.pdf. */
-export const ENCRYPTED_PDF_PASSWORDS = { user: 'iroha-user', owner: 'iroha-owner' } as const;
+/** Two visible pages with a blank page between each pair, for #30. */
+export async function buildBlankPagesPdf(): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
 
-/**
+  const first = pdf.addPage(A4);
+  first.drawText('Page one', { x: 56, y: 780, size: 18, font });
+  pdf.addPage(A4);
+  const third = pdf.addPage(A4);
+  third.drawText('Page three', { x: 56, y: 780, size: 18, font });
+  pdf.addPage(A4);
+
+  return pdf.save({ useObjectStreams: true });
+}
+
+/** The passwords baked into encrypted.pdf. */
+export const ENCRYPTED_PDF_PASSWORDS = { user: 'iroha-user', owner: 'iroha-owner' } as const;/**
  * The program used to write encrypted.pdf, or null when neither is installed.
  *
  * pdf-lib cannot write encryption at all, so this one fixture has to be produced by an
@@ -528,6 +541,7 @@ export const FIXTURES = {
   'corrupt.pdf': buildCorruptPdf,
   'repairable.pdf': () => buildRepairablePdf(),
   'form.pdf': buildFormPdf,
+  'blank-pages.pdf': buildBlankPagesPdf,
   // Null where the tool that writes it is missing; see ENCRYPTION_TOOL.
   'encrypted.pdf': buildEncryptedPdf,
 } as const;

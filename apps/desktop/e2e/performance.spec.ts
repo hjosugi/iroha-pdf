@@ -80,19 +80,13 @@ const BUDGETS = {
 /**
  * Chunks that are not fetched until something asks for them.
  *
- * Listed by name rather than matched by a pattern: leaving the startup path is a
- * deliberate decision about a specific module, and a chunk that arrives without
- * being named here should breach `appJsMb` rather than quietly widen it. The
- * "is not loaded at boot" test below is what keeps this list honest.
+ * The size budget above measures this from the requests the shell makes, so this
+ * list is only what the "is not loaded at boot" test checks by name. It holds the
+ * dynamic entry points the app owns: the shared pdf-lib/fontkit chunk they import
+ * gets a bundler-chosen name, so it is covered by the request-based budget rather
+ * than guessed at here.
  */
-const ON_DEMAND_CHUNKS = [
-  'page-operations',
-  'form-operations',
-  // The shared pdf-lib/fontkit code both of the above import. Rolldown splits it
-  // out as its own chunk once there is more than one dynamic importer; without
-  // naming it here its 1.1 MB is counted as startup weight.
-  'es',
-];
+const ON_DEMAND_CHUNKS = ['page-operations', 'form-operations', 'blank-pages-operation'];
 
 /**
  * Heap usage read over CDP.
@@ -209,7 +203,19 @@ test.describe('byte-heavy documents', () => {
 });
 
 test.describe('app weight', () => {
-  test('the shipped bundle stays small', async () => {
+  test('the shipped bundle stays small', async ({ page }) => {
+    // Startup weight is what the shell actually fetched, not what a chunk is
+    // named. A whitelist of module names breaks as soon as two dynamic importers
+    // share pdf-lib and Rolldown renames the shared chunk; requests cannot.
+    const fetched = new Set<string>();
+    page.on('request', (request) => {
+      const { pathname } = new URL(request.url());
+      if (pathname.startsWith('/assets/') && pathname.endsWith('.js')) {
+        fetched.add(pathname.slice('/assets/'.length));
+      }
+    });
+    await boot(page, 'complex.pdf');
+
     const entries = await readdir(join(DIST, 'assets'));
     let total = 0;
     let appJs = 0;
@@ -222,8 +228,8 @@ test.describe('app weight', () => {
       total += size;
       breakdown.push([entry, size]);
       if (!entry.endsWith('.js') || entry.includes('engine')) continue;
-      if (ON_DEMAND_CHUNKS.some((name) => entry.startsWith(`${name}-`))) onDemandJs += size;
-      else appJs += size;
+      if (fetched.has(entry)) appJs += size;
+      else onDemandJs += size;
     }
 
     breakdown.sort((a, b) => b[1] - a[1]);
