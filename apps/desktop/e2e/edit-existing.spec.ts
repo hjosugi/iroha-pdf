@@ -161,7 +161,7 @@ test.describe('editing a mark already on the page', () => {
     await useTool(page, 'Shape');
     await dragOn(page, BLANK_AREA);
     await save(page);
-    await expect(page.locator('.primary-button').last()).toHaveText('Save');
+    await expect(page.locator('.pdf-toolbar .primary-button')).toHaveText('Save');
 
     await putToolDown(page, 'Shape');
     await clickEdge(page, BLANK_AREA);
@@ -169,6 +169,6 @@ test.describe('editing a mark already on the page', () => {
     await page.locator('.tool-settings.selection .swatch').nth(2).click();
 
     // Otherwise the change could be closed away without a prompt.
-    await expect(page.locator('.primary-button').last()).toHaveText(/Save \(\d+\)/);
+    await expect(page.locator('.pdf-toolbar .primary-button')).toHaveText(/Save \(\d+\)/);
   });
 });

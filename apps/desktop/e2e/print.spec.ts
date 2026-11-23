@@ -267,6 +267,6 @@ test.describe('printing', () => {
     const { readVirtualFile } = await import('./tauri-stub');
     const onDisk = await readVirtualFile(page, openPath);
     expect(onDisk!.equals(originalBytes)).toBe(true);
-    await expect(page.locator('.primary-button').last()).toHaveText('Save');
+    await expect(page.locator('.pdf-toolbar .primary-button')).toHaveText('Save');
   });
 });
