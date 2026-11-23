@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PdfFormField, PdfFormFieldValue } from '@iroha-pdf/core';
 import { useAnnotationCapability } from '@embedpdf/plugin-annotation/react';
 import { useHistoryCapability } from '@embedpdf/plugin-history/react';
 import { usePrint } from '@embedpdf/plugin-print/react';
 import { useScroll } from '@embedpdf/plugin-scroll/react';
 
 import { basename, isDesktopRuntime } from './file-bridge';
+import { FormDialog } from './FormDialog';
 import { t } from './i18n';
 import {
   colorOf,
@@ -443,6 +445,8 @@ export function PdfToolbar({
   const printButtonRef = useRef<HTMLButtonElement>(null);
   const [pagesOpen, setPagesOpen] = useState(false);
   const pagesButtonRef = useRef<HTMLButtonElement>(null);
+  const [formFields, setFormFields] = useState<PdfFormField[] | null>(null);
+  const formButtonRef = useRef<HTMLButtonElement>(null);
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const organizeButtonRef = useRef<HTMLButtonElement>(null);
   const documentBytes = useDocumentBytes(documentId);
@@ -456,6 +460,63 @@ export function PdfToolbar({
     setPagesOpen(false);
     window.requestAnimationFrame(() => pagesButtonRef.current?.focus());
   }, []);
+
+  const closeForm = useCallback(() => {
+    setFormFields(null);
+    window.requestAnimationFrame(() => formButtonRef.current?.focus());
+  }, []);
+
+  /**
+   * Reads the open document's form and opens the dialog.
+   *
+   * The form module pulls in pdf-lib, so it is imported only when asked for, the
+   * same reason the page operations are. A form this app cannot present — XFA, no
+   * fillable fields — is a refusal, not a failure, and says why in the status line.
+   */
+  const openForm = useCallback(async () => {
+    report(t('forms.open'));
+    try {
+      const { FormOperationError, describeFormFailure, readEditableForm } = await import(
+        './form-operations'
+      );
+      try {
+        const fields = await readEditableForm(new Uint8Array(await documentBytes()));
+        setFormFields(fields);
+        report(null);
+      } catch (error) {
+        console.error('Iroha PDF: the form could not be read', error);
+        report(describeFormFailure(error), !(error instanceof FormOperationError));
+      }
+    } catch (error) {
+      console.error('Iroha PDF: the form module could not be loaded', error);
+      report(t('forms.failed'), true);
+    }
+  }, [documentBytes, report]);
+
+  const submitForm = useCallback(
+    async (values: Readonly<Record<string, PdfFormFieldValue>>) => {
+      report(t('save.saving'));
+      try {
+        const { fillFormAndWrite } = await import('./form-operations');
+        const outcome = await fillFormAndWrite(
+          new Uint8Array(await documentBytes()),
+          values,
+          documentName || 'document.pdf',
+        );
+        if (outcome.status === 'cancelled') {
+          report(null);
+          return;
+        }
+        report(t('save.savedTo', { name: basename(outcome.path) }));
+        closeForm();
+      } catch (error) {
+        console.error('Iroha PDF: the form could not be filled', error);
+        const { describeFormFailure } = await import('./form-operations');
+        report(describeFormFailure(error), true);
+      }
+    },
+    [closeForm, documentBytes, documentName, report],
+  );
 
   /**
    * Unlike the page dialog, the organizer is unmounted when it closes: its
@@ -604,6 +665,9 @@ export function PdfToolbar({
       <button ref={pagesButtonRef} className="tool" onClick={() => setPagesOpen(true)}>
         {t('pages.open')}
       </button>
+      <button ref={formButtonRef} className="tool" onClick={() => void openForm()}>
+        {t('forms.open')}
+      </button>
       <button ref={printButtonRef} className="tool" onClick={() => setPrintOpen(true)}>
         {t('print.open')}
       </button>
@@ -624,6 +688,14 @@ export function PdfToolbar({
         onClose={closePages}
         onRun={runPages}
       />
+      {formFields && (
+        <FormDialog
+          fields={formFields}
+          documentName={documentName}
+          onClose={closeForm}
+          onSubmit={submitForm}
+        />
+      )}
       <PrintDialog
         open={printOpen}
         currentPage={scrollState.currentPage || 1}
