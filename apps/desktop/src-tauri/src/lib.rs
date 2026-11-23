@@ -188,6 +188,118 @@ fn write_note_journal(app: tauri::AppHandle, contents: String) -> Result<(), Str
     write_note_file(&note_store_dir(&app)?.join("notes-journal.json"), &contents)
 }
 
+/// Where the copies behind the edit history live.
+///
+/// A revision is the bytes a save wrote, kept so the history can restore one
+/// (#101). They are outside the webview for the same reason notes are, and are
+/// bounded by total size rather than count: one save of a 40 MB scan is worth
+/// more than a hundred one-page memos.
+const REVISION_LIMIT_BYTES: u64 = 512 * 1024 * 1024;
+
+/// A revision id becomes a file name, so it is checked against the smallest
+/// alphabet that can still name one. No separators, no dots, nothing to climb with.
+fn revision_id_is_safe(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-' || character == '_')
+}
+
+fn revision_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let directory = note_store_dir(app)?.join("revisions");
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    Ok(directory)
+}
+
+/// Drops the oldest revisions until the directory is back under its byte budget.
+///
+/// Count is the wrong bound here: the copies are whole PDFs and vary by orders of
+/// magnitude. Age is the right one for what a reader wants — the save they made ten
+/// minutes ago is the one they are trying to undo.
+fn prune_revisions(directory: &std::path::Path, limit: u64) -> Result<(), String> {
+    let mut entries = Vec::new();
+    let listing = std::fs::read_dir(directory)
+        .map_err(|error| format!("could not list {}: {error}", directory.display()))?;
+    for entry in listing {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let metadata = entry.metadata().map_err(|error| error.to_string())?;
+        if !metadata.is_file()
+            || entry.path().extension().and_then(|extension| extension.to_str()) != Some("pdf")
+        {
+            continue;
+        }
+        entries.push((
+            metadata.modified().unwrap_or(std::time::UNIX_EPOCH),
+            metadata.len(),
+            entry.path(),
+        ));
+    }
+
+    let mut total: u64 = entries.iter().map(|(_, size, _)| *size).sum();
+    if total <= limit {
+        return Ok(());
+    }
+    entries.sort_by_key(|(modified, _, _)| *modified);
+    for (_, size, path) in entries {
+        if total <= limit {
+            break;
+        }
+        if std::fs::remove_file(&path).is_ok() {
+            total = total.saturating_sub(size);
+        }
+    }
+    Ok(())
+}
+
+/// Stores one revision from a raw IPC body.
+///
+/// The id arrives in a header because the body is the PDF itself; sending a 40 MB
+/// scan as a JSON number array costs roughly eight bytes per byte. The desktop
+/// runtime supports raw bodies, which is the only platform that keeps revisions.
+#[tauri::command]
+fn write_revision(
+    app: tauri::AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
+    let id = request
+        .headers()
+        .get("x-revision-id")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    if !revision_id_is_safe(id) {
+        return Err("not allowed: the revision id has to be a plain file name".into());
+    }
+    let bytes = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => bytes,
+        _ => return Err("a revision has to be sent as raw bytes".into()),
+    };
+
+    let directory = revision_dir(&app)?;
+    let path = directory.join(format!("{id}.pdf"));
+    let temporary = path.with_extension("tmp");
+    std::fs::write(&temporary, bytes)
+        .map_err(|error| format!("could not write {}: {error}", temporary.display()))?;
+    std::fs::rename(&temporary, &path)
+        .map_err(|error| format!("could not replace {}: {error}", path.display()))?;
+    prune_revisions(&directory, REVISION_LIMIT_BYTES)
+}
+
+#[tauri::command]
+fn read_revision(
+    app: tauri::AppHandle,
+    id: String,
+) -> Result<tauri::ipc::Response, String> {
+    if !revision_id_is_safe(&id) {
+        return Err("not allowed: the revision id has to be a plain file name".into());
+    }
+    let path = revision_dir(&app)?.join(format!("{id}.pdf"));
+    let bytes =
+        std::fs::read(&path).map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -200,7 +312,9 @@ pub fn run() {
             read_note_store,
             write_note_store,
             read_note_journal,
-            write_note_journal
+            write_note_journal,
+            write_revision,
+            read_revision
         ])
         .setup(|_app| {
             #[cfg(debug_assertions)]
@@ -213,7 +327,23 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::is_derived_name;
+    use super::{is_derived_name, revision_id_is_safe};
+
+    #[test]
+    fn accepts_the_ids_the_webview_generates() {
+        assert!(revision_id_is_safe("rev-mabc123-xyz987"));
+        assert!(revision_id_is_safe("rev_1"));
+    }
+
+    /// The id becomes a path component, so nothing that could leave the revisions
+    /// directory is accepted: no separators, no parent segment, no dot.
+    #[test]
+    fn refuses_anything_that_could_escape_the_revisions_directory() {
+        for id in ["", ".", "..", "../notes", "a/b", "a\\b", "rev.1", "rev 1", "rev-1.pdf"] {
+            assert!(!revision_id_is_safe(id), "{id:?} must be refused");
+        }
+        assert!(!revision_id_is_safe(&"a".repeat(129)));
+    }
 
     #[test]
     fn accepts_exactly_the_two_files_a_save_writes() {
