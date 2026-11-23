@@ -56,6 +56,15 @@ declare global {
       setOpenPath: (path: string | null) => void;
       /** How later confirmation prompts are answered. */
       setConfirmAnswer: (answer: 'ok' | 'cancel') => void;
+      /**
+       * Makes the note store refuse writes. `notes` fails only the durable file, so
+       * the journal keeps the attempt; `all` fails the journal too.
+       */
+      setNoteStoreFailure: (failure: 'notes' | 'all' | null) => void;
+      /** The durable note file, as the store would read it. */
+      noteStore: () => string;
+      /** The pending/recoverable journal, as the store would read it. */
+      noteJournal: () => string;
       /** What a multi-select open dialog returns. Null means the user dismissed it. */
       setOpenPaths: (paths: string[] | null) => void;
       /**
@@ -125,6 +134,9 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
     let confirmAnswer = stub.confirmAnswer;
     let fullDiskPath: string | null = null;
     let renameBlockedPath: string | null = null;
+    let noteStore = '{}';
+    let noteJournal = '{}';
+    let noteStoreFailure: 'notes' | 'all' | null = null;
 
     const toBytes = (payload: unknown): Uint8Array => {
       if (payload instanceof Uint8Array) return payload;
@@ -155,6 +167,11 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
       setConfirmAnswer: (answer) => {
         confirmAnswer = answer;
       },
+      setNoteStoreFailure: (failure) => {
+        noteStoreFailure = failure;
+      },
+      noteStore: () => noteStore,
+      noteJournal: () => noteJournal,
       setOpenPaths: (paths) => {
         openPaths = paths;
       },
@@ -264,6 +281,34 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
             // not model; what matters here is that the app asks before it writes.
             record.path = (args as { derived: string }).derived;
             calls.push(record);
+            return null;
+          }
+          case 'read_note_store': {
+            calls.push(record);
+            return noteStore;
+          }
+          case 'write_note_store': {
+            calls.push(record);
+            if (noteStoreFailure !== null) {
+              throw new Error(
+                'failed to write notes.json: No space left on device (os error 28)',
+              );
+            }
+            noteStore = (args as { contents: string }).contents;
+            return null;
+          }
+          case 'read_note_journal': {
+            calls.push(record);
+            return noteJournal;
+          }
+          case 'write_note_journal': {
+            calls.push(record);
+            if (noteStoreFailure === 'all') {
+              throw new Error(
+                'failed to write notes-journal.json: No space left on device (os error 28)',
+              );
+            }
+            noteJournal = (args as { contents: string }).contents;
             return null;
           }
           case 'discard_part_file': {

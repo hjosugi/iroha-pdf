@@ -3,17 +3,25 @@
  * reader wants to remember about it.
  *
  * Both are per-document and both outlive the session, which is why they sit
- * together — the history comes back from the document store, the note from local
- * storage, and switching tab is the only thing that chooses between them.
+ * together — the history comes back from the document store, the note from the
+ * app-data note store, and switching tab is the only thing that chooses between them.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Note } from '@iroha-pdf/core';
 
 import { PageThumbnails } from './PageThumbnails';
 
 import { basename } from './file-bridge';
 import { t, timeFormat } from './i18n';
-import { storageKey } from './local-storage';
+import {
+  blankLinkedNote,
+  discardLinkedNote,
+  loadLinkedNote,
+  reconcileLinkedNote,
+  restoreLinkedNote,
+  saveLinkedNote,
+  type NoteRecovery,
+} from './note-store';
 import type { EditEntry, SaveRevision } from './document-store';
 import { useDocumentFile } from './use-pdf-file';
 
@@ -93,89 +101,127 @@ function HistoryPanel({ documentId }: { documentId: string }) {
 /** Long enough that typing is not a write per keystroke, short enough to survive a crash. */
 const NOTE_SAVE_DEBOUNCE_MS = 250;
 
-function loadLinkedNote(documentId: string): Note {
-  const now = new Date().toISOString();
-  const blank: Note = {
-    id: `desktop-note:${documentId}`,
-    title: t('note.linked'),
-    body: '',
-    linkedDocumentId: documentId,
-    createdAt: now,
-    updatedAt: now,
+function NotePanel({ noteKey }: { noteKey: string }) {
+  const [note, setNote] = useState<Note | null>(null);
+  const [storedLast, setStoredLast] = useState(true);
+  const [recovery, setRecovery] = useState<NoteRecovery | null>(null);
+  const noteRef = useRef<Note | null>(null);
+
+  useEffect(() => {
+    noteRef.current = note;
+  }, [note]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setNote(null);
+    setStoredLast(true);
+    setRecovery(null);
+
+    void Promise.all([loadLinkedNote(noteKey), reconcileLinkedNote(noteKey)]).then(
+      ([loaded, recovered]) => {
+        if (cancelled) return;
+        setNote(loaded);
+        setRecovery(recovered);
+      },
+      (error: unknown) => {
+        // The note store is the one thing that survives a cleared webview, so a read
+        // that cannot happen must not take the panel down with it.
+        console.warn('Iroha PDF: the note could not be read', error);
+        if (cancelled) return;
+        setNote(blankLinkedNote(noteKey));
+        setStoredLast(false);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [noteKey]);
+
+  /**
+   * The note is journaled in the app data directory, not localStorage, so a crash
+   * between this debounce and the disk leaves a recovery copy rather than nothing.
+   * Only the debounced write reports: the flush on the way out may be running because
+   * the panel is going away, and an unmounting component has no business setting state.
+   */
+  useEffect(() => {
+    if (!note || note.linkedDocumentId !== noteKey) return;
+    const persist = (report: boolean) => {
+      void saveLinkedNote(note).then(
+        () => {
+          if (report) setStoredLast(true);
+        },
+        (error: unknown) => {
+          console.warn('Iroha PDF: the note could not be stored', error);
+          if (report) setStoredLast(false);
+        },
+      );
+    };
+    const timer = window.setTimeout(() => persist(true), NOTE_SAVE_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [noteKey, note]);
+
+  // Flush the latest note when the panel goes away or another document opens.
+  useEffect(() => {
+    return () => {
+      const pending = noteRef.current;
+      if (!pending) return;
+      void saveLinkedNote(pending).catch((error: unknown) => {
+        console.warn('Iroha PDF: the note could not be stored on the way out', error);
+      });
+    };
+  }, [noteKey]);
+
+  const restore = () => {
+    void restoreLinkedNote(noteKey).then(
+      (restored) => {
+        setNote(restored);
+        setRecovery(null);
+        setStoredLast(true);
+      },
+      (error: unknown) => {
+        console.warn('Iroha PDF: the recovered note could not be restored', error);
+      },
+    );
   };
 
-  const stored = localStorage.getItem(storageKey('note', documentId));
-  if (!stored) return blank;
+  const discard = () => {
+    void discardLinkedNote(noteKey).then(
+      () => setRecovery(null),
+      (error: unknown) => {
+        console.warn('Iroha PDF: the recovered note could not be discarded', error);
+      },
+    );
+  };
 
-  try {
-    const parsed = JSON.parse(stored) as Partial<Note>;
-    if (typeof parsed.body !== 'string') return blank;
-    return {
-      ...blank,
-      id: parsed.id ?? blank.id,
-      title: parsed.title ?? blank.title,
-      body: parsed.body,
-      createdAt: parsed.createdAt ?? now,
-      updatedAt: parsed.updatedAt ?? now,
-    };
-  } catch {
-    // Older versions stored only the body, so keep that local data intact.
-    return { ...blank, body: stored };
+  if (!note) {
+    return (
+      <span className="saved-indicator" role="status">
+        {t('note.loading')}
+      </span>
+    );
   }
-}
-
-function NotePanel({ documentId }: { documentId: string }) {
-  const [note, setNote] = useState<Note>(() => loadLinkedNote(documentId));
-  const [storedLast, setStoredLast] = useState(true);
-
-  useEffect(() => {
-    setNote(loadLinkedNote(documentId));
-    setStoredLast(true);
-  }, [documentId]);
-
-  useEffect(() => {
-    // The note of the document being left, written under the key of the one being
-    // opened, would be the wrong note in the wrong file: wait for the reload above.
-    if (note.linkedDocumentId !== documentId) return;
-
-    /**
-     * Never throws, for a reason particular to where it is called from. The flush
-     * below runs in an effect cleanup, and React treats a throw there like one
-     * during render: with no error boundary in this app, a refused write would
-     * unmount the whole workspace. Storage can refuse — it is full, or disabled —
-     * and this panel unmounts on every tab switch, so that is a blank window for
-     * changing tabs, not some remote edge.
-     *
-     * Every other writer here already guards its own `setItem`; this was the one
-     * that did not.
-     */
-    const save = (): boolean => {
-      try {
-        localStorage.setItem(storageKey('note', documentId), JSON.stringify(note));
-        return true;
-      } catch (error) {
-        console.warn('Iroha PDF: the note could not be stored', error);
-        return false;
-      }
-    };
-
-    // Only the debounced write reports: the flush on the way out may be running
-    // because this panel is going away, and a component being unmounted has no
-    // business setting state.
-    const timer = window.setTimeout(() => setStoredLast(save()), NOTE_SAVE_DEBOUNCE_MS);
-    return () => {
-      window.clearTimeout(timer);
-      save();
-    };
-  }, [documentId, note]);
 
   return (
     <>
+      {recovery && (
+        <div className="note-recovery-banner" role="status">
+          <span>{t('note.recovered')}</span>
+          <span className="recovery-actions">
+            <button className="tool" onClick={discard}>
+              {t('recovery.discard')}
+            </button>
+            <button className="primary-button" onClick={restore}>
+              {t('recovery.restore')}
+            </button>
+          </span>
+        </div>
+      )}
       <textarea
         className="note-body"
         value={note.body}
         onChange={(event) => setNote((current) => ({
-          ...current,
+          ...(current ?? note),
           body: event.target.value,
           updatedAt: new Date().toISOString(),
         }))}
@@ -233,7 +279,7 @@ export function SidePanel({ documentId }: { documentId: string }) {
       {/* Mounted only while the tab is open: the strip holds rendered bitmaps, and a
           panel nobody is looking at should not be holding any. */}
       {tab === 'pages' && <PageThumbnails documentId={documentId} />}
-      {tab === 'note' && <NotePanel documentId={documentId} />}
+      {tab === 'note' && <NotePanel noteKey={file.path ?? documentId} />}
     </aside>
   );
 }

@@ -132,13 +132,76 @@ fn discard_part_file(app: tauri::AppHandle, source: String) -> Result<bool, Stri
         .map_err(|error| format!("could not remove {}: {error}", part.display()))
 }
 
+/// The directory that holds the note store and its write-ahead journal.
+///
+/// Deliberately the app's private data directory rather than the webview's storage:
+/// clearing site data must not clear linked notes (#239). The path is derived here,
+/// never taken from the caller, so the webview cannot point it anywhere else.
+fn note_store_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("could not resolve the app data directory: {error}"))?;
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    Ok(directory)
+}
+
+fn read_note_file(path: &std::path::Path) -> Result<String, String> {
+    match std::fs::read_to_string(path) {
+        Ok(contents) => Ok(contents),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok("{}".to_string()),
+        Err(error) => Err(format!("could not read {}: {error}", path.display())),
+    }
+}
+
+/// Writes beside the target and renames, so a crash leaves either the old file or
+/// the new one and never half of either. The note journal exists for the window
+/// between those two steps.
+fn write_note_file(path: &std::path::Path, contents: &str) -> Result<(), String> {
+    let temporary = path.with_extension("tmp");
+    std::fs::write(&temporary, contents)
+        .map_err(|error| format!("could not write {}: {error}", temporary.display()))?;
+    std::fs::rename(&temporary, path)
+        .map_err(|error| format!("could not replace {}: {error}", path.display()))
+}
+
+#[tauri::command]
+fn read_note_store(app: tauri::AppHandle) -> Result<String, String> {
+    read_note_file(&note_store_dir(&app)?.join("notes.json"))
+}
+
+#[tauri::command]
+fn write_note_store(app: tauri::AppHandle, contents: String) -> Result<(), String> {
+    write_note_file(&note_store_dir(&app)?.join("notes.json"), &contents)
+}
+
+#[tauri::command]
+fn read_note_journal(app: tauri::AppHandle) -> Result<String, String> {
+    read_note_file(&note_store_dir(&app)?.join("notes-journal.json"))
+}
+
+#[tauri::command]
+fn write_note_journal(app: tauri::AppHandle, contents: String) -> Result<(), String> {
+    write_note_file(&note_store_dir(&app)?.join("notes-journal.json"), &contents)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![allow_derived_file, discard_part_file])
+        .invoke_handler(tauri::generate_handler![
+            allow_derived_file,
+            discard_part_file,
+            read_note_store,
+            write_note_store,
+            read_note_journal,
+            write_note_journal
+        ])
         .setup(|_app| {
             #[cfg(debug_assertions)]
             allow_e2e_scope(_app);
