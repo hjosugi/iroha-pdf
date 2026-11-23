@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { ask, open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { copyFile, exists, readFile, rename, writeFile } from '@tauri-apps/plugin-fs';
 
+import { t } from './i18n';
 import { backupPathFor, basename, partPathFor } from './paths';
 
 // Re-exported so callers keep one import for "the desktop file layer"; the rules
@@ -80,6 +81,35 @@ export async function pickPdfsFromDisk(): Promise<OpenedFile[]> {
 /** Returns null when the user dismisses the dialog. */
 export async function pickSaveLocation(defaultName: string): Promise<string | null> {
   return saveDialog({ defaultPath: defaultName, filters: PDF_FILTERS });
+}
+
+/**
+ * Whether the pristine copy taken on the first overwrite already exists.
+ *
+ * The confirmation before an overwrite is a once-per-document question: after the
+ * original has been copied aside, later saves are ordinary writes to the user's own
+ * document, and asking every time would train them to dismiss it.
+ */
+export async function hasOriginalBackup(path: string): Promise<boolean> {
+  return exists(backupPathFor(path));
+}
+
+/**
+ * Asks before the first overwrite of the file the user opened.
+ *
+ * Saving in place replaces the only copy of something they chose to open, so it gets
+ * the same kind of prompt as discarding unsaved edits — and the same fallback in a
+ * browser, where the Tauri dialog is not available.
+ */
+export async function confirmOverwrite(name: string): Promise<boolean> {
+  const message = t('save.confirmOverwriteBody', { name });
+  if (!isDesktopRuntime()) return window.confirm(message);
+  return ask(message, {
+    title: t('save.confirmOverwriteTitle'),
+    kind: 'warning',
+    okLabel: t('save.confirmOverwriteOk'),
+    cancelLabel: t('save.confirmOverwriteCancel'),
+  });
 }
 
 /**
