@@ -414,10 +414,21 @@ export function PdfToolbar({
    * Whether the line currently reports a failure. A failed save used to be the
    * same grey caption as "Saved", in the same place, and nothing announced it —
    * the kind of message that is read only by someone already looking for it.
-   * #100 lists that as unfinished. A failure is now an alert, which a screen
-   * reader speaks as it appears, and it is coloured as one.
+   * #100 lists that as unfinished. The failure now also becomes a banner below the
+   * toolbar, which is the alert a screen reader speaks as it appears; this line
+   * stays as the quieter record beside the button.
    */
   const [saveFailed, setSaveFailed] = useState(false);
+  /**
+   * The last failed save, kept so it can be retried from a banner that is visible
+   * outside the toolbar. A failure can be a full disk or a file another program is
+   * holding; either way the work is still in the draft, and trying again is the
+   * action the message should offer rather than only name.
+   */
+  const [failedSave, setFailedSave] = useState<{
+    message: string;
+    retry: () => Promise<SaveOutcome>;
+  } | null>(null);
   const report = useCallback((message: string | null, failed = false) => {
     setSaveState(message);
     setSaveFailed(failed && message !== null);
@@ -537,18 +548,27 @@ export function PdfToolbar({
 
   const runSave = async (action: () => Promise<SaveOutcome>) => {
     report(t('save.saving'));
+    setFailedSave(null);
     try {
       report(describeOutcome(await action()));
     } catch (error) {
       console.error('Iroha PDF: save failed', error);
-      report(describeFailure(error), true);
+      const message = describeFailure(error);
+      report(message, true);
+      setFailedSave({ message, retry: action });
     }
+  };
+
+  const dismissFailure = () => {
+    setFailedSave(null);
+    report(null);
   };
 
   const unsaved = file.pendingEdits > 0;
 
   return (
-    <div className="pdf-toolbar">
+    <>
+      <div className="pdf-toolbar">
       <span className="toolbar-group-label">{t('edit.label')}</span>
       {TOOL_LABELS.map(([tool, labelKey]) => (
         <button
@@ -571,10 +591,7 @@ export function PdfToolbar({
       <button className="tool" onClick={() => history?.redo()}>{t('edit.redo')}</button>
       <span className="toolbar-spacer" />
       {saveState && (
-        <span
-          className={saveFailed ? 'save-state failed' : 'save-state'}
-          role={saveFailed ? 'alert' : 'status'}
-        >
+        <span className={saveFailed ? 'save-state failed' : 'save-state'} role="status">
           {saveState}
         </span>
       )}
@@ -616,6 +633,22 @@ export function PdfToolbar({
           closePrint();
         }}
       />
-    </div>
+      </div>
+      {failedSave && (
+        <div className="save-failure-banner" role="alert">
+          <span>
+            <strong>{t('save.failedTitle')}</strong> {failedSave.message}
+          </span>
+          <span className="save-failure-actions">
+            <button className="tool" onClick={dismissFailure}>
+              {t('save.dismiss')}
+            </button>
+            <button className="primary-button" onClick={() => void runSave(failedSave.retry)}>
+              {t('save.retry')}
+            </button>
+          </span>
+        </div>
+      )}
+    </>
   );
 }

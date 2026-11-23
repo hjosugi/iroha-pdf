@@ -59,12 +59,18 @@ test.describe('unsaved edits', () => {
     await save(page);
     expect(await pendingEdits(page)).toBe(0);
 
+    // Saving over the opened file asks once by design; closing must not ask again.
+    const confirmations = () =>
+      invokeCalls(page).then(
+        (calls) => calls.filter((call) => call.cmd === 'plugin:dialog|message').length,
+      );
+    const before = await confirmations();
+
     await closeTab(page);
 
     // Nothing pending, so it should just close.
     await expect(page.locator('.empty-workspace')).toBeVisible();
-    const asked = (await invokeCalls(page)).some((call) => call.cmd === 'plugin:dialog|message');
-    expect(asked, 'a saved document must close without a prompt').toBe(false);
+    expect(await confirmations(), 'a saved document must close without a prompt').toBe(before);
   });
 
   test('closing a document with no edits at all does not nag', async ({ page }) => {

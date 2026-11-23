@@ -6,7 +6,10 @@ import { PdfAnnotationSubtype } from '@embedpdf/models';
 
 import {
   allowSaveSiblings,
+  basename,
+  confirmOverwrite,
   ensureOriginalBackup,
+  hasOriginalBackup,
   isDesktopRuntime,
   pickPdfFromDisk,
   pickSaveLocation,
@@ -410,8 +413,15 @@ export function usePdfSave(documentId: string, documentName: string) {
     const path = getDocumentFile(documentId).path;
     if (!isDesktopRuntime() || !path) return saveAs();
 
-    const buffer = await serialize();
+    // The first in-place save replaces the file the user opened. Ask before that,
+    // while the original can still be kept — and before `serialize`, which commits
+    // the pen's pending stroke, so backing out leaves the edit alone.
     await allowSaveSiblings(path);
+    if (!(await hasOriginalBackup(path)) && !(await confirmOverwrite(basename(path)))) {
+      return { status: 'cancelled' };
+    }
+
+    const buffer = await serialize();
     // Keep the bytes the user originally opened recoverable before the first overwrite.
     await ensureOriginalBackup(path);
     await writePdfToDisk(path, buffer);

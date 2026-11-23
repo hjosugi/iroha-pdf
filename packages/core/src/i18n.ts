@@ -216,6 +216,18 @@ const MESSAGES = {
   // it, so a failure never leaves a half-written file. Someone who has just been told
   // their save failed has no way to know that, and it is the first thing they want.
   'save.unchanged': { ja: 'ディスク上のファイルはそのままです。', en: 'The file on disk is unchanged.' },
+  // Replacing the file someone opened is the one save that destroys something, so it
+  // is asked about once — before the first overwrite, while the original can still be
+  // kept. The backup is written once and the question is not asked again.
+  'save.confirmOverwriteTitle': { ja: '元のファイルを上書きしますか？', en: 'Overwrite the original file?' },
+  'save.confirmOverwriteBody': { ja: '「{name}」を上書きします。開いたときの状態のコピーが隣に1つだけ残ります。', en: 'This replaces "{name}". A copy of the file as it was when you opened it is kept beside it.' },
+  'save.confirmOverwriteOk': { ja: '上書き', en: 'Overwrite' },
+  'save.confirmOverwriteCancel': { ja: 'キャンセル', en: 'Cancel' },
+  // A failed save has to be visible from anywhere in the window, not only in the
+  // toolbar line someone may not be looking at.
+  'save.failedTitle': { ja: '保存できませんでした', en: 'Could not save' },
+  'save.retry': { ja: '再試行', en: 'Retry' },
+  'save.dismiss': { ja: '閉じる', en: 'Dismiss' },
 
   'thumbnails.label': { ja: 'ページ', en: 'Pages' },
   // Read out by a screen reader in place of the picture, so it says which page this

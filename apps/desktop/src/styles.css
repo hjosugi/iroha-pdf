@@ -176,6 +176,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .recovery-actions { display: flex; flex-shrink: 0; gap: var(--space-3); }
 .autosave-banner { display: flex; gap: var(--space-6); align-items: center; padding: var(--space-5) var(--space-7); border-bottom: var(--line) solid #f3b8a0; background: #fdece5; color: #7a2d0b; font-size: var(--type-label); }
 .autosave-banner strong { color: #5c2007; }
+.save-failure-banner { display: flex; gap: var(--space-6); align-items: center; justify-content: space-between; padding: var(--space-5) var(--space-7); border-bottom: var(--line) solid #e6a08c; background: #fbe3da; color: #7a2d0b; font-size: var(--type-label); }
+.save-failure-banner strong { color: #5c2007; }
+.save-failure-actions { display: flex; gap: var(--space-3); align-items: center; flex-shrink: 0; }
 .primary-button.unsaved { background: #d9480f; }
 .primary-button.unsaved:hover { background: #b93c0b; }
 
