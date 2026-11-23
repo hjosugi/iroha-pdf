@@ -397,6 +397,16 @@ const MESSAGES = {
   'forms.unknownField': { ja: '「{name}」という項目がありません。', en: 'There is no field named “{name}”.' },
   'forms.invalidValue': { ja: '「{name}」の値が正しくありません。', en: 'The value for “{name}” is not valid.' },
   'forms.invalidOption': { ja: '「{name}」に「{option}」は選べません。', en: '“{option}” is not an option for “{name}”.' },
+
+  // Blank pages (#30). The detector is conservative; the list is a preview and
+  // nothing is removed until the user confirms it.
+  'blank.open': { ja: '空白ページ…', en: 'Blank pages…' },
+  'blank.dialogTitle': { ja: '空白ページの削除', en: 'Remove blank pages' },
+  'blank.hint': { ja: '表示内容のないページだけを候補にしています。画像だけのページ（白紙スキャンなど）は対象外です。', en: 'Only pages with no visible content are listed. Image-only pages, such as a blank scan, are left alone.' },
+  'blank.none': { ja: '空白ページは見つかりませんでした。', en: 'No blank pages were found.' },
+  'blank.page': { ja: '{page}ページ目（確度{confidence}%）', en: 'Page {page} ({confidence}% sure)' },
+  'blank.remove': { ja: '{count}ページを削除して保存', en: 'Remove {count} pages and save' },
+  'blank.failed': { ja: '空白ページを削除できませんでした。', en: 'The blank pages could not be removed.' },
   // Opt-in diagnostics (#66). The wording has to make the privacy claim plainly,
   // because it is the reason the switch is safe to turn on.
   'diagnostics.open': { ja: '診断', en: 'Diagnostics' },

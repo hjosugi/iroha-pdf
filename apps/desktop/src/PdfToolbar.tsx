@@ -5,6 +5,8 @@ import { useHistoryCapability } from '@embedpdf/plugin-history/react';
 import { usePrint } from '@embedpdf/plugin-print/react';
 import { useScroll } from '@embedpdf/plugin-scroll/react';
 
+import { BlankPagesDialog } from './BlankPagesDialog';
+import type { BlankPageCandidate } from './blank-pages-operation';
 import { basename, isDesktopRuntime } from './file-bridge';
 import { FormDialog } from './FormDialog';
 import { t } from './i18n';
@@ -447,6 +449,8 @@ export function PdfToolbar({
   const pagesButtonRef = useRef<HTMLButtonElement>(null);
   const [formFields, setFormFields] = useState<PdfFormField[] | null>(null);
   const formButtonRef = useRef<HTMLButtonElement>(null);
+  const [blankCandidates, setBlankCandidates] = useState<BlankPageCandidate[] | null>(null);
+  const blankButtonRef = useRef<HTMLButtonElement>(null);
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const organizeButtonRef = useRef<HTMLButtonElement>(null);
   const documentBytes = useDocumentBytes(documentId);
@@ -465,6 +469,52 @@ export function PdfToolbar({
     setFormFields(null);
     window.requestAnimationFrame(() => formButtonRef.current?.focus());
   }, []);
+
+  const closeBlank = useCallback(() => {
+    setBlankCandidates(null);
+    window.requestAnimationFrame(() => blankButtonRef.current?.focus());
+  }, []);
+
+  const openBlank = useCallback(async () => {
+    report(t('blank.open'));
+    try {
+      const { findBlankPages } = await import('./blank-pages-operation');
+      const candidates = await findBlankPages(new Uint8Array(await documentBytes()));
+      if (candidates.length === 0) {
+        report(t('blank.none'));
+        return;
+      }
+      setBlankCandidates(candidates);
+      report(null);
+    } catch (error) {
+      console.error('Iroha PDF: blank pages could not be detected', error);
+      report(t('blank.failed'), true);
+    }
+  }, [documentBytes, report]);
+
+  const removeBlank = useCallback(
+    async (pageIndices: readonly number[]) => {
+      report(t('pages.working'));
+      try {
+        const { removeBlankPagesAndWrite } = await import('./blank-pages-operation');
+        const outcome = await removeBlankPagesAndWrite(
+          new Uint8Array(await documentBytes()),
+          pageIndices,
+          documentName || 'document.pdf',
+        );
+        if (outcome.status === 'cancelled') {
+          report(null);
+          return;
+        }
+        report(t('save.savedTo', { name: basename(outcome.path) }));
+        closeBlank();
+      } catch (error) {
+        console.error('Iroha PDF: blank pages could not be removed', error);
+        report(t('blank.failed'), true);
+      }
+    },
+    [closeBlank, documentBytes, documentName, report],
+  );
 
   /**
    * Reads the open document's form and opens the dialog.
@@ -668,6 +718,9 @@ export function PdfToolbar({
       <button ref={formButtonRef} className="tool" onClick={() => void openForm()}>
         {t('forms.open')}
       </button>
+      <button ref={blankButtonRef} className="tool" onClick={() => void openBlank()}>
+        {t('blank.open')}
+      </button>
       <button ref={printButtonRef} className="tool" onClick={() => setPrintOpen(true)}>
         {t('print.open')}
       </button>
@@ -694,6 +747,14 @@ export function PdfToolbar({
           documentName={documentName}
           onClose={closeForm}
           onSubmit={submitForm}
+        />
+      )}
+      {blankCandidates && (
+        <BlankPagesDialog
+          candidates={blankCandidates}
+          documentName={documentName}
+          onClose={closeBlank}
+          onRemove={removeBlank}
         />
       )}
       <PrintDialog
