@@ -217,7 +217,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .dialog-field > input { min-height: var(--control-touch); border: var(--line) solid #d8dce4; border-radius: var(--radius-md); padding: var(--space-5); }
 .print-checkbox { margin-top: var(--space-7); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-4); margin-top: var(--space-8); }
-.form-dialog { width: min(560px, 100%); max-height: calc(100vh - 2 * var(--space-9)); overflow-y: auto; }
+.form-dialog { width: min(var(--dialog-width), 100%); max-height: calc(100vh - 2 * var(--space-9)); overflow-y: auto; }
 .form-dialog .form-fields { display: grid; gap: var(--space-6); margin-top: var(--space-7); }
 .form-dialog .form-field { display: grid; gap: var(--space-2); align-items: stretch; }
 .form-dialog .form-field-inline { display: flex; align-items: center; gap: var(--space-3); }
