@@ -29,6 +29,7 @@ content off-device.
 | Imported PDF copies | App-private files | Until the user deletes the local copy or app | Import, export, delete app data |
 | Notes and annotations | Mobile SQLite / desktop app-data note store | Notes remain until deleted; mobile annotations are removed with their local PDF record | Edit or delete locally |
 | Recovery journal | Mobile SQLite / desktop app-data note journal | Applied records may be pruned; unresolved copies remain until reviewed | Review/delete recovery copies |
+| Revision copies | Desktop app-data revision store | Kept for restore; oldest are dropped once the store passes 512 MiB | Delete app data |
 | OAuth tokens | Keychain/Keystore or OS credential vault | Until sign-out, revocation, or app removal | Sign out and revoke access |
 | Drive PDFs | User's Google Drive | Controlled by the user's Drive retention | Delete from Drive explicitly |
 | Planned Drive sync metadata | Drive `appDataFolder` | Not written by the current UI; future data remains until removed | Disconnect and remove app data |
@@ -46,6 +47,15 @@ application's site data does not clear them; removing the app's data does.
 A write interrupted between the debounce and the disk is reconciled on the next
 open and offered back in the note panel rather than being lost. Notes written
 by versions that used `localStorage` are migrated on first read.
+
+### Desktop revision copies
+
+Every desktop save also stores the bytes it wrote, so the edit history can
+restore that revision (#101). The copies live in `revisions/` under the same
+private data directory, named by an id the webview cannot point outside it, and
+are bounded by total size: the oldest are deleted once the directory passes
+512 MiB. Restoring writes a new file the user names; it never replaces the open
+document.
 
 ## Credentials and secrets
 

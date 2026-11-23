@@ -161,6 +161,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .history-label { display: flex; min-width: 0; flex-direction: column; gap: var(--space-1); color: #3d444f; }
 .history-label strong { overflow: hidden; color: #161a22; font-weight: 650; text-overflow: ellipsis; }
 .history-meta { color: #a2a8b2; font-size: var(--type-caption); }
+.history-restore { margin-left: auto; flex-shrink: 0; }
+.history-restore-status { margin: 0; padding: var(--space-4) var(--space-7); border-bottom: var(--line) solid #e4e7ec; color: #3d444f; font-size: var(--type-caption); }
+.history-restore-status.failed { border-bottom-color: #e6a08c; color: #7a2d0b; background: #fbe3da; }
 .save-state { color: #6b7280; font-size: var(--type-small); }
 /* A failed save or page operation: the same place as every report, but it has to
    read as a failure at a glance, not only to someone who reads the words. */
