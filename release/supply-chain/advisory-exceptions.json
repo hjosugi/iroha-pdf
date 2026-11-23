@@ -43,19 +43,6 @@
       ]
     },
     {
-      "package": "deepmerge",
-      "advisories": ["GHSA-gcqx-w48m-w2h4"],
-      "expires": "2027-01-31",
-      "why": [
-        "Prototype poisoning of the object mergeObject() returns. It reaches this project",
-        "only through @expo/config while the Expo CLI reads the project's own app.json",
-        "at build time; no user-opened document and no untrusted remote input passes",
-        "through it. npm's suggested fix is Expo 53, three SDKs back, which is not a fix.",
-        "",
-        "Revisit when @expo/config moves to a fixed deepmerge, or when Expo 58 lands."
-      ]
-    },
-    {
       "package": "glob",
       "advisories": ["GHSA-3g3m-2fjr-6pw4"],
       "expires": "2027-01-31",
