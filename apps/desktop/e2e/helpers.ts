@@ -127,13 +127,16 @@ export async function drawShape(
 
 /** Number of edits the toolbar believes are unsaved. */
 export async function pendingEdits(page: Page): Promise<number> {
-  const label = await page.locator('.primary-button').last().textContent();
+  const label = await page.locator('.pdf-toolbar .primary-button').textContent();
   const match = label?.match(/Save \((\d+)\)/);
   return match ? Number(match[1]) : 0;
 }
 
 export async function save(page: Page): Promise<void> {
-  await page.locator('.primary-button').last().click();
+  // The first in-place save asks before it replaces the opened file; these tests are
+  // about what happens once the user agrees. The cancel path has its own test.
+  await page.evaluate(() => window.__IROHA_TEST__.setConfirmAnswer('ok'));
+  await page.locator('.pdf-toolbar .primary-button').click();
   await expect(page.locator('.save-state')).toContainText(/Saved to|Save failed/);
 }
 

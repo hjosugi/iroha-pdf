@@ -54,6 +54,8 @@ declare global {
       calls: () => InvokeRecord[];
       setSavePath: (path: string | null) => void;
       setOpenPath: (path: string | null) => void;
+      /** How later confirmation prompts are answered. */
+      setConfirmAnswer: (answer: 'ok' | 'cancel') => void;
       /** What a multi-select open dialog returns. Null means the user dismissed it. */
       setOpenPaths: (paths: string[] | null) => void;
       /**
@@ -120,6 +122,7 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
     let openPaths: string[] | null = null;
     const queuedSavePaths: (string | null)[] = [];
     let savePath = stub.savePath;
+    let confirmAnswer = stub.confirmAnswer;
     let fullDiskPath: string | null = null;
     let renameBlockedPath: string | null = null;
 
@@ -148,6 +151,9 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
       },
       setOpenPath: (path) => {
         openPath = path;
+      },
+      setConfirmAnswer: (answer) => {
+        confirmAnswer = answer;
       },
       setOpenPaths: (paths) => {
         openPaths = paths;
@@ -195,7 +201,7 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
                 ? (buttons as { OkCancelCustom: [string, string] }).OkCancelCustom
                 : null;
             const [ok, cancel] = custom ?? ['Yes', 'No'];
-            return stub.confirmAnswer === 'ok' ? ok : cancel;
+            return confirmAnswer === 'ok' ? ok : cancel;
           }
           case 'plugin:fs|read_file': {
             const path = (args as { path: string }).path;
