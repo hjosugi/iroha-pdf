@@ -29,7 +29,7 @@ async function widths(page: Page, path: string): Promise<number[]> {
 }
 
 async function openPages(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Pages…' }).click();
+  await page.getByRole('button', { name: 'Pages…', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Work with pages' })).toBeVisible();
 }
 
