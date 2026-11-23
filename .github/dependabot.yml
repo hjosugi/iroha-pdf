@@ -30,6 +30,12 @@ updates:
     # so this gives dependabot exactly the latitude Expo already allows, and no
     # more. Anything wider belongs to an SDK upgrade.
     ignore:
+      # The 3.x line only exists for five of the eighteen @embedpdf packages
+      # the desktop app uses; the other thirteen are still 2.x, and the two
+      # majors are not type-compatible. A 3.x move has to land as one
+      # migration, not as a partial Dependabot bump.
+      - dependency-name: "@embedpdf/*"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "expo"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "expo-*"
