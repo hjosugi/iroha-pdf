@@ -8,11 +8,21 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Note } from '@iroha-pdf/core';
+import { useSelectionCapability } from '@embedpdf/plugin-selection/react';
+import { useScrollCapability } from '@embedpdf/plugin-scroll/react';
 
 import { PageThumbnails } from './PageThumbnails';
 
 import { basename } from './file-bridge';
 import { t, timeFormat } from './i18n';
+import {
+  appendNoteLink,
+  linkLabel,
+  noteTargetHref,
+  parseNoteLinks,
+  type NoteTargetRect,
+  type ParsedNoteLink,
+} from './note-links';
 import {
   blankLinkedNote,
   discardLinkedNote,
@@ -146,11 +156,17 @@ function HistoryPanel({ documentId }: { documentId: string }) {
 /** Long enough that typing is not a write per keystroke, short enough to survive a crash. */
 const NOTE_SAVE_DEBOUNCE_MS = 250;
 
-function NotePanel({ noteKey }: { noteKey: string }) {
+function NotePanel({ documentId, noteKey }: { documentId: string; noteKey: string }) {
   const [note, setNote] = useState<Note | null>(null);
   const [storedLast, setStoredLast] = useState(true);
   const [recovery, setRecovery] = useState<NoteRecovery | null>(null);
+  const [selection, setSelection] = useState<{ pageIndex: number; rect: NoteTargetRect } | null>(
+    null,
+  );
+  const [linkStatus, setLinkStatus] = useState<string | null>(null);
   const noteRef = useRef<Note | null>(null);
+  const { provides: selectionCapability } = useSelectionCapability();
+  const { provides: scrollCapability } = useScrollCapability();
 
   useEffect(() => {
     noteRef.current = note;
@@ -217,6 +233,84 @@ function NotePanel({ noteKey }: { noteKey: string }) {
     };
   }, [noteKey]);
 
+  /**
+   * Text selection is enabled per interaction mode, and the default mode is where
+   * someone reading is. The note panel is the only place that turns it on: while it
+   * is open a drag over text selects it, which is what "link this selection" reads.
+   */
+  useEffect(() => {
+    if (!selectionCapability) return;
+    selectionCapability.enableForMode('pointerMode', { enableSelection: true }, documentId);
+    const update = () => {
+      const formatted = selectionCapability.getFormattedSelection(documentId)[0];
+      setSelection(
+        formatted
+          ? {
+              pageIndex: formatted.pageIndex,
+              rect: {
+                x: formatted.rect.origin.x,
+                y: formatted.rect.origin.y,
+                width: formatted.rect.size.width,
+                height: formatted.rect.size.height,
+              },
+            }
+          : null,
+      );
+    };
+    update();
+    return selectionCapability.onSelectionChange((event) => {
+      if (event.documentId === documentId) update();
+    });
+  }, [documentId, selectionCapability]);
+
+  const links = useMemo(() => parseNoteLinks(note?.body ?? ''), [note?.body]);
+
+  const linkSelection = async () => {
+    if (!selectionCapability || !selection) return;
+    let text = '';
+    try {
+      text = (await selectionCapability.getSelectedText(documentId).toPromise()).join(' ');
+    } catch {
+      // The rect is the part a jump needs; a missing text label is not a failure.
+    }
+    const pageLabel = t('note.pageLabel', { page: selection.pageIndex + 1 });
+    const href = noteTargetHref({
+      documentKey: noteKey,
+      pageIndex: selection.pageIndex,
+      rect: selection.rect,
+    });
+    setNote((current) =>
+      current
+        ? {
+            ...current,
+            body: appendNoteLink(current.body, linkLabel(text, pageLabel), href),
+            updatedAt: new Date().toISOString(),
+          }
+        : current,
+    );
+    setLinkStatus(t('note.linkAdded'));
+  };
+
+  const jump = (link: ParsedNoteLink) => {
+    if (!link.target) {
+      setLinkStatus(t('note.linkInvalid'));
+      return;
+    }
+    if (link.target.documentKey !== noteKey) {
+      // Opening a file needs a grant none of this session's dialogs made (#43).
+      setLinkStatus(t('note.linkOtherDocument'));
+      return;
+    }
+    if (!scrollCapability) return;
+    scrollCapability.forDocument(documentId).scrollToPage({
+      pageNumber: link.target.pageIndex + 1,
+      pageCoordinates: { x: link.target.rect.x, y: link.target.rect.y },
+      behavior: 'smooth',
+      alignY: 20,
+    });
+    setLinkStatus(t('note.jumped', { page: link.target.pageIndex + 1 }));
+  };
+
   const restore = () => {
     void restoreLinkedNote(noteKey).then(
       (restored) => {
@@ -262,6 +356,25 @@ function NotePanel({ noteKey }: { noteKey: string }) {
           </span>
         </div>
       )}
+      {selection && (
+        <button className="tool note-link-action" onClick={() => void linkSelection()}>
+          {t('note.linkSelection')}
+        </button>
+      )}
+      {links.length > 0 && (
+        <div className="note-links">
+          <span className="note-links-label">{t('note.links')}</span>
+          {links.map((link, index) => (
+            <button
+              key={`${link.href}-${index}`}
+              className="tool note-link"
+              onClick={() => jump(link)}
+            >
+              {link.label || t('note.pageLabel', { page: (link.target?.pageIndex ?? 0) + 1 })}
+            </button>
+          ))}
+        </div>
+      )}
       <textarea
         className="note-body"
         value={note.body}
@@ -276,6 +389,11 @@ function NotePanel({ noteKey }: { noteKey: string }) {
       {/* A note nobody can store is the case this label must not sleep through:
           it is the only copy of what was typed, and someone who reads "Saved"
           will keep typing into a panel that is keeping nothing. */}
+      {linkStatus && (
+        <span className="saved-indicator" role="status">
+          {linkStatus}
+        </span>
+      )}
       <span className={storedLast ? 'saved-indicator' : 'saved-indicator failed'} role={storedLast ? undefined : 'alert'}>
         {t(storedLast ? 'autosave.saved' : 'note.saveFailed')}
       </span>
@@ -324,7 +442,7 @@ export function SidePanel({ documentId }: { documentId: string }) {
       {/* Mounted only while the tab is open: the strip holds rendered bitmaps, and a
           panel nobody is looking at should not be holding any. */}
       {tab === 'pages' && <PageThumbnails documentId={documentId} />}
-      {tab === 'note' && <NotePanel noteKey={file.path ?? documentId} />}
+      {tab === 'note' && <NotePanel documentId={documentId} noteKey={file.path ?? documentId} />}
     </aside>
   );
 }

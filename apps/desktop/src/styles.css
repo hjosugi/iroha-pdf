@@ -121,6 +121,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .saved-indicator.failed { color: #a4372a; font-weight: 700; }
 .note-recovery-banner { display: flex; gap: var(--space-4); align-items: center; justify-content: space-between; padding: var(--space-5) var(--space-7); border-bottom: var(--line) solid #f2d98c; background: #fff8e1; color: #5c4708; font-size: var(--type-label); }
 .note-recovery-banner .recovery-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+.note-link-action { margin: var(--space-4) var(--space-7) 0; align-self: flex-start; }
+.note-links { display: flex; flex-wrap: wrap; gap: var(--space-3); padding: var(--space-4) var(--space-7) 0; }
+.note-links-label { width: 100%; color: #767d88; font-size: var(--type-caption); font-weight: 650; }
+.note-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-body { width: 100%; flex: 1; resize: none; border: 0; outline: 0; padding: var(--space-7); color: #262b34; background: #fffefb; line-height: var(--leading-copy); }
 
 .history-empty { margin: 0; padding: var(--space-8) var(--space-7); color: #8c929c; font-size: var(--type-label); line-height: var(--leading-copy); }
