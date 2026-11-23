@@ -381,6 +381,17 @@ const MESSAGES = {
   'tools.formFill': { ja: '入力して書き出す', en: 'Fill and export' },
   'tools.formFailed': { ja: 'フォームを入力できませんでした', en: 'The form could not be filled' },
   'tools.formRequired': { ja: '必須', en: 'Required' },
+
+  // The desktop form dialog. The wording above is the mobile Tools screen's; these
+  // are the parts only the desktop surface needs.
+  'forms.open': { ja: 'フォームに入力…', en: 'Fill form…' },
+  'forms.dialogTitle': { ja: 'フォーム入力', en: 'Fill form' },
+  'forms.keepCurrent': { ja: '— 現在のまま —', en: '— keep current —' },
+  'forms.submit': { ja: '入力して保存', en: 'Fill and save' },
+  'forms.failed': { ja: 'フォームを入力できませんでした。', en: 'The form could not be filled.' },
+  'forms.unknownField': { ja: '「{name}」という項目がありません。', en: 'There is no field named “{name}”.' },
+  'forms.invalidValue': { ja: '「{name}」の値が正しくありません。', en: 'The value for “{name}” is not valid.' },
+  'forms.invalidOption': { ja: '「{name}」に「{option}」は選べません。', en: '“{option}” is not an option for “{name}”.' },
   // Opt-in diagnostics (#66). The wording has to make the privacy claim plainly,
   // because it is the reason the switch is safe to turn on.
   'diagnostics.open': { ja: '診断', en: 'Diagnostics' },
