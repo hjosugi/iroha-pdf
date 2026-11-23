@@ -150,6 +150,14 @@ const MESSAGES = {
   'note.saveFailed': { ja: 'メモを保存できませんでした', en: 'Note could not be saved' },
   // Offered when the write-ahead journal holds a note the durable store never took.
   'note.recovered': { ja: '保存されなかったメモが残っています。', en: 'A note from an interrupted save was recovered.' },
+  // A selection can be linked from the note, and the link jumps back to it (#46).
+  'note.linkSelection': { ja: '選択範囲をリンク', en: 'Link selection' },
+  'note.links': { ja: 'リンク', en: 'Links' },
+  'note.linkAdded': { ja: 'メモにリンクを追加しました。', en: 'Added a link to the note.' },
+  'note.linkOtherDocument': { ja: '別の文書へのリンクです。その文書を開いてから移動してください。', en: 'This links to another document. Open that document first.' },
+  'note.linkInvalid': { ja: 'このリンクは読み取れませんでした。', en: 'This link could not be read.' },
+  'note.jumped': { ja: '{page}ページ目へ移動しました。', en: 'Jumped to page {page}.' },
+  'note.pageLabel': { ja: '{page}ページ目', en: 'Page {page}' },
 
   'print.open': { ja: '印刷', en: 'Print' },
   'print.dialogTitle': { ja: 'PDFを印刷', en: 'Print PDF' },
