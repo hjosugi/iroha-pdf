@@ -32,6 +32,8 @@ you request. The app does not use these permissions for advertising.
 ## Storage, security, and retention
 
 Local data remains until you delete the relevant item or remove the app's data.
+On desktop, linked notes live in the app's private data directory with a
+write-ahead journal, so clearing the webview's site data does not remove them.
 OAuth credentials must be stored in the platform Keychain/Keystore. Network
 traffic to Google uses HTTPS. Exported and printed copies are controlled by the
 destination you select and may remain outside Iroha PDF's private storage.

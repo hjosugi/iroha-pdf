@@ -148,6 +148,8 @@ const MESSAGES = {
   'note.openHint': { ja: 'メモを編集します', en: 'Edit note' },
   'note.deleteHint': { ja: 'このメモを削除します', en: 'Delete this note' },
   'note.saveFailed': { ja: 'メモを保存できませんでした', en: 'Note could not be saved' },
+  // Offered when the write-ahead journal holds a note the durable store never took.
+  'note.recovered': { ja: '保存されなかったメモが残っています。', en: 'A note from an interrupted save was recovered.' },
 
   'print.open': { ja: '印刷', en: 'Print' },
   'print.dialogTitle': { ja: 'PDFを印刷', en: 'Print PDF' },

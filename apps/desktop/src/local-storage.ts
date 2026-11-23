@@ -1,17 +1,23 @@
 /**
  * How this app reads `localStorage`.
  *
- * Four things are kept there — a file's history, a crash draft, the tool
- * settings, and a document's note — and none of them may take the workspace
- * down when the browser will not co-operate. Storage can be disabled, full, or
- * still holding whatever an older version wrote, so a read that cannot produce
- * an object reads as "nothing stored" and every caller supplies its own
- * defaults. Writes are not shared: what a refused write means differs per
- * caller, and only the draft has to tell the user about it.
+ * A file's history, a crash draft, the tool settings, and the legacy per-document
+ * note live here, and none of them may take the workspace down when the browser
+ * will not co-operate. Storage can be disabled, full, or still holding whatever
+ * an older version wrote, so a read that cannot produce an object reads as
+ * "nothing stored" and every caller supplies its own defaults. Writes are not
+ * shared: what a refused write means differs per caller, and only the draft has
+ * to tell the user about it.
+ *
+ * Notes are no longer written here in the desktop runtime: they live in the
+ * app-data note store behind a write-ahead journal (#239). The `note` namespace
+ * remains for the browser build and as the migration source from older
+ * versions, and `note-store`/`note-journal` hold the browser fallback of that
+ * store.
  */
 
 /** The namespaces of the single `iroha-pdf:` key space, kept visible together. */
-type Namespace = 'history' | 'draft' | 'tool' | 'note' | 'app';
+type Namespace = 'history' | 'draft' | 'tool' | 'note' | 'note-store' | 'note-journal' | 'app';
 
 export function storageKey(namespace: Namespace, id: string): string {
   return `iroha-pdf:${namespace}:${id}`;

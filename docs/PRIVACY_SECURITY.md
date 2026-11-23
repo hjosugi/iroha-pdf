@@ -7,7 +7,9 @@ Iroha PDF is designed as a local-first application. PDF content, annotations, an
 - Mobile imports copy PDFs into the app's private document directory and do not
   overwrite the provider original. Desktop writes back to the selected path only
   when the user explicitly chooses Save; Save As and mobile export create a new copy.
-- Annotations and notes are stored in local SQLite on mobile. Desktop linked notes currently use local application storage.
+- Annotations and notes are stored in local SQLite on mobile. Desktop linked notes
+  are stored in the app's private data directory behind a write-ahead journal, so
+  clearing the webview's site data does not remove them.
 - Export and print create a new flattened PDF copy in a temporary/output location.
 - Basic PDF tools run on-device and do not upload documents to an Iroha PDF service.
 - The current Google Drive mobile flow lists app-visible files and downloads the
@@ -25,8 +27,8 @@ content off-device.
 | Data | Location | Retention | User control |
 |---|---|---|---|
 | Imported PDF copies | App-private files | Until the user deletes the local copy or app | Import, export, delete app data |
-| Notes and annotations | Mobile SQLite / desktop local storage | Notes remain until deleted; mobile annotations are removed with their local PDF record | Edit or delete locally |
-| Recovery journal | Mobile SQLite | Applied records may be pruned; unresolved copies remain until reviewed | Review/delete recovery copies |
+| Notes and annotations | Mobile SQLite / desktop app-data note store | Notes remain until deleted; mobile annotations are removed with their local PDF record | Edit or delete locally |
+| Recovery journal | Mobile SQLite / desktop app-data note journal | Applied records may be pruned; unresolved copies remain until reviewed | Review/delete recovery copies |
 | OAuth tokens | Keychain/Keystore or OS credential vault | Until sign-out, revocation, or app removal | Sign out and revoke access |
 | Drive PDFs | User's Google Drive | Controlled by the user's Drive retention | Delete from Drive explicitly |
 | Planned Drive sync metadata | Drive `appDataFolder` | Not written by the current UI; future data remains until removed | Disconnect and remove app data |
@@ -34,6 +36,16 @@ content off-device.
 
 No advertising ID, precise location, contacts, browsing history, analytics, or
 developer-operated account identifier is used by the current build.
+
+### Desktop linked notes
+
+Desktop notes are written to `notes.json` in the app's private data directory,
+with an in-flight copy in `notes-journal.json` and an atomic rename between
+steps. They are outside the webview's `localStorage`, so clearing the
+application's site data does not clear them; removing the app's data does.
+A write interrupted between the debounce and the disk is reconciled on the next
+open and offered back in the note panel rather than being lost. Notes written
+by versions that used `localStorage` are migrated on first read.
 
 ## Credentials and secrets
 
