@@ -137,6 +137,8 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
     let noteStore = '{}';
     let noteJournal = '{}';
     let noteStoreFailure: 'notes' | 'all' | null = null;
+    /** Stored revision copies, keyed by the id the history keeps. */
+    const revisions = new Map<string, Uint8Array>();
 
     const toBytes = (payload: unknown): Uint8Array => {
       if (payload instanceof Uint8Array) return payload;
@@ -310,6 +312,27 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
             }
             noteJournal = (args as { contents: string }).contents;
             return null;
+          }
+          case 'write_revision': {
+            const headers = (invokeOptions as { headers?: Record<string, string> })?.headers;
+            const id = headers?.['x-revision-id'];
+            if (!id) throw new Error('write_revision called without a revision id');
+            const bytes = toBytes(args);
+            revisions.set(id, bytes);
+            record.path = id;
+            record.byteLength = bytes.length;
+            calls.push(record);
+            return null;
+          }
+          case 'read_revision': {
+            const { id } = args as { id: string };
+            calls.push(record);
+            const bytes = revisions.get(id);
+            if (!bytes) throw new Error(`ENOENT: ${id}`);
+            return bytes.buffer.slice(
+              bytes.byteOffset,
+              bytes.byteOffset + bytes.byteLength,
+            ) as ArrayBuffer;
           }
           case 'discard_part_file': {
             // Derived on the Rust side from the source alone, so the stub derives it

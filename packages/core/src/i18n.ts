@@ -246,6 +246,11 @@ const MESSAGES = {
   'history.changed': { ja: '変更', en: 'Changed' },
   'history.removed': { ja: '削除', en: 'Removed' },
   'history.page': { ja: '{page}ページ', en: 'page {page}' },
+  // A revision can now be written back out (#101). It always goes to a new file.
+  'history.restore': { ja: '復元…', en: 'Restore…' },
+  'history.restoring': { ja: '復元しています…', en: 'Restoring…' },
+  'history.restored': { ja: '{name}に復元しました', en: 'Restored to {name}' },
+  'history.restoreFailed': { ja: 'この版を復元できませんでした。', en: 'This revision could not be restored.' },
 
   // What kind of mark an edit was. The history keeps the identifier and looks
   // the name up at render time, so a timeline written before the reader

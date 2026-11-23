@@ -23,6 +23,7 @@ import {
   type NoteRecovery,
 } from './note-store';
 import type { EditEntry, SaveRevision } from './document-store';
+import { restoreRevision } from './revision-store';
 import { useDocumentFile } from './use-pdf-file';
 
 function formatBytes(byteLength: number): string {
@@ -68,12 +69,37 @@ function SaveLabel({ revision }: { revision: SaveRevision }) {
 
 function HistoryPanel({ documentId }: { documentId: string }) {
   const file = useDocumentFile(documentId);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [restoreStatus, setRestoreStatus] = useState<{ text: string; failed: boolean } | null>(
+    null,
+  );
 
   // Newest first: the most recent change is the one being reasoned about.
   const timeline = useMemo(
     () => [...file.edits, ...file.revisions].sort((a, b) => b.at - a.at),
     [file.edits, file.revisions],
   );
+
+  const restore = async (revision: SaveRevision) => {
+    if (!revision.revisionId) return;
+    setRestoring(revision.revisionId);
+    setRestoreStatus(null);
+    try {
+      const suggested = `${basename(revision.path).replace(/\.pdf$/i, '')}-restored.pdf`;
+      const outcome = await restoreRevision(revision.revisionId, suggested);
+      if (outcome.status === 'written') {
+        setRestoreStatus({
+          text: t('history.restored', { name: basename(outcome.path) }),
+          failed: false,
+        });
+      }
+    } catch (error) {
+      console.warn('Iroha PDF: the revision could not be restored', error);
+      setRestoreStatus({ text: t('history.restoreFailed'), failed: true });
+    } finally {
+      setRestoring(null);
+    }
+  };
 
   if (timeline.length === 0) {
     return (
@@ -84,17 +110,36 @@ function HistoryPanel({ documentId }: { documentId: string }) {
   }
 
   return (
-    <ol className="history-list">
-      {timeline.map((item, index) => (
-        <li
-          className={isSaveRevision(item) ? 'history-item save' : 'history-item edit'}
-          key={`${item.at}-${index}`}
+    <>
+      {restoreStatus && (
+        <p
+          className={restoreStatus.failed ? 'history-restore-status failed' : 'history-restore-status'}
+          role={restoreStatus.failed ? 'alert' : 'status'}
         >
-          <span className="history-time">{timeFormat.format(item.at)}</span>
-          {isSaveRevision(item) ? <SaveLabel revision={item} /> : <EditLabel entry={item} />}
-        </li>
-      ))}
-    </ol>
+          {restoreStatus.text}
+        </p>
+      )}
+      <ol className="history-list">
+        {timeline.map((item, index) => (
+          <li
+            className={isSaveRevision(item) ? 'history-item save' : 'history-item edit'}
+            key={`${item.at}-${index}`}
+          >
+            <span className="history-time">{timeFormat.format(item.at)}</span>
+            {isSaveRevision(item) ? <SaveLabel revision={item} /> : <EditLabel entry={item} />}
+            {isSaveRevision(item) && item.revisionId && (
+              <button
+                className="tool history-restore"
+                disabled={restoring !== null}
+                onClick={() => void restore(item)}
+              >
+                {restoring === item.revisionId ? t('history.restoring') : t('history.restore')}
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
 

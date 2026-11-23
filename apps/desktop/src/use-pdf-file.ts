@@ -29,6 +29,7 @@ import {
 } from './document-store';
 import { clearDraft, saveDraft } from './draft-store';
 import { t } from './i18n';
+import { saveRevision } from './revision-store';
 
 /** A pen stroke emits a burst of updates; exporting on each one would be wasteful. */
 const DRAFT_DEBOUNCE_MS = 800;
@@ -399,12 +400,14 @@ export function usePdfSave(documentId: string, documentName: string) {
 
     await allowSaveSiblings(target);
     await writePdfToDisk(target, buffer);
+    const revisionId = (await saveRevision(buffer)) ?? undefined;
     recordSave(documentId, {
       at: Date.now(),
       path: target,
       byteLength: buffer.byteLength,
       editCount: getDocumentFile(documentId).pendingEdits,
       kind: 'save-as',
+      revisionId,
     });
     return { status: 'saved', path: target };
   }, [documentId, documentName, exportProvider, serialize]);
@@ -425,12 +428,14 @@ export function usePdfSave(documentId: string, documentName: string) {
     // Keep the bytes the user originally opened recoverable before the first overwrite.
     await ensureOriginalBackup(path);
     await writePdfToDisk(path, buffer);
+    const revisionId = (await saveRevision(buffer)) ?? undefined;
     recordSave(documentId, {
       at: Date.now(),
       path,
       byteLength: buffer.byteLength,
       editCount: getDocumentFile(documentId).pendingEdits,
       kind: 'save',
+      revisionId,
     });
     return { status: 'saved', path };
   }, [documentId, saveAs, serialize]);

@@ -62,6 +62,12 @@ export type SaveRevision = {
   /** Number of recorded edits that preceded this save. */
   editCount: number;
   kind: 'save' | 'save-as';
+  /**
+   * The stored copy this revision can be restored from (#101). Absent for
+   * revisions recorded before copies were kept, and for a save whose copy could
+   * not be written; the history then has nothing to offer for that row.
+   */
+  revisionId?: string;
 };
 
 export type DocumentFile = {
