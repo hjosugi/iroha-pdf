@@ -32,53 +32,19 @@
         "pathological input. npm audit matches on the version number, which a patch cannot",
         "change, so the advisory still needs this entry.",
         "",
-        "GHSA-qr28-fpjm-wq7f is the quadratic-replacement advisory, and it covers every",
-        "published release including 0.5.0. The same single-pass decoder backport",
-        "removes that path too, so the patch is the control for both findings.",
+        "GHSA-qr28-fpjm-wq7f is the quadratic-replacement advisory. It covers every release",
+        "through 0.5.0 and is fixed in 0.5.1, which is ESM-only like 0.3.0 onwards and cannot",
+        "be installed here for the same reason. The patch above backports 0.5.0, so it is NOT",
+        "a control for this one: its fallback still runs one full-string replace per distinct",
+        "escape run, which is runs times length. Measured on 2026-11-23 with distinct",
+        "three-byte runs, 80 KB took 540 ms and each doubling of the input quadrupled it;",
+        "0.5.1 took 7 ms on the same input. Carrying 0.5.1's single-pass fallback in the",
+        "patch is the open follow-up.",
         "Owner: Iroha PDF maintainers.",
         "",
         "Revisit when expo-router takes query-string 9.5 or later (which accepts",
         "decode-uri-component 0.5) or stops depending on it. Remove the patch and this entry",
         "together."
-      ]
-    },
-    {
-      "package": "glob",
-      "advisories": ["GHSA-3g3m-2fjr-6pw4"],
-      "expires": "2027-01-31",
-      "why": [
-        "AbortSignal cancellation bypass in a glob traversal. Every path is in Expo CLI,",
-        "@expo/config, metro and react-native-blob-util's Node-side tooling, walking the",
-        "repository during development and bundling — not a path derived from a document",
-        "a user opens. The fix is glob 14.0.2, but Expo 57 pins glob 13; npm's suggested",
-        "fix is Expo 53, three SDKs back.",
-        "",
-        "Revisit when Expo moves to glob 14.0.2 or later."
-      ]
-    },
-    {
-      "package": "minimatch",
-      "advisories": ["GHSA-g3hv-75wg-m249"],
-      "expires": "2027-01-31",
-      "why": [
-        "CPU amplification in globparts matching, reached only through the same Expo",
-        "build tooling chain as glob above and over repository paths. Fixed in",
-        "minimatch 11.0.1, but glob 13 pins minimatch 10 and Expo 57 pins glob 13.",
-        "",
-        "Revisit when Expo's glob moves to a minimatch 11.0.1 or later."
-      ]
-    },
-    {
-      "package": "zod",
-      "advisories": ["GHSA-mrhx-c7xc-m3w5"],
-      "expires": "2027-01-31",
-      "why": [
-        "Memory exhaustion while validating oversized constrained collections. The only",
-        "consumer is @expo/cli at development time, validating its own configuration;",
-        "it is not bundled into the desktop or mobile application. The fix is zod 4.6.6,",
-        "and Expo CLI 57 pins zod 3.25, whose schema API is not source compatible.",
-        "",
-        "Revisit when @expo/cli adopts zod 4.6.6 or later."
       ]
     }
   ]
