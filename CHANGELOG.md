@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.11.0 - 2026-11-24
+
+A desktop feature release. Nothing about the mobile screens changed; the work is
+in the document workspace and in the dependency and supply-chain batches that had
+queued since 0.10.1.
+
+Writing a document is safer to do. The first in-place save now asks before it
+replaces the file the user opened, and a failed save is a banner with Retry rather
+than a line in the toolbar (#236). Linked notes moved out of the webview's
+`localStorage` and into a write-ahead journal in the app data directory, so
+clearing site data no longer clears them and an interrupted write is offered back
+(#239). Every save also keeps the bytes it wrote, so any revision in the history
+can be restored to a new file (#101).
+
+The desktop gained the tools the core already had. AcroForm fields can be filled
+from a dialog and written to a copy (#48); blank pages can be previewed and
+removed (#30); and a note can link a text selection as Markdown and jump back to
+the page and rectangle (#46).
+
+Printing gained layouts: 2-up and 4-up sheets, a saddle-stitch booklet in duplex
+order, and poster tiles, with the produced document handed to the print dialog
+rather than only saved (#23). The side panel gained a Search tab that extracts the
+open document's text, searches it and the linked note, and jumps to a result
+(#45, single document; a cross-library index is still open).
+
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
+
+### Added
+
+- Desktop: confirmation before the first in-place overwrite, and a visible save
+  failure with Retry (#236).
+- Desktop: linked notes in an app-data write-ahead journal, with recovery (#239).
+- Desktop: restore any saved revision from the edit history (#101).
+- Desktop: AcroForm filling dialog (#48).
+- Desktop: blank-page preview and removal (#30).
+- Desktop: note links to text selections, with page and rectangle jumps (#46).
+- Desktop: N-up, booklet and poster print layouts, including Create and print
+  (#23).
+- Desktop: document and linked-note search with page jumps (#45).
+
+### Changed
+
+- Dependencies refreshed: Expo 57.0.33 and its patch train, tauri 2.12.7,
+  serde_json 1.0.154, `@vitejs/plugin-react` 6.3.0, Playwright 1.65.1 and
+  expo-dev-client 57.0.21.
+
+### Security
+
+- cookie 0.18.3, for RUSTSEC-2026-0594 (private cookie nonces in forking
+  processes).
+- The Expo 57.0.33 train clears the glob, minimatch and zod advisories; the two
+  remaining decode-uri-component findings stay excepted with their reason and an
+  expiry.
+- `@embedpdf` major bumps are ignored until the whole set ships a 3.x line, since
+  a partial upgrade cannot typecheck.
+
 ## 0.10.1 - 2026-11-06
 
 A build fix for the Android debug gate. React Native 0.86.2 downloads Hermes
