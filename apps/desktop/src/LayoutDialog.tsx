@@ -20,7 +20,7 @@ export function LayoutDialog({
   open: boolean;
   documentName: string;
   onClose: () => void;
-  onApply: (choice: LayoutChoice) => Promise<void>;
+  onApply: (choice: LayoutChoice, options: { print: boolean }) => Promise<void>;
 }) {
   const [mode, setMode] = useState<Mode>('two-up');
   const [sheet, setSheet] = useState<LayoutSheet>('a4');
@@ -43,7 +43,7 @@ export function LayoutDialog({
 
   if (!open) return null;
 
-  const submit = async () => {
+  const submit = async (print: boolean) => {
     const choice: LayoutChoice =
       mode === 'poster'
         ? { kind: 'poster', columns, rows }
@@ -53,7 +53,7 @@ export function LayoutDialog({
 
     setBusy(true);
     try {
-      await onApply(choice);
+      await onApply(choice, { print });
     } finally {
       setBusy(false);
     }
@@ -140,11 +140,18 @@ export function LayoutDialog({
             {t('action.cancel')}
           </button>
           <button
-            className="primary-button"
-            onClick={() => void submit()}
+            className="tool"
+            onClick={() => void submit(false)}
             disabled={busy || (mode === 'poster' && (columns < 1 || rows < 1))}
           >
             {t('layout.create')}
+          </button>
+          <button
+            className="primary-button"
+            onClick={() => void submit(true)}
+            disabled={busy || (mode === 'poster' && (columns < 1 || rows < 1))}
+          >
+            {t('layout.createAndPrint')}
           </button>
         </div>
       </section>
