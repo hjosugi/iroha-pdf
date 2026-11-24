@@ -11,6 +11,7 @@ import { basename, isDesktopRuntime } from './file-bridge';
 import { FormDialog } from './FormDialog';
 import { LayoutDialog } from './LayoutDialog';
 import type { LayoutChoice } from './layout-operations';
+import { printPdfBytes } from './pdf-print';
 import { t } from './i18n';
 import {
   colorOf,
@@ -485,7 +486,7 @@ export function PdfToolbar({
   }, []);
 
   const runLayout = useCallback(
-    async (choice: LayoutChoice) => {
+    async (choice: LayoutChoice, options: { print: boolean }) => {
       report(t('layout.working'));
       try {
         const { applyLayout } = await import('./layout-operations');
@@ -499,6 +500,7 @@ export function PdfToolbar({
           return;
         }
         report(t('save.savedTo', { name: basename(outcome.path) }));
+        if (options.print) printPdfBytes(outcome.bytes);
         closeLayout();
       } catch (error) {
         console.error('Iroha PDF: the layout could not be created', error);

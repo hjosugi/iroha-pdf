@@ -7,6 +7,63 @@ import { PDFDocument } from 'pdf-lib';
 import { boot, openPdf } from './helpers';
 import { readVirtualFile } from './tauri-stub';
 
+/**
+ * Captures the PDF blobs the layout print path hands to its frame, and neutralises
+ * the frame's print() so a real dialog cannot open during the run.
+ */
+async function capturePrintedBlobs(page: import('@playwright/test').Page): Promise<void> {
+  await page.addInitScript(() => {
+    const blobs: Blob[] = [];
+    (globalThis as { __layoutPrintBlobs?: Blob[] }).__layoutPrintBlobs = blobs;
+    const originalCreate = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (item: Blob | MediaSource) => {
+      if (item instanceof Blob && item.type === 'application/pdf') blobs.push(item);
+      return originalCreate(item as Blob);
+    };
+    const originalAppend = Node.prototype.appendChild;
+    Node.prototype.appendChild = function <T extends Node>(node: T): T {
+      const result = originalAppend.call(this, node) as T;
+      if (node instanceof HTMLIFrameElement) {
+        node.addEventListener('load', () => {
+          try {
+            if (node.contentWindow) node.contentWindow.print = () => undefined;
+          } catch {
+            // Cross-origin frame; nothing to neutralise.
+          }
+        });
+      }
+      return result;
+    };
+  });
+}
+
+async function printedPdf(page: import('@playwright/test').Page): Promise<Buffer> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (globalThis as { __layoutPrintBlobs?: Blob[] }).__layoutPrintBlobs?.length ?? 0,
+        ),
+      { timeout: 30_000 },
+    )
+    .toBeGreaterThan(0);
+  const base64 = await page.evaluate(async () => {
+    const blobs = (globalThis as { __layoutPrintBlobs?: Blob[] }).__layoutPrintBlobs ?? [];
+    const candidate = blobs.at(-1);
+    if (!candidate) return null;
+    const bytes = new Uint8Array(await candidate.arrayBuffer());
+    let binary = '';
+    const chunk = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
+    }
+    return btoa(binary);
+  });
+  expect(base64).not.toBeNull();
+  return Buffer.from(base64!, 'base64');
+}
+
 async function openLayout(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: 'Layout…' }).click();
   const dialog = page.getByRole('dialog', { name: 'Print layout' });
@@ -67,4 +124,20 @@ test.describe('print layouts', () => {
     const pages = await sizes(page, target);
     expect(pages).toHaveLength(8);
   });
+});
+
+
+test('sends the produced layout to the print path', async ({ page }) => {
+  await capturePrintedBlobs(page);
+  const target = '/virtual/documents/two-up-print.pdf';
+  await boot(page, 'complex.pdf', { savePath: target });
+  await openPdf(page);
+
+  const dialog = await openLayout(page);
+  await dialog.getByLabel('2 pages per sheet').check();
+  await dialog.getByRole('button', { name: 'Create and print' }).click();
+  await expect(page.locator('.save-state')).toContainText('two-up-print.pdf');
+
+  const printed = await PDFDocument.load(new Uint8Array(await printedPdf(page)));
+  expect(printed.getPageCount()).toBe(1);
 });

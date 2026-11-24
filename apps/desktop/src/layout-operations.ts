@@ -24,7 +24,7 @@ export type LayoutChoice =
   | { kind: 'poster'; columns: number; rows: number };
 
 export type LayoutOutcome =
-  | { status: 'written'; path: string }
+  | { status: 'written'; path: string; bytes: Uint8Array }
   | { status: 'cancelled' };
 
 function suggestedName(sourceName: string, suffix: string): string {
@@ -58,5 +58,5 @@ export async function applyLayout(
   if (!target) return { status: 'cancelled' };
   await allowSaveSiblings(target);
   await writePdfToDisk(target, bytes.slice().buffer as ArrayBuffer);
-  return { status: 'written', path: target };
+  return { status: 'written', path: target, bytes };
 }
