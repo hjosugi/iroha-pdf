@@ -130,6 +130,29 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
   librsvg2-dev patchelf xdg-utils
 ```
 
+## Installing a release
+
+The release workflow publishes AppImage, deb and rpm on Linux, a universal dmg
+on macOS, and msi plus NSIS setup on Windows. The Linux AppImage can be installed
+with [Soar](https://soar.qaidvoid.dev/):
+
+```bash
+soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.11.0/Iroha-PDF_0.11.0_amd64.AppImage
+```
+
+To track the latest release instead of pinning a URL, put this in
+`~/.config/soar/packages.toml` and run `soar apply`:
+
+```toml
+[packages.iroha-pdf]
+github = "hjosugi/iroha-pdf"
+asset_pattern = "Iroha-PDF_*_amd64.AppImage"
+tag_pattern = "v*"
+```
+
+`soar update` moves a forge package to the newest release. The AppImage may need
+FUSE. Packages are unsigned (#64); `SHA256SUMS` is a checksum, not a signature.
+
 ## Mobile device evidence
 
 The normal Android job produces a debug APK. The manually dispatched

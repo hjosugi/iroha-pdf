@@ -10,22 +10,54 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 
 ## Current release status
 
-- The newest pre-release is `0.4.0`; GitHub currently identifies `0.1.0` as the latest stable release. Later work is recorded under `Unreleased`. Desktop artifacts are available from GitHub Releases, but Windows signing and macOS notarization are not implemented.
+- The newest release is `0.11.0`. Desktop AppImage, deb, rpm, dmg, msi and NSIS setup artifacts are on GitHub Releases, but Windows signing and macOS notarization are not implemented.
 - Android, iPhone, and iPad release configurations have started and rendered in simulators or emulators. This is not evidence of installing a signed production build on a physical device.
 - App Store and Google Play listing copy and images are present and validated in the repository. TestFlight, Play closed testing, store declarations, and review have not been performed.
 - Google Drive includes a REST client and a mobile list/download screen. Production OAuth, mobile upload UI, cross-device synchronization, conflict resolution, and release qualification remain incomplete.
 - [docs/RELEASE_GATE.md](docs/RELEASE_GATE.md) is the source of truth for release readiness. The gate is currently **blocked**.
+
+## Install
+
+Desktop builds are published on [GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest).
+
+- Linux: `Iroha-PDF_0.11.0_amd64.AppImage`, `.deb`, `.rpm`
+- macOS: `Iroha-PDF_0.11.0_universal.dmg`
+- Windows: `Iroha-PDF_0.11.0_x64_en-US.msi`, `Iroha-PDF_0.11.0_x64-setup.exe`
+
+On Linux, [Soar](https://soar.qaidvoid.dev/) can install the AppImage directly:
+
+```bash
+soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.11.0/Iroha-PDF_0.11.0_amd64.AppImage
+```
+
+To follow the latest release, add this to `~/.config/soar/packages.toml`:
+
+```toml
+[packages.iroha-pdf]
+github = "hjosugi/iroha-pdf"
+asset_pattern = "Iroha-PDF_*_amd64.AppImage"
+tag_pattern = "v*"
+```
+
+```bash
+soar apply
+```
+
+The AppImage may need FUSE. The packages are unsigned, so the first launch still meets Gatekeeper or SmartScreen warnings. `SHA256SUMS` lets you check the bytes CI built; it is not a signature.
 
 ## Implemented
 
 - Expo SDK 57, React Native 0.86.2, and React 19.2.3 mobile foundation. Expo-compatible mobile and shared packages use TypeScript 6.0.3.
 - Tauri 2, React 19.2.8, and EmbedPDF (PDFium/WASM) desktop foundation. Desktop and root tooling use TypeScript 7.0.2.
 - PDF viewing, multiple tabs, highlights, pressure-aware stylus ink, and text annotations.
-- Lightweight per-PDF notes with automatic saving.
+- Lightweight per-PDF notes with automatic saving; desktop notes live in an app-data write-ahead journal, survive site-data clearing, and offer an interrupted write back.
 - Export of a copy with annotations embedded into the PDF.
-- Desktop save and save-as for the opened PDF, a pristine backup before the first overwrite, edit history, and recovery of unsaved drafts.
+- Desktop save and save-as for the opened PDF, confirmation before the first overwrite, a visible save failure with Retry, a pristine backup, edit history, recovery of unsaved drafts, and restore of any saved revision.
 - PDF creation from images, including large-image downscaling, JPEG compression, and A4 placement.
 - Page reordering, duplication, merging, extraction, deletion, and rotation.
+- Desktop AcroForm filling (text, checkbox, radio, choice), blank-page preview and removal, and note links to text selections that jump to the page and rectangle.
+- Desktop N-up (2 or 4 pages), saddle-stitch booklet in duplex order, poster tiling, and printing the produced document.
+- Full-text search of the open document and its linked note, with page jumps (one document at a time).
 - Desktop print preview for all/current/custom pages with optional annotations, plus native iOS and Android print dialogs.
 - Safe structural PDF optimization.
 - SQLite persistence for PDFs, notes, and annotations.
@@ -47,7 +79,7 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 - Safe mobile optimization only rebuilds object streams. It does not recompress images, so some PDFs will not become smaller.
 - Mobile annotation export creates a separate copy and does not overwrite the provider original. A provider bridge for safely saving back to that file is not implemented.
 - Mobile annotation export and printing rebuild the complete PDF in JavaScript memory. Inputs over 64 MiB are rejected with guidance to use the desktop app, avoiding a forced process termination. Native viewing and annotation autosave remain available.
-- Desktop edit history stores metadata and unsaved drafts in local storage, but it cannot restore arbitrary historical PDF bytes. The one complete recoverable version is the pristine backup made before the first overwrite.
+- Search covers the open document and its note. A cross-library index is not implemented. The booklet layout assumes duplex printing; the printer's duplex setting is the operator's.
 - High compression, deskew, OCR, PDF/A, and font outlining require native engines. They are tracked as a desktop `pdfcpu` sidecar and dedicated mobile native modules.
 - Google Drive authentication requires iOS, Android, and Web OAuth clients in Google Cloud Console, followed by regeneration of the development build.
 - Drive upload APIs exist at the client layer. The mobile upload UI, production-account validation, cross-device sync, offline queue, and PDF conflict-resolution UI are incomplete.
