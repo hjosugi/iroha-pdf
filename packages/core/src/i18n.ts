@@ -159,6 +159,16 @@ const MESSAGES = {
   'note.jumped': { ja: '{page}ページ目へ移動しました。', en: 'Jumped to page {page}.' },
   'note.pageLabel': { ja: '{page}ページ目', en: 'Page {page}' },
 
+  // Whole-document and linked-note search (#45).
+  'search.label': { ja: '検索', en: 'Search' },
+  'search.placeholder': { ja: 'この文書とメモを検索', en: 'Search this document and note' },
+  'search.searching': { ja: '検索しています…', en: 'Searching…' },
+  'search.noResults': { ja: '一致する内容はありません。', en: 'No matches.' },
+  'search.document': { ja: '文書', en: 'Document' },
+  'search.note': { ja: 'メモ', en: 'Note' },
+  'search.page': { ja: '{page}ページ目', en: 'Page {page}' },
+  'search.failed': { ja: '文書のテキストを読み取れませんでした。', en: 'The document text could not be read.' },
+
   'print.open': { ja: '印刷', en: 'Print' },
   'print.dialogTitle': { ja: 'PDFを印刷', en: 'Print PDF' },
   'print.openPreview': { ja: '印刷プレビューを開く', en: 'Open print preview' },
