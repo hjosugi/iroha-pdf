@@ -185,6 +185,7 @@ const MESSAGES = {
   'layout.columns': { ja: '列', en: 'Columns' },
   'layout.rows': { ja: '行', en: 'Rows' },
   'layout.create': { ja: '作成して保存', en: 'Create and save' },
+  'layout.createAndPrint': { ja: '作成して印刷', en: 'Create and print' },
   'layout.working': { ja: 'レイアウトしています…', en: 'Laying out…' },
   'layout.failed': { ja: 'レイアウトを作成できませんでした。', en: 'The layout could not be created.' },
   'print.preparing': { ja: '準備しています…', en: 'Preparing…' },
