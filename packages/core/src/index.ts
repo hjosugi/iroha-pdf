@@ -4,6 +4,7 @@ export * from './cache';
 export * from './diagnostics';
 export * from './errors';
 export * from './forms';
+export * from './imposition';
 export * from './pages';
 export * from './pdf';
 export * from './recovery';
