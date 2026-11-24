@@ -9,6 +9,8 @@ import { BlankPagesDialog } from './BlankPagesDialog';
 import type { BlankPageCandidate } from './blank-pages-operation';
 import { basename, isDesktopRuntime } from './file-bridge';
 import { FormDialog } from './FormDialog';
+import { LayoutDialog } from './LayoutDialog';
+import type { LayoutChoice } from './layout-operations';
 import { t } from './i18n';
 import {
   colorOf,
@@ -451,6 +453,8 @@ export function PdfToolbar({
   const formButtonRef = useRef<HTMLButtonElement>(null);
   const [blankCandidates, setBlankCandidates] = useState<BlankPageCandidate[] | null>(null);
   const blankButtonRef = useRef<HTMLButtonElement>(null);
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const layoutButtonRef = useRef<HTMLButtonElement>(null);
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const organizeButtonRef = useRef<HTMLButtonElement>(null);
   const documentBytes = useDocumentBytes(documentId);
@@ -474,6 +478,35 @@ export function PdfToolbar({
     setBlankCandidates(null);
     window.requestAnimationFrame(() => blankButtonRef.current?.focus());
   }, []);
+
+  const closeLayout = useCallback(() => {
+    setLayoutOpen(false);
+    window.requestAnimationFrame(() => layoutButtonRef.current?.focus());
+  }, []);
+
+  const runLayout = useCallback(
+    async (choice: LayoutChoice) => {
+      report(t('layout.working'));
+      try {
+        const { applyLayout } = await import('./layout-operations');
+        const outcome = await applyLayout(
+          new Uint8Array(await documentBytes()),
+          choice,
+          documentName || 'document.pdf',
+        );
+        if (outcome.status === 'cancelled') {
+          report(null);
+          return;
+        }
+        report(t('save.savedTo', { name: basename(outcome.path) }));
+        closeLayout();
+      } catch (error) {
+        console.error('Iroha PDF: the layout could not be created', error);
+        report(t('layout.failed'), true);
+      }
+    },
+    [closeLayout, documentBytes, documentName, report],
+  );
 
   const openBlank = useCallback(async () => {
     report(t('blank.open'));
@@ -721,6 +754,9 @@ export function PdfToolbar({
       <button ref={blankButtonRef} className="tool" onClick={() => void openBlank()}>
         {t('blank.open')}
       </button>
+      <button ref={layoutButtonRef} className="tool" onClick={() => setLayoutOpen(true)}>
+        {t('layout.open')}
+      </button>
       <button ref={printButtonRef} className="tool" onClick={() => setPrintOpen(true)}>
         {t('print.open')}
       </button>
@@ -757,6 +793,12 @@ export function PdfToolbar({
           onRemove={removeBlank}
         />
       )}
+      <LayoutDialog
+        open={layoutOpen}
+        documentName={documentName}
+        onClose={closeLayout}
+        onApply={runLayout}
+      />
       <PrintDialog
         open={printOpen}
         currentPage={scrollState.currentPage || 1}
