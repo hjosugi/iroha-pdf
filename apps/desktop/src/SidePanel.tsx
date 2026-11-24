@@ -12,6 +12,7 @@ import { useSelectionCapability } from '@embedpdf/plugin-selection/react';
 import { useScrollCapability } from '@embedpdf/plugin-scroll/react';
 
 import { PageThumbnails } from './PageThumbnails';
+import { SearchPanel } from './SearchPanel';
 
 import { basename } from './file-bridge';
 import { t, timeFormat } from './i18n';
@@ -402,7 +403,7 @@ function NotePanel({ documentId, noteKey }: { documentId: string; noteKey: strin
 }
 
 export function SidePanel({ documentId }: { documentId: string }) {
-  const [tab, setTab] = useState<'history' | 'pages' | 'note'>('history');
+  const [tab, setTab] = useState<'history' | 'pages' | 'note' | 'search'>('history');
   const file = useDocumentFile(documentId);
 
   return (
@@ -432,6 +433,14 @@ export function SidePanel({ documentId }: { documentId: string }) {
         >
           {t('note.label')}
         </button>
+        <button
+          className={tab === 'search' ? 'panel-tab active' : 'panel-tab'}
+          onClick={() => setTab('search')}
+          role="tab"
+          aria-selected={tab === 'search'}
+        >
+          {t('search.label')}
+        </button>
       </div>
       {tab === 'history' && file.path && (
         <p className="side-panel-path" title={file.path}>
@@ -443,6 +452,13 @@ export function SidePanel({ documentId }: { documentId: string }) {
           panel nobody is looking at should not be holding any. */}
       {tab === 'pages' && <PageThumbnails documentId={documentId} />}
       {tab === 'note' && <NotePanel documentId={documentId} noteKey={file.path ?? documentId} />}
+      {tab === 'search' && (
+        <SearchPanel
+          documentId={documentId}
+          noteKey={file.path ?? documentId}
+          documentName={file.path ? basename(file.path) : documentId}
+        />
+      )}
     </aside>
   );
 }

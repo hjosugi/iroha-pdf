@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 
 import { diagnostics } from './diagnostics';
+import { EngineContext } from './engine-context';
 import { t } from './i18n';
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF, type PluginBatchRegistrations } from '@embedpdf/core/react';
@@ -87,14 +88,16 @@ export function App() {
   }
 
   return (
-    <EmbedPDF engine={engine} logger={logger} plugins={plugins}>
-      {({ pluginsReady, activeDocumentId, documentStates }) =>
-        pluginsReady ? (
-          <Workspace activeDocumentId={activeDocumentId} documentStates={documentStates} />
-        ) : (
-          <main className="center-state">{t('app.preparing')}</main>
-        )
-      }
-    </EmbedPDF>
+    <EngineContext.Provider value={engine}>
+      <EmbedPDF engine={engine} logger={logger} plugins={plugins}>
+        {({ pluginsReady, activeDocumentId, documentStates }) =>
+          pluginsReady ? (
+            <Workspace activeDocumentId={activeDocumentId} documentStates={documentStates} />
+          ) : (
+            <main className="center-state">{t('app.preparing')}</main>
+          )
+        }
+      </EmbedPDF>
+    </EngineContext.Provider>
   );
 }
