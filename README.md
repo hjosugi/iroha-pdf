@@ -10,22 +10,54 @@
 
 ## 現在のリリース状態
 
-- 最新のpre-releaseは`0.4.0`、GitHubがlatest stableとして示す版は`0.1.0`で、その後の改善は`Unreleased`です。デスクトップ成果物はGitHub Releaseにありますが、Windows署名とmacOS notarizationは未実装です。
+- 最新リリースは`0.11.0`です。デスクトップのAppImage / deb / rpm / dmg / msi / NSIS setupはGitHub Releasesにありますが、Windows署名とmacOS notarizationは未実装です。
 - Android / iPhone / iPadのRelease構成はSimulator / Emulatorで起動・描画確認済みです。署名済みproduction buildを物理端末へ入れた証跡ではありません。
 - App Store / Google Playの掲載文と画像はリポジトリ内で検証済みです。TestFlight、Play closed testing、ストア申告・審査は未実施です。
 - Google DriveはRESTクライアントとモバイルの一覧・ダウンロード画面までです。production OAuth、アップロード、端末間同期、競合解決はリリース未検証です。
 - 正式リリースの可否は[docs/RELEASE_GATE.md](docs/RELEASE_GATE.md)を正とします。現在は**blocked**です。
+
+## インストール
+
+デスクトップ版は [GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest) から取得できます。
+
+- Linux: `Iroha-PDF_0.11.0_amd64.AppImage`、`.deb`、`.rpm`
+- macOS: `Iroha-PDF_0.11.0_universal.dmg`
+- Windows: `Iroha-PDF_0.11.0_x64_en-US.msi`、`Iroha-PDF_0.11.0_x64-setup.exe`
+
+Linuxでは [Soar](https://soar.qaidvoid.dev/) から直接入れられます。
+
+```bash
+soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.11.0/Iroha-PDF_0.11.0_amd64.AppImage
+```
+
+最新リリースへ追従させる場合は `~/.config/soar/packages.toml` に次を追加します。
+
+```toml
+[packages.iroha-pdf]
+github = "hjosugi/iroha-pdf"
+asset_pattern = "Iroha-PDF_*_amd64.AppImage"
+tag_pattern = "v*"
+```
+
+```bash
+soar apply
+```
+
+AppImageの実行にはFUSEが必要な場合があります。配布物は未署名のため、初回起動時のGatekeeper / SmartScreenの警告は残ります。`SHA256SUMS`でCIがビルドしたバイト列を確認できますが、これは署名ではありません。
 
 ## 現在実装済み
 
 - Expo SDK 57 / React Native 0.86.2 / React 19.2.3のモバイル基盤。Expo互換のmobile・共有packageはTypeScript 6.0.3
 - Tauri 2 / React 19.2.8 / EmbedPDF（PDFium/WASM）のデスクトップ基盤。desktopとroot toolingはTypeScript 7.0.2
 - PDF表示、複数タブ、ハイライト、筆圧対応スタイラス手書き、テキスト注釈
-- PDFごとの軽量メモと自動保存
+- PDFごとの軽量メモと自動保存。デスクトップはapp dataのwrite-ahead journalに保存し、site dataの消去では消えず、中断した書き込みは復旧候補として提示します
 - 注釈をPDFへ焼き込んだコピーの書き出し
-- デスクトップで開いたPDFへの保存・別名保存、初回上書き前の原本backup、編集履歴と未保存下書きの復旧
+- デスクトップで開いたPDFへの保存・別名保存、初回上書き前の確認、保存失敗時のバナーと再試行、原本backup、編集履歴と未保存下書きの復旧、保存した任意revisionの復元
 - 画像からPDF作成（大画像縮小、JPEG圧縮、A4配置）
 - PDFページ並べ替え・複製・結合・抽出・削除・回転
+- デスクトップのAcroForm入力（テキスト・チェック・ラジオ・選択）、空白ページのプレビュー付き削除、ノートとテキスト選択のリンク（ページ・矩形へジャンプ）
+- デスクトップのN-up（2/4ページ）、中綴じ冊子（両面順）、ポスター分割と、生成結果の印刷
+- 開いている文書とリンクされたメモの全文検索（ページジャンプ付き、単一文書）
 - デスクトップの全ページ・現在ページ・範囲・注釈有無の印刷previewと、iOS / Androidのネイティブ印刷ダイアログ
 - PDF構造の安全な最適化
 - SQLiteによるPDF、メモ、注釈の永続化
@@ -47,7 +79,7 @@
 - モバイルの安全な最適化はObject Stream再構成のみです。画像の再圧縮を行わないため、縮まないPDFもあります。
 - モバイルの注釈書き出しはprovider原本を上書きせず別コピーを作ります。元ファイルへ安全に保存するprovider bridgeは未実装です。
 - モバイルの注釈書き出し/印刷はPDF全体をJavaScriptメモリで再構成するため、64 MiBを超える入力では強制終了を避けてdesktop利用を案内します。native閲覧と注釈autosaveは継続できます。
-- デスクトップの編集履歴はmetadataと未保存下書きをlocal storageへ保持しますが、任意revisionのPDF bytesへ戻す機能はありません。復元できる完全な版は初回上書き前の原本backupです。
+- 検索は開いている文書とそのメモが対象です。ライブラリ横断のインデックスは未実装です。中綴じ冊子は両面印刷を前提としたページ順で、プリンタの両面設定は利用側で行います。
 - 高圧縮、deskew、OCR、PDF/A、フォントアウトライン化はネイティブエンジンが必要です。デスクトップはpdfcpu sidecar、モバイルは専用ネイティブモジュールとしてIssue化しています。
 - Google Drive認証にはGoogle Cloud ConsoleでiOS、Android、Web OAuthクライアントを作成し、development buildを再生成する必要があります。
 - DriveのアップロードAPIはクライアント層までです。モバイルのアップロードUI、production実アカウントでの検証、端末間同期、オフラインキュー、PDF競合解決UIは完成していません。
