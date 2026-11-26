@@ -10,11 +10,12 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 
 ## Current release status
 
-- The newest release is `0.11.0`. Desktop AppImage, deb, rpm, dmg, msi and NSIS setup artifacts are on GitHub Releases, but Windows signing and macOS notarization are not implemented.
+- The newest release is `0.11.0`. Desktop AppImage, deb, rpm, dmg, msi and NSIS setup artifacts are on [GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest), but Windows signing and macOS notarization are not implemented.
 - Android, iPhone, and iPad release configurations have started and rendered in simulators or emulators. This is not evidence of installing a signed production build on a physical device.
 - App Store and Google Play listing copy and images are present and validated in the repository. TestFlight, Play closed testing, store declarations, and review have not been performed.
 - Google Drive includes a REST client and a mobile list/download screen. Production OAuth, mobile upload UI, cross-device synchronization, conflict resolution, and release qualification remain incomplete.
 - [docs/RELEASE_GATE.md](docs/RELEASE_GATE.md) is the source of truth for release readiness. The gate is currently **blocked**.
+- [docs/RELEASE.md](docs/RELEASE.md) is the runbook for cutting a release, publishing the site, and submitting to the stores. It is written in Japanese; [docs/BUILD.md](docs/BUILD.md#cutting-a-release) has the outline in English.
 
 ## Install
 
@@ -99,6 +100,7 @@ packages/
 docs/
   ARCHITECTURE.md
   GOOGLE_DRIVE.md
+  RELEASE.md       Release runbook (Japanese)
   REPOSITORY_RESEARCH.md
   TEST_PLAN.md
 site/
@@ -114,6 +116,7 @@ GitHub Pages publishes the repository's documentation. The [Pages workflow](http
 - Documentation site: https://hjosugi.github.io/iroha-pdf/
 - English overview: https://hjosugi.github.io/iroha-pdf/overview-en/
 - Stable privacy-policy URL for store listings and the OAuth consent screen: https://hjosugi.github.io/iroha-pdf/privacy/
+- Release runbook for the desktop release, the site, and store submission (Japanese): [docs/RELEASE.md](docs/RELEASE.md)
 - App Store and Google Play copy, images, and regeneration instructions: [release/store/README.md](release/store/README.md)
 - Screen-by-screen UI/UX audit, fixes, and remaining physical-device gates: [docs/UI_UX_AUDIT.md](docs/UI_UX_AUDIT.md)
 

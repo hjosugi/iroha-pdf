@@ -10,11 +10,12 @@
 
 ## 現在のリリース状態
 
-- 最新リリースは`0.11.0`です。デスクトップのAppImage / deb / rpm / dmg / msi / NSIS setupはGitHub Releasesにありますが、Windows署名とmacOS notarizationは未実装です。
+- 最新リリースは`0.11.0`です。デスクトップのAppImage / deb / rpm / dmg / msi / NSIS setupは[GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest)にありますが、Windows署名とmacOS notarizationは未実装です。
 - Android / iPhone / iPadのRelease構成はSimulator / Emulatorで起動・描画確認済みです。署名済みproduction buildを物理端末へ入れた証跡ではありません。
 - App Store / Google Playの掲載文と画像はリポジトリ内で検証済みです。TestFlight、Play closed testing、ストア申告・審査は未実施です。
 - Google DriveはRESTクライアントとモバイルの一覧・ダウンロード画面までです。production OAuth、アップロード、端末間同期、競合解決はリリース未検証です。
 - 正式リリースの可否は[docs/RELEASE_GATE.md](docs/RELEASE_GATE.md)を正とします。現在は**blocked**です。
+- リリース、サイト公開、ストア提出の進め方は[docs/RELEASE.md](docs/RELEASE.md)にまとめています。
 
 ## インストール
 
@@ -99,6 +100,7 @@ packages/
 docs/
   ARCHITECTURE.md
   GOOGLE_DRIVE.md
+  RELEASE.md       公開手順
   REPOSITORY_RESEARCH.md
   TEST_PLAN.md
 site/
@@ -114,6 +116,7 @@ issues/
 - サイト: https://hjosugi.github.io/iroha-pdf/
 - English overview: https://hjosugi.github.io/iroha-pdf/overview-en/
 - プライバシーポリシー（ストアとOAuth同意画面へ入力する安定URL）: https://hjosugi.github.io/iroha-pdf/privacy/
+- 公開手順（デスクトップのリリース、サイト公開、ストア提出）: [docs/RELEASE.md](docs/RELEASE.md)
 - App Store / Google Play提出文、画像、再生成手順: [release/store/README.md](release/store/README.md)
 - 画面別UI/UX監査、修正内容、残る実機ゲート: [docs/UI_UX_AUDIT.md](docs/UI_UX_AUDIT.md)
 

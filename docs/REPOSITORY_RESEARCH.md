@@ -87,8 +87,8 @@ Pedaru v0.2.2はdesktop専用です。Next.js/React frontendをTauri 2が包み�
 - mobile非対応
 - PDF書き込み/annotationなし
 - Driveはdownload中心で、複数端末のannotation mergeではない
-- issue #25のfile tabsが未完。READMEのpage tabsとは意味が異なる
-- issue #7ではmigration startup failureが報告され、DB初期化に注意が必要
+- [issue #25](https://github.com/togatoga/pedaru/issues/25)のfile tabsが未完。READMEのpage tabsとは意味が異なる
+- [issue #7](https://github.com/togatoga/pedaru/issues/7)ではmigration startup failureが報告され、DB初期化に注意が必要
 
 結論: fork/portしない。schema、OAuth、background job、secret handlingを設計資料として利用する。
 

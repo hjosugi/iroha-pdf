@@ -19,6 +19,55 @@ export const HERO = {
     'Documents, notes and annotations stay on the device. Google Drive is optional, least-privilege, and travels directly between the app and Google — there is no Iroha PDF server in the middle.',
 };
 
+/**
+ * The destinations a visitor or the maintainer most often wants, shown on the
+ * landing page before anything has to be scrolled. An entry names either a
+ * published document by `slug` or an absolute `href`; the build refuses a slug
+ * that is not in the table below, so this list cannot outlive a rename.
+ */
+export const QUICK_LINKS = [
+  {
+    label: 'ダウンロード',
+    detail: 'デスクトップ版の最新リリース（未署名）',
+    href: `${REPOSITORY_URL}/releases/latest`,
+  },
+  {
+    label: '日本語概要',
+    detail: '機能、リリース状態、既知の制限',
+    slug: 'overview-ja',
+  },
+  {
+    label: '公開手順',
+    detail: 'リリース・サイト・ストア提出の進め方',
+    slug: 'release',
+  },
+  {
+    label: 'ビルド',
+    detail: 'FrostBuildのターゲットと前提ツール',
+    slug: 'build',
+  },
+  {
+    label: 'プライバシーポリシー',
+    detail: 'ストアとOAuth同意画面に入力するURL',
+    slug: 'privacy',
+  },
+  {
+    label: '変更履歴',
+    detail: 'リリースごとの追加と修正',
+    slug: 'changelog',
+  },
+  {
+    label: 'Release gate',
+    detail: '正式リリースを止めている証跡の一覧',
+    slug: 'release-gate',
+  },
+  {
+    label: 'Issues',
+    detail: '現在の状態と優先度',
+    href: `${REPOSITORY_URL}/issues`,
+  },
+];
+
 export const FACTS = [
   {
     term: 'ローカルファースト',
@@ -133,6 +182,13 @@ export const SECTIONS = [
     blurb: '何がテストされ、何がリリースを止めていて、mainに何が要求されるか。',
     documents: [
       {
+        source: 'docs/RELEASE.md',
+        slug: 'release',
+        label: '公開手順',
+        summary:
+          'デスクトップ版のリリース、サイトの公開、ストア提出を、開く場所と押すボタンの順に並べた手順書。',
+      },
+      {
         source: 'docs/TEST_PLAN.md',
         slug: 'test-plan',
         label: 'Test plan',
@@ -160,7 +216,7 @@ export const SECTIONS = [
         source: 'CHANGELOG.md',
         slug: 'changelog',
         label: 'Changelog',
-        summary: 'リリースごとの修正・追加と、まだ添付していない署名済みパッケージの理由。',
+        summary: 'リリースごとの修正・追加と、配布パッケージが未署名である理由。',
       },
     ],
   },
