@@ -177,3 +177,22 @@ export async function confirmDiscard(message: string): Promise<boolean> {
   if (!isDesktopRuntime()) return window.confirm(message);
   return ask(message, { title: 'Unsaved changes', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Keep editing' });
 }
+
+/**
+ * Asks before a PDF link takes the user out of the app (#57).
+ *
+ * A link annotation is a URL the document chose. Opening it silently is how a
+ * document gets to launch a browser, and the confirmation names the exact URL so
+ * the answer is about something the reader can see. The scheme is checked before
+ * this is called; see `external-links.ts`.
+ */
+export async function confirmExternalLink(url: string): Promise<boolean> {
+  const message = t('link.confirmBody', { url });
+  if (!isDesktopRuntime()) return window.confirm(message);
+  return ask(message, {
+    title: t('link.confirmTitle'),
+    kind: 'warning',
+    okLabel: t('link.open'),
+    cancelLabel: t('action.cancel'),
+  });
+}

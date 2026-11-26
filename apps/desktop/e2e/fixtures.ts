@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 
 import fontkit from '@pdf-lib/fontkit';
-import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFString, StandardFonts, degrees, rgb } from 'pdf-lib';
 
 import { hasTool } from './render';
 
@@ -446,6 +446,30 @@ export async function buildBlankPagesPdf(): Promise<Uint8Array> {
   return pdf.save({ useObjectStreams: true });
 }
 
+/** A page with one line of text and a URI link annotation over it (#57). */
+export async function buildLinkPdf(): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const page = pdf.addPage(A4);
+  const { height } = page.getSize();
+  page.drawText('Open the example', { x: 72, y: height - 120, size: 18, font });
+
+  const link = pdf.context.obj({
+    Type: PDFName.of('Annot'),
+    Subtype: PDFName.of('Link'),
+    Rect: [72, height - 140, 320, height - 100],
+    Border: [0, 0, 0],
+    A: pdf.context.obj({
+      Type: PDFName.of('Action'),
+      S: PDFName.of('URI'),
+      URI: PDFString.of('https://example.com/iroha'),
+    }),
+  });
+  page.node.addAnnot(pdf.context.register(link));
+
+  return pdf.save({ useObjectStreams: true });
+}
+
 /** The passwords baked into encrypted.pdf. */
 export const ENCRYPTED_PDF_PASSWORDS = { user: 'iroha-user', owner: 'iroha-owner' } as const;/**
  * The program used to write encrypted.pdf, or null when neither is installed.
@@ -542,6 +566,7 @@ export const FIXTURES = {
   'repairable.pdf': () => buildRepairablePdf(),
   'form.pdf': buildFormPdf,
   'blank-pages.pdf': buildBlankPagesPdf,
+  'link.pdf': buildLinkPdf,
   // Null where the tool that writes it is missing; see ENCRYPTION_TOOL.
   'encrypted.pdf': buildEncryptedPdf,
 } as const;

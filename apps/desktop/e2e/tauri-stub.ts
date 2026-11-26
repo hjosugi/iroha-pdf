@@ -65,6 +65,8 @@ declare global {
       noteStore: () => string;
       /** The pending/recoverable journal, as the store would read it. */
       noteJournal: () => string;
+      /** URLs handed to the opener plugin, in order. */
+      openedUrls: () => string[];
       /** What a multi-select open dialog returns. Null means the user dismissed it. */
       setOpenPaths: (paths: string[] | null) => void;
       /**
@@ -139,6 +141,8 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
     let noteStoreFailure: 'notes' | 'all' | null = null;
     /** Stored revision copies, keyed by the id the history keeps. */
     const revisions = new Map<string, Uint8Array>();
+    /** URLs the page asked the opener plugin to open. */
+    const openedUrls: string[] = [];
 
     const toBytes = (payload: unknown): Uint8Array => {
       if (payload instanceof Uint8Array) return payload;
@@ -174,6 +178,7 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
       },
       noteStore: () => noteStore,
       noteJournal: () => noteJournal,
+      openedUrls: () => [...openedUrls],
       setOpenPaths: (paths) => {
         openPaths = paths;
       },
@@ -321,6 +326,12 @@ export async function installTauriStub(page: Page, options: StubOptions): Promis
             revisions.set(id, bytes);
             record.path = id;
             record.byteLength = bytes.length;
+            calls.push(record);
+            return null;
+          }
+          case 'plugin:opener|open_url': {
+            const { url } = args as { url: string };
+            openedUrls.push(url);
             calls.push(record);
             return null;
           }
