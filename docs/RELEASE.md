@@ -47,9 +47,11 @@ Iroha PDFを外へ出す経路は3つあります。この文書は、それぞ�
 ```bash
 VERSION=1.2.3   # 例。これから出す番号に置き換える
 
-npm version "$VERSION" --no-git-tag-version --ignore-scripts \
+npm version "$VERSION" --no-git-tag-version --ignore-scripts --package-lock-only \
   --workspace @iroha-pdf/desktop --workspace @iroha-pdf/mobile --include-workspace-root
 ```
+
+`--package-lock-only`を外さないでください。外すと、npmは`node_modules`をロックファイルに合わせて入れ直します。`--ignore-scripts`のためにパッチの再適用（`patch-package`）は走らないので、パッチ済みのパッケージが素の状態に戻ることがあります。
 
 下の3つはエディタで書き換え、そのあと`Cargo.lock`を追従させます。
 
