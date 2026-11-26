@@ -137,7 +137,7 @@ on macOS, and msi plus NSIS setup on Windows. The Linux AppImage can be installe
 with [Soar](https://soar.qaidvoid.dev/):
 
 ```bash
-soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.11.0/Iroha-PDF_0.11.0_amd64.AppImage
+soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.12.0/Iroha-PDF_0.12.0_amd64.AppImage
 ```
 
 To track the latest release instead of pinning a URL, put this in
