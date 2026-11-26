@@ -10,7 +10,7 @@
 
 ## 現在のリリース状態
 
-- 最新リリースは`0.11.0`です。デスクトップのAppImage / deb / rpm / dmg / msi / NSIS setupは[GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest)にありますが、Windows署名とmacOS notarizationは未実装です。
+- 最新リリースは`0.12.0`です。デスクトップのAppImage / deb / rpm / dmg / msi / NSIS setupは[GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest)にありますが、Windows署名とmacOS notarizationは未実装です。
 - Android / iPhone / iPadのRelease構成はSimulator / Emulatorで起動・描画確認済みです。署名済みproduction buildを物理端末へ入れた証跡ではありません。
 - App Store / Google Playの掲載文と画像はリポジトリ内で検証済みです。TestFlight、Play closed testing、ストア申告・審査は未実施です。
 - Google DriveはRESTクライアントとモバイルの一覧・ダウンロード画面までです。production OAuth、アップロード、端末間同期、競合解決はリリース未検証です。
@@ -21,14 +21,14 @@
 
 デスクトップ版は [GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest) から取得できます。
 
-- Linux: `Iroha-PDF_0.11.0_amd64.AppImage`、`.deb`、`.rpm`
-- macOS: `Iroha-PDF_0.11.0_universal.dmg`
-- Windows: `Iroha-PDF_0.11.0_x64_en-US.msi`、`Iroha-PDF_0.11.0_x64-setup.exe`
+- Linux: `Iroha-PDF_0.12.0_amd64.AppImage`、`.deb`、`.rpm`
+- macOS: `Iroha-PDF_0.12.0_universal.dmg`
+- Windows: `Iroha-PDF_0.12.0_x64_en-US.msi`、`Iroha-PDF_0.12.0_x64-setup.exe`
 
 Linuxでは [Soar](https://soar.qaidvoid.dev/) から直接入れられます。
 
 ```bash
-soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.11.0/Iroha-PDF_0.11.0_amd64.AppImage
+soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.12.0/Iroha-PDF_0.12.0_amd64.AppImage
 ```
 
 最新リリースへ追従させる場合は `~/.config/soar/packages.toml` に次を追加します。
@@ -59,6 +59,7 @@ AppImageの実行にはFUSEが必要な場合があります。配布物は未�
 - デスクトップのAcroForm入力（テキスト・チェック・ラジオ・選択）、空白ページのプレビュー付き削除、ノートとテキスト選択のリンク（ページ・矩形へジャンプ）
 - デスクトップのN-up（2/4ページ）、中綴じ冊子（両面順）、ポスター分割と、生成結果の印刷
 - 開いている文書とリンクされたメモの全文検索（ページジャンプ付き、単一文書）
+- デスクトップでPDF内のリンクを開く前の確認。`http` / `https` / `mailto` / `tel`だけを受け付け、開くURLをそのまま表示します
 - デスクトップの全ページ・現在ページ・範囲・注釈有無の印刷previewと、iOS / Androidのネイティブ印刷ダイアログ
 - PDF構造の安全な最適化
 - SQLiteによるPDF、メモ、注釈の永続化

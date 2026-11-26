@@ -10,7 +10,7 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 
 ## Current release status
 
-- The newest release is `0.11.0`. Desktop AppImage, deb, rpm, dmg, msi and NSIS setup artifacts are on [GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest), but Windows signing and macOS notarization are not implemented.
+- The newest release is `0.12.0`. Desktop AppImage, deb, rpm, dmg, msi and NSIS setup artifacts are on [GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest), but Windows signing and macOS notarization are not implemented.
 - Android, iPhone, and iPad release configurations have started and rendered in simulators or emulators. This is not evidence of installing a signed production build on a physical device.
 - App Store and Google Play listing copy and images are present and validated in the repository. TestFlight, Play closed testing, store declarations, and review have not been performed.
 - Google Drive includes a REST client and a mobile list/download screen. Production OAuth, mobile upload UI, cross-device synchronization, conflict resolution, and release qualification remain incomplete.
@@ -21,14 +21,14 @@ The public name is `Iroha PDF` and the repository is `iroha-pdf`. The earlier ca
 
 Desktop builds are published on [GitHub Releases](https://github.com/hjosugi/iroha-pdf/releases/latest).
 
-- Linux: `Iroha-PDF_0.11.0_amd64.AppImage`, `.deb`, `.rpm`
-- macOS: `Iroha-PDF_0.11.0_universal.dmg`
-- Windows: `Iroha-PDF_0.11.0_x64_en-US.msi`, `Iroha-PDF_0.11.0_x64-setup.exe`
+- Linux: `Iroha-PDF_0.12.0_amd64.AppImage`, `.deb`, `.rpm`
+- macOS: `Iroha-PDF_0.12.0_universal.dmg`
+- Windows: `Iroha-PDF_0.12.0_x64_en-US.msi`, `Iroha-PDF_0.12.0_x64-setup.exe`
 
 On Linux, [Soar](https://soar.qaidvoid.dev/) can install the AppImage directly:
 
 ```bash
-soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.11.0/Iroha-PDF_0.11.0_amd64.AppImage
+soar install https://github.com/hjosugi/iroha-pdf/releases/download/v0.12.0/Iroha-PDF_0.12.0_amd64.AppImage
 ```
 
 To follow the latest release, add this to `~/.config/soar/packages.toml`:
@@ -59,6 +59,7 @@ The AppImage may need FUSE. The packages are unsigned, so the first launch still
 - Desktop AcroForm filling (text, checkbox, radio, choice), blank-page preview and removal, and note links to text selections that jump to the page and rectangle.
 - Desktop N-up (2 or 4 pages), saddle-stitch booklet in duplex order, poster tiling, and printing the produced document.
 - Full-text search of the open document and its linked note, with page jumps (one document at a time).
+- Desktop confirmation before a link inside a PDF is opened: only `http`, `https`, `mailto`, and `tel` are accepted, and the exact URL is shown first.
 - Desktop print preview for all/current/custom pages with optional annotations, plus native iOS and Android print dialogs.
 - Safe structural PDF optimization.
 - SQLite persistence for PDFs, notes, and annotations.

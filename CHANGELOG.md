@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.12.0 - 2026-11-26
+
+A small release: one desktop safeguard, and the documentation a first-time user
+and a maintainer were each missing. Nothing about the mobile screens changed.
+
+A link inside a PDF is a URL the document chose. Left to the viewer's annotation
+plugin, navigating one would open it at once. That handler is disabled: the
+desktop now refuses anything that is not `http`, `https`, `mailto` or `tel`,
+shows the exact address in a confirmation, and opens it through the system only
+if the reader agrees. The link is made clickable in memory; the file is not
+rewritten (#264, part of #57 — engine and native process isolation are still
+open).
+
+Installing a release is written down where a reader looks for it: both READMEs
+and the build guide name the package for each platform and the Soar route for
+the Linux AppImage (#263). Publishing one is written down too. `docs/RELEASE.md`
+is a single runbook for the desktop release, the documentation site and the
+store submission that has not been run yet, and it opens with a direct link to
+every page a step is carried out on (#265).
+
+The documentation site was rebuilt around getting from one page to another.
+Every document lists the others and links to its neighbours, the landing page
+puts the common destinations first, and an issue number in the text is a link to
+that issue. Its 404 page had been rendering with no stylesheet on the published
+site, because it asked the root of the origin for one rather than the path the
+site is served from; that is fixed and checked on every build (#265).
+
+The desktop packages are still **unsigned**: macOS Gatekeeper refuses the first
+launch and Windows SmartScreen warns, because signing and notarization are
+unimplemented (#64) and `docs/RELEASE_GATE.md` still has its package, device and
+account rows pending. Check a download against `SHA256SUMS`, which records what
+CI built — it is not a signature.
+
+### Added
+
+- Desktop: a confirmation showing the exact URL before a link in a document is
+  opened; only `http`, `https`, `mailto` and `tel` are accepted (#264).
+- Installing a release, including through Soar, in both READMEs and the build
+  guide (#263).
+- `docs/RELEASE.md`, the runbook for the desktop release, the documentation site
+  and store submission (#265).
+- Documentation site: a list of every document on each page, previous and next
+  links, quick links on the landing page, and linked issue numbers (#265).
+
+### Changed
+
+- Documentation site: on a phone the contents list starts closed under the
+  title, and a two-column table wraps instead of scrolling sideways (#265).
+- The site build fails on a relative link to a file that is not in the
+  repository (#265).
+
+### Fixed
+
+- Documentation site: the 404 page loads its stylesheet and icons on the
+  published site (#265).
+- `SECURITY.md` no longer names v0.4.0 as the latest prerelease (#265).
+
 ## 0.11.0 - 2026-11-24
 
 A desktop feature release. Nothing about the mobile screens changed; the work is
