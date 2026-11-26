@@ -31,7 +31,7 @@ Iroha PDFを外へ出す経路は3つあります。この文書は、それぞ�
 
 ### 1. バージョンを上げる
 
-バージョンは`X.Y.Z`の3つ組です。次の6か所が同じ値でないと、Release workflowは最初のジョブで止まります。
+バージョンは`X.Y.Z`の3つ組です。この文書に出てくる`1.2.3`はすべて例で、実際の番号に読み替えます。次の6か所が同じ値でないと、Release workflowは最初のジョブで止まります。
 
 | ファイル | 書き換える場所 |
 |---|---|
@@ -45,7 +45,7 @@ Iroha PDFを外へ出す経路は3つあります。この文書は、それぞ�
 上の3つと`package-lock.json`は、コマンド1つで揃います。
 
 ```bash
-VERSION=0.12.0   # 例。これから出す番号に置き換える
+VERSION=1.2.3   # 例。これから出す番号に置き換える
 
 npm version "$VERSION" --no-git-tag-version --ignore-scripts \
   --workspace @iroha-pdf/desktop --workspace @iroha-pdf/mobile --include-workspace-root
@@ -68,7 +68,7 @@ grep -n -m1 '^version' apps/desktop/src-tauri/Cargo.toml
 インストール手順に書いてあるファイル名とURLも、番号を含んでいます。ひとつ前の番号で検索して書き換えます。
 
 ```bash
-git grep -n '0\.11\.0' -- README.md README.en.md docs/BUILD.md   # ひとつ前の番号で探す
+git grep -n '1\.2\.2' -- README.md README.en.md docs/BUILD.md   # 例。ひとつ前の番号で探す
 ```
 
 ### 2. 変更履歴に節を足す
@@ -76,7 +76,7 @@ git grep -n '0\.11\.0' -- README.md README.en.md docs/BUILD.md   # ひとつ前�
 [`CHANGELOG.md`](../CHANGELOG.md)の先頭に、次の形の見出しで節を足します。日付は`YYYY-MM-DD`です。
 
 ```text
-## 0.12.0 - 2026-12-01
+## 1.2.3 - 2026-12-01
 ```
 
 Release workflowはこの見出しを探し、次の`## `までをそのままリリースノートにします。見出しの形が違うと検証で止まります。パッケージが未署名であることと`SHA256SUMS`の使い方は、workflowがノートの末尾へ自動で足します。
@@ -112,7 +112,7 @@ gh run watch                                             # 実行中のものを
 | 入力欄 | 入れる値 |
 |---|---|
 | Use workflow from | `main` |
-| Version to release | `0.12.0`のように、先頭の`v`なしで |
+| Version to release | `1.2.3`のように、先頭の`v`なしで |
 | Mark as a pre-release | 下の説明を読んで選ぶ |
 
 `Mark as a pre-release`は最初からオンになっていて、入力欄の説明も「Release gateがblockedの間はオンのまま」と勧めています。ただしオンのまま出すと、GitHubはその版を「最新リリース」として扱いません。READMEとこのサイトのダウンロードリンクは[`/releases/latest`](https://github.com/hjosugi/iroha-pdf/releases/latest)を指しているので、新しい版がそこに出てこなくなります。v0.5.0以降はオフにして公開しています。
@@ -153,10 +153,10 @@ gh release download "v$VERSION" --dir "/tmp/iroha-$VERSION" \
 
 | 出るメッセージや状況 | 原因と対処 |
 |---|---|
-| `declares 0.11.0, expected 0.12.0` | 書き換え忘れたファイルがある。手順1の確認コマンドで探す |
-| `no '## 0.12.0 - YYYY-MM-DD' heading` | 変更履歴の見出しがないか、形が違う |
+| `declares 1.2.2, expected 1.2.3` | 書き換え忘れたファイルがある。手順1の確認コマンドで探す |
+| `no '## 1.2.3 - YYYY-MM-DD' heading` | 変更履歴の見出しがないか、形が違う |
 | `required check '…' is missing`、`still in_progress`、`failure` | `main`のCIが終わっていないか、失敗している。緑にしてから実行し直す |
-| `v0.12.0 is already released`、`tag v0.12.0 already exists` | 同じ番号では出し直せない。番号を上げる |
+| `v1.2.3 is already released`、`tag v1.2.3 already exists` | 同じ番号では出し直せない。番号を上げる |
 | `the release would be missing *.dmg`など | どれかのOSでパッケージができていない。Bundleジョブのログを見る |
 | 公開したあとで問題が見つかった | リリースやタグを消して作り直さず、直した版を次の番号で出す |
 
