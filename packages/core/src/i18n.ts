@@ -169,6 +169,11 @@ const MESSAGES = {
   'search.page': { ja: '{page}ページ目', en: 'Page {page}' },
   'search.failed': { ja: '文書のテキストを読み取れませんでした。', en: 'The document text could not be read.' },
 
+  // A PDF is untrusted, so a link asks before it leaves the app (#57).
+  'link.confirmTitle': { ja: 'リンクを開きますか？', en: 'Open this link?' },
+  'link.confirmBody': { ja: 'このPDFが {url} を開こうとしています。信頼できる文書の場合だけ続行してください。', en: 'This PDF wants to open {url}. Continue only if you trust the document.' },
+  'link.open': { ja: '開く', en: 'Open' },
+
   'print.open': { ja: '印刷', en: 'Print' },
   'print.dialogTitle': { ja: 'PDFを印刷', en: 'Print PDF' },
   'print.openPreview': { ja: '印刷プレビューを開く', en: 'Open print preview' },

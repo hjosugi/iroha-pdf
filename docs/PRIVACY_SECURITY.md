@@ -96,6 +96,16 @@ not be executed if it were.
 Recheck this when the engine is upgraded. A future `@embedpdf/pdfium` built with V8
 would change the answer silently, and the same string search settles it in a minute.
 
+### External links
+
+A link annotation is a URL the document chose, so it is treated as untrusted input.
+The desktop checks the scheme before anything else — only `http:`, `https:`,
+`mailto:` and `tel:` are accepted — then shows the exact URL in a confirmation
+dialog and opens it through the OS opener only if the reader agrees. The annotation
+plugin's own handler, which would call `window.open` as soon as a link is navigated,
+is disabled. The link is made clickable in memory only; the document is not
+rewritten.
+
 ## Threat model
 
 ### Assets and trust boundaries
@@ -117,8 +127,8 @@ first column.
 
 | Threat | Impact | In place | Required before a hardened release |
 |---|---|---|---|
-| Malformed or decompression-bomb PDF | crash, OOM, native-code exploit | mobile refuses flatten/print over 64 MiB before allocating in JS memory; malicious-fixture suite (encrypted refused visibly, broken cross-reference repaired, AcroForm preserved through a round trip); vendored engine patches verified in CI | byte budget on rendered pages — `BoundedLruCache` exists with tests but has no caller, so it bounds nothing today (#52, #18); a processing timeout, which does not exist; sandboxing (#57) |
-| PDF JavaScript or external link | unexpected execution or exfiltration | the bundled pdfium has no JavaScript engine — see below — and nothing in either application reads or runs a document's scripts | make external navigation an explicit user action |
+| Malformed or decompression-bomb PDF | crash, OOM, native-code exploit | mobile refuses flatten/print over 64 MiB before allocating in JS memory; malicious-fixture suite (encrypted refused visibly, broken cross-reference repaired, AcroForm preserved through a round trip); rendered pages are held to an 8 MiB byte-budgeted LRU with a caller and pressure tests (#52, #18); vendored engine patches verified in CI | a processing timeout, which does not exist; engine/native process isolation (#57) |
+| PDF JavaScript or external link | unexpected execution or exfiltration | the bundled pdfium has no JavaScript engine — see above — and nothing in either application reads or runs a document's scripts; external links are scheme-checked, confirmed with the exact URL, and opened through the OS opener, with the plugin's silent `window.open` disabled | engine process isolation (#57) |
 | Path traversal / unsafe output name | overwrite or disclose local files | mobile writes only into app-private directories; desktop output names come from the dialog, and the two names a save derives are validated in Rust against the picked path before the scope is widened | never trusting a file name embedded in a document, which nothing reads yet |
 | OAuth token disclosure | Drive account access | scopes limited to `drive.file` and `drive.appdata`; no connect action offered when no client ID is configured | secure storage, PKCE/system browser (#32), token and log redaction, revoke on disconnect — none exercised, because nothing has talked to Google yet (#31) |
 | Silent Drive conflict overwrite | user data loss | — | revision precondition, durable queue, conflict copy, explicit resolution. `DurableSyncQueue` exists with tests and no caller; upload is not wired to any screen; the resolution UI is #39. |

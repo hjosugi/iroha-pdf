@@ -62,7 +62,7 @@ export function App() {
         extraRings: 0,
       }),
       createPluginRegistration(SelectionPluginPackage),
-      createPluginRegistration(AnnotationPluginPackage),
+      createPluginRegistration(AnnotationPluginPackage, { autoOpenLinks: false }),
       createPluginRegistration(HistoryPluginPackage),
       createPluginRegistration(ExportPluginPackage),
       createPluginRegistration(PrintPluginPackage),

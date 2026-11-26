@@ -30,6 +30,7 @@ import { PdfToolbar } from './PdfToolbar';
 import { SidePanel } from './SidePanel';
 import { confirmDiscard } from './file-bridge';
 import { forgetDocument, getDocumentFile, hasUnsavedEdits, isRegistered } from './document-store';
+import { ExternalLinkGuard } from './ExternalLinkGuard';
 import {
   useDeleteSelected,
   useDocumentFile,
@@ -449,6 +450,7 @@ function ActiveDocument({ documentId, documentName }: { documentId: string; docu
   return (
     <>
       <PdfToolbar documentId={documentId} documentName={documentName} />
+      <ExternalLinkGuard documentId={documentId} />
       <AutosaveBanner documentId={documentId} />
       <RecoveryBanner documentId={documentId} />
     </>
