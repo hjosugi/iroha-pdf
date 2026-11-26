@@ -199,11 +199,15 @@ APPLY=1 scripts/github/protect-main.sh
 
 ## Cutting a release
 
-Bump every version marker, add the dated `CHANGELOG.md` section, merge to
-`main`, and dispatch the Release workflow. It verifies the protected checks on
-the exact commit, runs the three explicit Frost packaging targets, assembles
-`SHA256SUMS`, then publishes the draft. The tag is created only at publication,
-so a failed build or upload leaves no release tag.
+The step-by-step runbook, with a direct link for every step, is
+[RELEASE.md](RELEASE.md) (in Japanese). In outline: bump every version marker,
+add the dated `CHANGELOG.md` section, merge to `main`, wait for CI on that
+commit, and dispatch the
+[Release workflow](https://github.com/hjosugi/iroha-pdf/actions/workflows/release.yml).
+It verifies the protected checks on the exact commit, runs the three explicit
+Frost packaging targets, assembles `SHA256SUMS`, then publishes the draft. The
+tag is created only at publication, so a failed build or upload leaves no
+release tag.
 
 Desktop packages remain unsigned until issue #64 is complete. A checksum proves
 the downloaded bytes match CI; it is not code signing or notarization.

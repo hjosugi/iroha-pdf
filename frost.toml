@@ -727,6 +727,10 @@ sandbox = false
 # or a missing /privacy/ page. Its inputs are the documents it publishes, so
 # editing one reruns this and nothing else. `site/dist/` is deliberately absent:
 # the gate builds its own copy and never reads a checked-out output tree.
+#
+# The build also fails when a document links, by path, to a repository file that
+# does not exist. The files currently linked that way are listed after the
+# documents, so removing one reruns the gate instead of leaving a cached pass.
 [target.iroha-pdf-site-build]
 kind = "test"
 tool = "node"
@@ -741,11 +745,17 @@ inputs = [
   "assets/branding/iroha-icon.svg",
   "docs/*.md",
   "package.json",
+  "site/*.mjs",
   "site/assets/site.css",
-  "site/build.mjs",
-  "site/catalog.mjs",
-  "site/markdown.mjs",
-  "site/verify.mjs",
+  ".github/workflows/*.yml",
+  "apps/desktop/package.json",
+  "apps/desktop/src-tauri/Cargo.toml",
+  "apps/desktop/src-tauri/tauri.conf.json",
+  "apps/mobile/app.json",
+  "apps/mobile/package.json",
+  "issues/ISSUES.md",
+  "release/mobile/README.md",
+  "release/store/README.md",
 ]
 env = { CI = "true" }
 pass_env = [

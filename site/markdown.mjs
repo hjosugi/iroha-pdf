@@ -11,7 +11,8 @@
  *
  *   ATX headings, fenced code, GFM tables, ordered/unordered/nested lists,
  *   GFM task-list items, thematic breaks, paragraphs, and the inline set
- *   `code`, **strong**, *emphasis*, [links](target) and bare http(s) URLs.
+ *   `code`, **strong**, *emphasis*, [links](target), bare http(s) URLs and,
+ *   when the caller supplies `issueUrl`, bare `#123` issue references.
  *
  * Two omissions are on purpose. `_underscore_` emphasis is not supported
  * because the documents are full of identifiers like `PRIVACY_POLICY.md` and
@@ -100,10 +101,23 @@ function matchLink(source, start) {
 // Trailing punctuation is excluded so "see https://example.com." does not swallow the period.
 const AUTOLINK = /^https?:\/\/[^\s<>`]*[^\s<>`.,;:!?)\]'"]/;
 
-function anchor(href, inner) {
+function anchor(href, inner, className = '') {
+  const classAttribute = className ? ` class="${className}"` : '';
   const rel = isExternal(href) ? ' rel="noopener noreferrer"' : '';
-  return `<a href="${escapeHtml(href)}"${rel}>${inner}</a>`;
+  return `<a${classAttribute} href="${escapeHtml(href)}"${rel}>${inner}</a>`;
 }
+
+/**
+ * `#123`, as GitHub writes an issue or pull request. GitHub links these in a
+ * comment but not in a Markdown file, so in the repository they are plain text
+ * and on the site they can be one click away.
+ *
+ * Bounded on both sides so that a colour (`#2B5CFF`), an anchor inside a URL
+ * and an identifier like `C#7` are left alone. The right-hand boundary is ASCII
+ * on purpose: Japanese prose puts a kana straight after the number (`#25の`).
+ */
+const ISSUE_REFERENCE = /^#(\d{1,5})(?![A-Za-z0-9_])/;
+const BEFORE_ISSUE_REFERENCE = /[A-Za-z0-9_&/#]/;
 
 /** Applied only to already-escaped plain text, never across a code span. */
 function emphasise(escaped) {
@@ -112,7 +126,17 @@ function emphasise(escaped) {
     .replace(/\*(\S(?:[^*]*\S)?)\*/g, '<em>$1</em>');
 }
 
+/**
+ * @param {string} source Inline Markdown.
+ * @param {object} [context]
+ * @param {(target: string) => string} [context.resolveHref] Rewrites a link target.
+ * @param {(number: string) => string} [context.issueUrl] Where `#123` points; absent, it stays text.
+ * @param {boolean} [context.linkless] Render link labels and URLs as text. For
+ *   text that is already inside an anchor, where a second one would be invalid
+ *   HTML that browsers repair by splitting the outer link in two.
+ */
 export function renderInline(source, context = {}) {
+  const labelContext = context.linkless ? context : { ...context, linkless: true };
   let html = '';
   let pending = '';
   let index = 0;
@@ -147,23 +171,48 @@ export function renderInline(source, context = {}) {
 
     if (character === '[') {
       const link = matchLink(source, index);
+      if (link && context.linkless) {
+        flush();
+        html += renderInline(link.label, labelContext);
+        index = link.end;
+        continue;
+      }
       if (link) {
         const resolved = context.resolveHref ? context.resolveHref(link.target) : link.target;
         const href = safeHref(resolved);
         if (href) {
           flush();
-          html += anchor(href, renderInline(link.label, context));
+          html += anchor(href, renderInline(link.label, labelContext));
           index = link.end;
           continue;
         }
       }
     }
 
-    if (character === 'h' && (source.startsWith('http://', index) || source.startsWith('https://', index))) {
+    if (
+      !context.linkless &&
+      character === 'h' &&
+      (source.startsWith('http://', index) || source.startsWith('https://', index))
+    ) {
       const match = AUTOLINK.exec(source.slice(index));
       if (match) {
         flush();
         html += anchor(match[0], escapeHtml(match[0]));
+        index += match[0].length;
+        continue;
+      }
+    }
+
+    if (
+      character === '#' &&
+      context.issueUrl &&
+      !context.linkless &&
+      !BEFORE_ISSUE_REFERENCE.test(source[index - 1] ?? '')
+    ) {
+      const match = ISSUE_REFERENCE.exec(source.slice(index));
+      if (match) {
+        flush();
+        html += anchor(context.issueUrl(match[1]), escapeHtml(match[0]), 'issue-ref');
         index += match[0].length;
         continue;
       }
@@ -279,7 +328,7 @@ function renderNodes(nodes, context) {
 
 /**
  * @param {string} source Markdown text.
- * @param {{resolveHref?: (target: string) => string}} [context]
+ * @param {{resolveHref?: (target: string) => string, issueUrl?: (number: string) => string}} [context]
  * @returns {{html: string, title: string|null, headings: Array<{level: number, id: string, text: string}>}}
  */
 export function renderMarkdown(source, context = {}) {
@@ -375,8 +424,11 @@ export function renderMarkdown(source, context = {}) {
               .join('')}</tr>`,
         )
         .join('\n');
+      // The column count is a class so the stylesheet can let a two-column
+      // table wrap on a phone while a wide one keeps its width and scrolls.
       html.push(
-        `<div class="table-scroll"><table>\n<thead><tr>${head}</tr></thead>\n<tbody>\n${body}\n</tbody>\n</table></div>`,
+        `<div class="table-scroll"><table class="columns-${header.length}">\n`
+          + `<thead><tr>${head}</tr></thead>\n<tbody>\n${body}\n</tbody>\n</table></div>`,
       );
       continue;
     }
